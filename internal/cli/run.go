@@ -94,6 +94,7 @@ func finishRun(ctx context.Context, env Env, id, jpath string, pr *printer, out 
 		}
 		return 0
 	}
+	pr.ensureOutNL()
 	if isInterrupt(ctx, err) {
 		fmt.Fprintf(env.Stderr, "interrupted, resume with: hp resume %s\n", id)
 		return 130

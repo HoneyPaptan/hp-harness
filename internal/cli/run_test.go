@@ -221,3 +221,17 @@ func TestRunNoSkillTool(t *testing.T) {
 }
 
 var _ provider.Provider = blockProvider{}
+
+func TestRunInterruptEndsStdoutLine(t *testing.T) {
+	h := host.NewMemory()
+	turn := fake.Turn{Events: []provider.Event{{Kind: provider.EventText, Text: "partial"}}, Err: context.Canceled}
+	fp := &fake.Provider{Turns: []fake.Turn{turn}}
+	env, stdout, _ := testEnv(t, h, fp, nil)
+	env.Args = []string{"run", "-m", "xai/grok", "x"}
+	if code := Main(context.Background(), env); code != 130 {
+		t.Fatalf("code %d", code)
+	}
+	if stdout.String() != "partial\n" {
+		t.Fatalf("stdout %q", stdout.String())
+	}
+}
