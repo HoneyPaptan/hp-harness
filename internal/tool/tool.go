@@ -35,7 +35,7 @@ type Tool struct {
 }
 
 func Builtins() []Tool {
-	return []Tool{readTool, writeTool, editTool}
+	return []Tool{readTool, writeTool, editTool, bashTool}
 }
 
 func errorf(format string, a ...any) Result {
