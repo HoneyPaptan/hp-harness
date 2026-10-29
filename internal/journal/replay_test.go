@@ -167,6 +167,14 @@ func TestReplay(t *testing.T) {
 		}
 	})
 
+	t.Run("attach result merges", func(t *testing.T) {
+		msgs := []provider.Message{{Role: provider.RoleUser, ToolResults: []provider.ToolResult{{CallID: "a"}}}}
+		msgs = AttachResult(msgs, provider.ToolResult{CallID: "b"})
+		if len(msgs) != 1 || len(msgs[0].ToolResults) != 2 {
+			t.Fatalf("msgs %#v", msgs)
+		}
+	})
+
 	t.Run("unknown type", func(t *testing.T) {
 		recs := writeTwoSteps(t)
 		recs = append(recs, Record{Seq: 99, Type: Type("nope"), Data: json.RawMessage(`{}`)})

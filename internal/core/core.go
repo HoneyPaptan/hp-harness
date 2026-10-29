@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	ReasonFinal     = "final"
-	ReasonStepLimit = "step_limit"
+	ReasonFinal      = "final"
+	ReasonStepLimit  = "step_limit"
 	defaultStepLimit = 50
 )
 
@@ -27,7 +27,7 @@ type Deps struct {
 
 type Config struct {
 	RunID, Model, System, Dir, JournalPath, Prompt string
-	StepLimit, MaxTokens                            int
+	StepLimit, MaxTokens                           int
 }
 
 type Outcome struct {

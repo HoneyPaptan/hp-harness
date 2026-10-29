@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
@@ -52,22 +53,7 @@ func (r *runner) invoke(ctx context.Context, env tool.Env, call provider.ToolCal
 
 func appendResults(msgs []provider.Message, results []provider.ToolResult) []provider.Message {
 	for _, tr := range results {
-		msgs = mergeResult(msgs, tr)
+		msgs = journal.AttachResult(msgs, tr)
 	}
 	return msgs
-}
-
-func mergeResult(msgs []provider.Message, tr provider.ToolResult) []provider.Message {
-	n := len(msgs)
-	if n > 0 {
-		last := msgs[n-1]
-		if last.Role == provider.RoleUser && last.Text == "" && len(last.ToolResults) > 0 {
-			last.ToolResults = append(last.ToolResults, tr)
-			msgs[n-1] = last
-			return msgs
-		}
-	}
-	return append(msgs, provider.Message{
-		Role: provider.RoleUser, ToolResults: []provider.ToolResult{tr},
-	})
 }

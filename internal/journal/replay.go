@@ -129,6 +129,10 @@ func (r *replayer) applyRunEnd(rec Record) error {
 	return nil
 }
 
+func AttachResult(msgs []provider.Message, tr provider.ToolResult) []provider.Message {
+	return attachResult(msgs, tr)
+}
+
 func attachResult(msgs []provider.Message, tr provider.ToolResult) []provider.Message {
 	n := len(msgs)
 	if n > 0 {
