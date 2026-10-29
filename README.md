@@ -43,6 +43,7 @@ export OPENCODE_API_KEY=...
 | `opencode` | `https://opencode.ai/inference/openai/v1` | `OPENCODE_API_KEY` |
 | `xai` | `https://api.x.ai/v1` | `XAI_API_KEY` |
 | `openrouter` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` |
+| `groq` | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` |
 | `ollama` | `http://127.0.0.1:11434/v1` | none |
 
 Any other OpenAI compatible server works with `--base-url` and `--key-env`. `HP_MODEL` sets a default model.

@@ -15,6 +15,7 @@ var presets = map[string]presetDef{
 	"opencode":   {baseURL: "https://opencode.ai/inference/openai/v1", keyEnv: "OPENCODE_API_KEY"},
 	"xai":        {baseURL: "https://api.x.ai/v1", keyEnv: "XAI_API_KEY"},
 	"openrouter": {baseURL: "https://openrouter.ai/api/v1", keyEnv: "OPENROUTER_API_KEY"},
+	"groq":       {baseURL: "https://api.groq.com/openai/v1", keyEnv: "GROQ_API_KEY"},
 	"ollama":     {baseURL: "http://127.0.0.1:11434/v1", keyEnv: ""},
 }
 

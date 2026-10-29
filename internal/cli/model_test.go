@@ -12,7 +12,7 @@ func getenvMap(m map[string]string) func(string) string {
 
 func TestResolveEndpoint(t *testing.T) {
 	env := getenvMap(map[string]string{
-		"XAI_API_KEY": "k", "OPENCODE_API_KEY": "o", "OPENROUTER_API_KEY": "r",
+		"XAI_API_KEY": "k", "OPENCODE_API_KEY": "o", "OPENROUTER_API_KEY": "r", "GROQ_API_KEY": "g",
 	})
 	cases := []struct {
 		name    string
@@ -30,6 +30,10 @@ func TestResolveEndpoint(t *testing.T) {
 		{
 			name: "openrouter slash", model: "openrouter/anthropic/claude-x", getenv: env,
 			want: Endpoint{Preset: "openrouter", Model: "anthropic/claude-x", BaseURL: "https://openrouter.ai/api/v1", KeyEnv: "OPENROUTER_API_KEY", APIKey: "r"},
+		},
+		{
+			name: "groq slash model", model: "groq/openai/gpt-oss-120b", getenv: env,
+			want: Endpoint{Preset: "groq", Model: "openai/gpt-oss-120b", BaseURL: "https://api.groq.com/openai/v1", KeyEnv: "GROQ_API_KEY", APIKey: "g"},
 		},
 		{
 			name: "ollama no key", model: "ollama/llama3", getenv: env,
