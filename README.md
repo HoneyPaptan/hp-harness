@@ -2,7 +2,7 @@
 
 A small, fast coding agent for the terminal, built so a run never dies.
 
-> Early work in progress. Not usable yet.
+> Early work in progress. Runs, journals and resumes today; limit waits, the background daemon and `hp attach` are next.
 
 ## Why
 
@@ -23,10 +23,33 @@ Coding agents stop when you hit a usage limit, close the laptop or lose SSH. hp 
 
 ```
 make build
-./hp
 ```
 
 Requires Go 1.27 or newer.
+
+## Use
+
+```
+export OPENCODE_API_KEY=...
+./hp run -m opencode/grok-4.6 "find the TODOs in this repo and fix the easy ones"
+./hp runs
+./hp resume <run-id>
+```
+
+`-m` takes `preset/model`. Presets:
+
+| Preset | Endpoint | Key |
+| --- | --- | --- |
+| `opencode` | `https://opencode.ai/inference/openai/v1` | `OPENCODE_API_KEY` |
+| `xai` | `https://api.x.ai/v1` | `XAI_API_KEY` |
+| `openrouter` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` |
+| `ollama` | `http://127.0.0.1:11434/v1` | none |
+
+Any other OpenAI compatible server works with `--base-url` and `--key-env`. `HP_MODEL` sets a default model.
+
+Text streams to stdout, tool calls print one line each to stderr, and a summary line ends the run. Press Ctrl-C at any time: the run stays resumable. Journals live in `~/.local/state/hp/runs`.
+
+Built-in tools: `read`, `write`, `edit`, `bash`, `grep`. Skills are folders with a `SKILL.md` in `.hp/skills`, `.claude/skills` or `~/.config/hp/skills`; the model sees their names and loads one with the `skill` tool when it needs it.
 
 ## License
 
