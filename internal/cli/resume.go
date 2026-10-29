@@ -30,11 +30,11 @@ func resumeRun(ctx context.Context, env Env, id string) int {
 	if err != nil {
 		return exitUsage(env, usagef("run %q not found", id))
 	}
-	ep, err := endpointFromStart(start, env.Getenv)
+	ep, bySpec, err := resolveResumeSpecs(start, env.Getenv)
 	if err != nil {
 		return exitUsage(env, err)
 	}
-	out, pr, err := execResume(ctx, env, ep, start, jpath, id)
+	out, pr, err := execResume(ctx, env, ep, bySpec, start, jpath, id)
 	return finishResume(ctx, env, id, jpath, pr, out, err)
 }
 
@@ -43,16 +43,13 @@ func endpointFromStart(st journal.RunStart, getenv func(string) string) (Endpoin
 	return applyKey(ep, getenv)
 }
 
-func execResume(ctx context.Context, env Env, ep Endpoint, start journal.RunStart, jpath, id string) (core.Outcome, *printer, error) {
+func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, start journal.RunStart, jpath, id string) (core.Outcome, *printer, error) {
 	skills, err := discoverSkills(env, start.Dir)
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
 	pr := newPrinter(env, id)
-	deps := core.Deps{
-		Host: env.Host, Provider: env.NewProvider(ep), Tools: buildRegistry(skills),
-		Observer: pr.observer(),
-	}
+	deps := runDeps(env, ep, bySpec, skills, pr)
 	out, err := core.Resume(ctx, deps, jpath)
 	return out, pr, err
 }

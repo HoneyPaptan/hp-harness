@@ -16,6 +16,78 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/provider/fake"
 )
 
+func TestRunLimitWaitLine(t *testing.T) {
+	h := host.NewMemory()
+	fp := &fake.Provider{Turns: []fake.Turn{
+		{Err: &provider.RateLimitError{RetryAfter: 30 * time.Second}},
+		fake.TextTurn("ok"),
+	}}
+	env, _, stderr := testEnv(t, h, fp, nil)
+	env.Args = []string{"run", "-m", "xai/grok", "go"}
+	if code := Main(context.Background(), env); code != 0 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	want := "limited on xai/grok, waiting 30s until "
+	if !strings.Contains(stderr.String(), want) {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestRunLimitSwitchLine(t *testing.T) {
+	h := host.NewMemory()
+	primary := &fake.Provider{Turns: []fake.Turn{
+		{Err: &provider.RateLimitError{RetryAfter: 5 * time.Minute}},
+	}}
+	fb := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("ok")}}
+	env, _, stderr := testEnv(t, h, primary, map[string]string{"GROQ_API_KEY": "g"})
+	env.NewProvider = func(ep Endpoint) provider.Provider {
+		if ep.Preset == "groq" {
+			return fb
+		}
+		return primary
+	}
+	env.Args = []string{"run", "-m", "xai/grok", "--fallback", "groq/fb", "go"}
+	if code := Main(context.Background(), env); code != 0 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "switching from xai/grok to groq/fb") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestRunLimitTooLongExit4(t *testing.T) {
+	h := host.NewMemory()
+	fp := &fake.Provider{Turns: []fake.Turn{
+		{Err: &provider.RateLimitError{RetryAfter: 7 * time.Hour}},
+	}}
+	env, _, stderr := testEnv(t, h, fp, nil)
+	env.Args = []string{"run", "-m", "xai/grok", "go"}
+	if code := Main(context.Background(), env); code != 4 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "error:") || !strings.Contains(stderr.String(), "resume with: hp resume") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestRunMissingFallbackKeyNoJournal(t *testing.T) {
+	h := host.NewMemory()
+	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("x")}}
+	env, _, stderr := testEnv(t, h, fp, map[string]string{"GROQ_API_KEY": ""})
+	env.Args = []string{"run", "-m", "xai/grok", "--fallback", "groq/fb", "hi"}
+	if code := Main(context.Background(), env); code != 2 {
+		t.Fatalf("code %d", code)
+	}
+	if !strings.Contains(stderr.String(), "GROQ_API_KEY") {
+		t.Fatal(stderr.String())
+	}
+	dir := runsDir(env.Getenv)
+	ents, _ := h.ReadDir(dir)
+	if len(ents) != 0 {
+		t.Fatalf("runs %d", len(ents))
+	}
+}
+
 func testEnv(t *testing.T, h *host.Memory, fp *fake.Provider, extra map[string]string) (Env, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}

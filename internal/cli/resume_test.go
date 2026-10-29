@@ -13,6 +13,67 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/provider/fake"
 )
 
+func TestResumeReusesFallbackSwitch(t *testing.T) {
+	h := host.NewMemory()
+	primary := &fake.Provider{Turns: []fake.Turn{
+		{Err: &provider.RateLimitError{RetryAfter: 5 * time.Minute}},
+	}}
+	fb := &fake.Provider{Turns: []fake.Turn{{Err: context.Canceled}}}
+	pick := func(ep Endpoint) provider.Provider {
+		if ep.Preset == "groq" {
+			return fb
+		}
+		return primary
+	}
+	env, _, stderr := testEnv(t, h, primary, map[string]string{"GROQ_API_KEY": "g"})
+	env.NewProvider = pick
+	env.Args = []string{"run", "-m", "xai/grok", "--fallback", "groq/fb", "go"}
+	if code := Main(context.Background(), env); code != 130 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	id := parseResumeID(stderr.String())
+	fb = &fake.Provider{Turns: []fake.Turn{fake.TextTurn("done")}}
+	env.NewProvider = pick
+	env.Args = []string{"resume", id}
+	stderr.Reset()
+	if code := Main(context.Background(), env); code != 0 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	if len(fb.Requests) != 1 || fb.Requests[0].Model != "fb" {
+		t.Fatalf("fb reqs %+v", fb.Requests)
+	}
+}
+
+func TestResumeLimitTooLongExit4(t *testing.T) {
+	h := host.NewMemory()
+	id := "limrun"
+	getenv := getenvMap(map[string]string{"HOME": "/home/t", "XDG_STATE_HOME": "/state", "XAI_API_KEY": "key"})
+	jpath := filepath.Join(runsDir(getenv), id+".jsonl")
+	start := journal.RunStart{
+		RunID: id, Model: "grok", System: "s", Dir: "/w", StepLimit: 50,
+		Preset: "xai", BaseURL: "https://api.x.ai/v1", KeyEnv: "XAI_API_KEY",
+		MaxWait: time.Hour,
+	}
+	w, err := journal.Create(h, jpath, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.User("go"); err != nil {
+		t.Fatal(err)
+	}
+	fp := &fake.Provider{Turns: []fake.Turn{
+		{Err: &provider.RateLimitError{RetryAfter: 7 * time.Hour}},
+	}}
+	env, _, stderr := testEnv(t, h, fp, nil)
+	env.Args = []string{"resume", id}
+	if code := Main(context.Background(), env); code != 4 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "resume with: hp resume "+id) {
+		t.Fatal(stderr.String())
+	}
+}
+
 func TestResumeInterrupted(t *testing.T) {
 	h := host.NewMemory()
 	block := blockProvider{}

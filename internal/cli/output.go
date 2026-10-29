@@ -28,7 +28,20 @@ func (p *printer) observer() core.Observer {
 	return core.Observer{
 		OnTurnStart: p.onTurnStart, OnEvent: p.onEvent,
 		OnToolStart: p.onToolStart, OnToolResult: p.onToolResult,
+		OnWait: p.onWait, OnSwitch: p.onSwitch,
 	}
+}
+
+func (p *printer) onWait(spec string, d time.Duration, until time.Time) {
+	p.ensureOutNL()
+	sec := d.Round(time.Second)
+	local := until.In(time.Local).Format("15:04:05")
+	fmt.Fprintf(p.env.Stderr, "limited on %s, waiting %s until %s\n", spec, sec, local)
+}
+
+func (p *printer) onSwitch(from, to string) {
+	p.ensureOutNL()
+	fmt.Fprintf(p.env.Stderr, "switching from %s to %s\n", from, to)
 }
 
 func (p *printer) onTurnStart() {
