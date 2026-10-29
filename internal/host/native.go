@@ -57,13 +57,20 @@ func (Native) ReadDir(path string) ([]Entry, error) {
 	}
 	out := make([]Entry, 0, len(entries))
 	for _, e := range entries {
-		info, err := e.Info()
+		info, err := entryInfo(path, e)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		out = append(out, entryFromFileInfo(e.Name(), info))
 	}
 	return out, nil
+}
+
+func entryInfo(dir string, e os.DirEntry) (fs.FileInfo, error) {
+	if e.Type()&fs.ModeSymlink != 0 {
+		return os.Stat(filepath.Join(dir, e.Name()))
+	}
+	return e.Info()
 }
 
 func (Native) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) {

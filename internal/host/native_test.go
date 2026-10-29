@@ -195,3 +195,24 @@ func TestNativeExec(t *testing.T) {
 		}
 	})
 }
+
+func TestNativeReadDirFollowsSymlinks(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "gone"), filepath.Join(dir, "dangling")); err != nil {
+		t.Fatal(err)
+	}
+	ents, err := Native{}.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ents) != 2 || ents[0].Name != "link" || !ents[0].IsDir || ents[1].Name != "target" {
+		t.Fatalf("entries %+v", ents)
+	}
+}
