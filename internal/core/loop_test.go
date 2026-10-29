@@ -142,6 +142,7 @@ func TestObserverNilSafe(t *testing.T) {
 	o.emitToolStart(provider.ToolCall{})
 	o.emitToolResult(provider.ToolResult{})
 	o.emitWait("x", 0, hNow())
+	o.emitSwitch("a", "b")
 }
 
 func hNow() time.Time {

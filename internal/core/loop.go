@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
@@ -19,14 +20,18 @@ type runner struct {
 	spec     string
 	reqModel string
 	prov     provider.Provider
+	limited  map[string]time.Time
 }
 
-func newRunner(d Deps, w *journal.Writer, c Config, msgs []provider.Message, limit int) *runner {
-	r := &runner{deps: d, w: w, cfg: c, msgs: msgs, limit: limit}
-	r.prov = d.Provider
-	r.reqModel = c.Model
-	r.spec = modelSpec(c)
-	return r
+func newRunner(d Deps, w *journal.Writer, c Config, msgs []provider.Message, limit int) (*runner, error) {
+	r := &runner{
+		deps: d, w: w, cfg: c, msgs: msgs, limit: limit,
+		limited: make(map[string]time.Time),
+	}
+	if err := r.bindSpec(d, modelSpec(c)); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (r *runner) run(ctx context.Context) (Outcome, error) {
@@ -58,7 +63,6 @@ func (r *runner) turn(ctx context.Context) (Outcome, bool, error) {
 
 func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
 	limitN := 0
-	spec := r.spec
 	for {
 		msg, u, err := r.streamTurn(ctx)
 		if err == nil {
@@ -70,8 +74,7 @@ func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
 		if !errors.As(err, &rl) {
 			return provider.Message{}, err
 		}
-		delay := limitDelay(rl, &limitN)
-		if err := r.waitLimit(ctx, spec, delay); err != nil {
+		if err := r.handleRateLimit(ctx, rl, &limitN); err != nil {
 			return provider.Message{}, err
 		}
 	}

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
@@ -19,7 +20,10 @@ func Resume(ctx context.Context, d Deps, journalPath string) (Outcome, error) {
 	if st.Finished {
 		return Outcome{}, ErrFinished
 	}
-	r := newResumeRunner(d, w, journalPath, st)
+	r, err := newResumeRunner(d, w, journalPath, st)
+	if err != nil {
+		return Outcome{}, err
+	}
 	if err := r.settlePending(ctx, st.Pending); err != nil {
 		return Outcome{}, err
 	}
@@ -41,24 +45,29 @@ func openJournal(h host.Host, path string) (*journal.Writer, journal.State, erro
 	return w, st, nil
 }
 
-func newResumeRunner(d Deps, w *journal.Writer, path string, st journal.State) *runner {
+func newResumeRunner(d Deps, w *journal.Writer, path string, st journal.State) (*runner, error) {
 	cfg := Config{
 		RunID: st.Start.RunID, Model: st.Start.Model, System: st.Start.System,
 		Dir: st.Start.Dir, JournalPath: path, StepLimit: st.Start.StepLimit,
 		Preset: st.Start.Preset, BaseURL: st.Start.BaseURL, KeyEnv: st.Start.KeyEnv,
-		MaxTokens: st.Start.MaxTokens,
-		Fallbacks: append([]string(nil), st.Start.Fallbacks...),
+		MaxTokens:   st.Start.MaxTokens,
+		Fallbacks:   append([]string(nil), st.Start.Fallbacks...),
 		SwitchAfter: st.Start.SwitchAfter, MaxWait: st.Start.MaxWait,
+	}
+	spec := st.Current
+	if spec == "" {
+		spec = modelSpec(cfg)
 	}
 	r := &runner{
 		deps: d, w: w, cfg: cfg,
 		msgs:  append([]provider.Message(nil), st.Messages...),
 		steps: st.Steps, limit: st.Start.StepLimit,
+		limited: make(map[string]time.Time),
 	}
-	r.prov = d.Provider
-	r.reqModel = st.Start.Model
-	r.spec = modelSpec(cfg)
-	return r
+	if err := r.bindSpec(d, spec); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (r *runner) settlePending(ctx context.Context, pending []journal.Pending) error {

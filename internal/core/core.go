@@ -20,10 +20,11 @@ const (
 var ErrFinished = errors.New("run already finished")
 
 type Deps struct {
-	Host     host.Host
-	Provider provider.Provider
-	Tools    *tool.Registry
-	Observer Observer
+	Host      host.Host
+	Provider  provider.Provider
+	Providers func(spec string) (provider.Provider, string, error)
+	Tools     *tool.Registry
+	Observer  Observer
 }
 
 type Config struct {
@@ -42,16 +43,20 @@ type Outcome struct {
 }
 
 func Run(ctx context.Context, d Deps, c Config) (Outcome, error) {
+	msgs := []provider.Message{{Role: provider.RoleUser, Text: c.Prompt}}
+	r, err := newRunner(d, nil, c, msgs, stepLimit(c))
+	if err != nil {
+		return Outcome{}, err
+	}
 	start := runStartFromConfig(c)
 	w, err := journal.Create(d.Host, c.JournalPath, start)
 	if err != nil {
 		return Outcome{}, err
 	}
+	r.w = w
 	if err := w.User(c.Prompt); err != nil {
 		return Outcome{}, err
 	}
-	msgs := []provider.Message{{Role: provider.RoleUser, Text: c.Prompt}}
-	r := newRunner(d, w, c, msgs, stepLimit(c))
 	return r.run(ctx)
 }
 
@@ -60,7 +65,7 @@ func runStartFromConfig(c Config) journal.RunStart {
 		RunID: c.RunID, Model: c.Model, System: c.System,
 		Dir: c.Dir, StepLimit: stepLimit(c),
 		Preset: c.Preset, BaseURL: c.BaseURL, KeyEnv: c.KeyEnv, MaxTokens: c.MaxTokens,
-		Fallbacks: append([]string(nil), c.Fallbacks...),
+		Fallbacks:   append([]string(nil), c.Fallbacks...),
 		SwitchAfter: c.SwitchAfter, MaxWait: c.MaxWait,
 	}
 }

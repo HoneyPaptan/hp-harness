@@ -13,6 +13,7 @@ type Observer struct {
 	OnToolStart  func(provider.ToolCall)
 	OnToolResult func(provider.ToolResult)
 	OnWait       func(spec string, d time.Duration, until time.Time)
+	OnSwitch     func(from, to string)
 }
 
 func (o Observer) emitTurnStart() {
@@ -42,6 +43,12 @@ func (o Observer) emitToolResult(r provider.ToolResult) {
 func (o Observer) emitWait(spec string, d time.Duration, until time.Time) {
 	if o.OnWait != nil {
 		o.OnWait(spec, d, until)
+	}
+}
+
+func (o Observer) emitSwitch(from, to string) {
+	if o.OnSwitch != nil {
+		o.OnSwitch(from, to)
 	}
 }
 
