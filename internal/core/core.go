@@ -48,10 +48,7 @@ func Run(ctx context.Context, d Deps, c Config) (Outcome, error) {
 	if err != nil {
 		return Outcome{}, err
 	}
-	if err := Seed(d, c); err != nil {
-		return Outcome{}, err
-	}
-	w, _, err := journal.Open(d.Host, c.JournalPath)
+	w, err := seed(d, c)
 	if err != nil {
 		return Outcome{}, err
 	}

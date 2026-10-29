@@ -5,10 +5,14 @@ import (
 )
 
 func Seed(d Deps, c Config) error {
-	start := runStartFromConfig(c)
-	w, err := journal.Create(d.Host, c.JournalPath, start)
+	_, err := seed(d, c)
+	return err
+}
+
+func seed(d Deps, c Config) (*journal.Writer, error) {
+	w, err := journal.Create(d.Host, c.JournalPath, runStartFromConfig(c))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return w.User(c.Prompt)
+	return w, w.User(c.Prompt)
 }
