@@ -38,6 +38,8 @@ func dispatch(ctx context.Context, env Env, args []string) int {
 		return cmdResume(ctx, env, args[1:])
 	case "runs":
 		return cmdRuns(env, args[1:])
+	case "attach":
+		return cmdAttach(ctx, env, args[1:])
 	case "stop":
 		return cmdStop(env, args[1:])
 	case "version":
