@@ -19,6 +19,7 @@ type Memory struct {
 	dirs     map[string]struct{}
 	ExecFunc func(ctx context.Context, req ExecRequest) (ExecResult, error)
 	Clock    time.Time
+	Slept    time.Duration
 }
 
 func NewMemory() *Memory {
@@ -115,7 +116,18 @@ func (m *Memory) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) 
 	}
 	return m.ExecFunc(ctx, req)
 }
-func (m *Memory) Now() time.Time            { return m.Clock }
+func (m *Memory) Now() time.Time { return m.Clock }
+
+func (m *Memory) Sleep(ctx context.Context, d time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.Clock = m.Clock.Add(d)
+	m.Slept += d
+	m.mu.Unlock()
+	return nil
+}
 func pathErr(op, p string, err error) error { return &fs.PathError{Op: op, Path: p, Err: err} }
 
 func cleanAbs(p string) string {

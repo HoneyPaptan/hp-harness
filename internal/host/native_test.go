@@ -196,6 +196,33 @@ func TestNativeExec(t *testing.T) {
 	})
 }
 
+func TestNativeSleep(t *testing.T) {
+	n := Native{}
+
+	t.Run("short sleep", func(t *testing.T) {
+		start := time.Now()
+		if err := n.Sleep(context.Background(), 20*time.Millisecond); err != nil {
+			t.Fatal(err)
+		}
+		if time.Since(start) < 10*time.Millisecond {
+			t.Fatal("returned too early")
+		}
+	})
+
+	t.Run("cancelled ctx", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		start := time.Now()
+		err := n.Sleep(ctx, time.Minute)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("got %v", err)
+		}
+		if time.Since(start) > 200*time.Millisecond {
+			t.Fatalf("elapsed %v", time.Since(start))
+		}
+	})
+}
+
 func TestNativeReadDirFollowsSymlinks(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")

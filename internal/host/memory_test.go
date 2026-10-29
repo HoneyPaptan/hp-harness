@@ -255,3 +255,25 @@ func TestMemory(t *testing.T) {
 		})
 	}
 }
+
+func TestMemorySleep(t *testing.T) {
+	fixed := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	h := NewMemory()
+	h.Clock = fixed
+	d := 2*time.Hour + 30*time.Minute
+	if err := h.Sleep(context.Background(), d); err != nil {
+		t.Fatal(err)
+	}
+	if !h.Now().Equal(fixed.Add(d)) {
+		t.Fatalf("clock = %v want %v", h.Now(), fixed.Add(d))
+	}
+	if h.Slept != d {
+		t.Fatalf("Slept = %v want %v", h.Slept, d)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := h.Sleep(ctx, time.Second); !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v", err)
+	}
+}

@@ -32,4 +32,5 @@ type Host interface {
 	ReadDir(path string) ([]Entry, error)
 	Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 	Now() time.Time
+	Sleep(ctx context.Context, d time.Duration) error
 }

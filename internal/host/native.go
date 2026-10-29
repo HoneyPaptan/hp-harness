@@ -110,6 +110,20 @@ func (Native) Now() time.Time {
 	return time.Now()
 }
 
+func (Native) Sleep(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
 func entryFromFileInfo(name string, info fs.FileInfo) Entry {
 	return Entry{Name: name, IsDir: info.IsDir(), Size: info.Size()}
 }
