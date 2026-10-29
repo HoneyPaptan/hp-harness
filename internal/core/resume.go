@@ -45,6 +45,8 @@ func newResumeRunner(d Deps, w *journal.Writer, path string, st journal.State) *
 	cfg := Config{
 		RunID: st.Start.RunID, Model: st.Start.Model, System: st.Start.System,
 		Dir: st.Start.Dir, JournalPath: path, StepLimit: st.Start.StepLimit,
+		Preset: st.Start.Preset, BaseURL: st.Start.BaseURL, KeyEnv: st.Start.KeyEnv,
+		MaxTokens: st.Start.MaxTokens,
 	}
 	return &runner{
 		deps: d, w: w, cfg: cfg,

@@ -149,6 +149,31 @@ func TestResumeSeqIncreasing(t *testing.T) {
 	}
 }
 
+func TestResumeMaxTokens(t *testing.T) {
+	h := host.NewMemory()
+	reg := tool.NewRegistry(tool.Builtins()...)
+	start := journal.RunStart{
+		RunID: "r", Model: "m", System: "s", Dir: "/w", StepLimit: 5, MaxTokens: 1234,
+	}
+	if _, err := journal.Create(h, "/j", start); err != nil {
+		t.Fatal(err)
+	}
+	w, _, err := journal.Open(h, "/j")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.User("u"); err != nil {
+		t.Fatal(err)
+	}
+	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("ok")}}
+	if _, err := Resume(context.Background(), Deps{Host: h, Provider: fp, Tools: reg}, "/j"); err != nil {
+		t.Fatal(err)
+	}
+	if len(fp.Requests) != 1 || fp.Requests[0].MaxTokens != 1234 {
+		t.Fatalf("reqs %+v", fp.Requests)
+	}
+}
+
 func TestResumeCrashBeforeRunEnd(t *testing.T) {
 	h := host.NewMemory()
 	start := journal.RunStart{RunID: "r", Model: "m", System: "s", Dir: "/w", StepLimit: 5}

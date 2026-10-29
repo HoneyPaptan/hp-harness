@@ -7,9 +7,16 @@ import (
 )
 
 type Observer struct {
+	OnTurnStart  func()
 	OnEvent      func(provider.Event)
 	OnToolStart  func(provider.ToolCall)
 	OnToolResult func(provider.ToolResult)
+}
+
+func (o Observer) emitTurnStart() {
+	if o.OnTurnStart != nil {
+		o.OnTurnStart()
+	}
 }
 
 func (o Observer) emitEvent(ev provider.Event) {

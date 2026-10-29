@@ -29,7 +29,10 @@ func TestWriter(t *testing.T) {
 	h := host.NewMemory()
 	h.Clock = fixed
 	path := "/run.journal"
-	start := RunStart{RunID: "r1", Model: "m", System: "s", Dir: "/w", StepLimit: 10}
+	start := RunStart{
+		RunID: "r1", Model: "m", System: "s", Dir: "/w", StepLimit: 10,
+		Preset: "xai", BaseURL: "https://api.example", KeyEnv: "XAI_API_KEY", MaxTokens: 8192,
+	}
 
 	w, err := Create(h, path, start)
 	if err != nil {
@@ -75,6 +78,13 @@ func TestWriter(t *testing.T) {
 	}
 	if recs[0].Type != TypeRunStart || recs[1].Type != TypeUser || recs[2].Type != TypeAssistant {
 		t.Fatal("types")
+	}
+	var got RunStart
+	if err := json.Unmarshal(recs[0].Data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got != start {
+		t.Fatalf("run_start %+v", got)
 	}
 
 	h2 := host.NewMemory()

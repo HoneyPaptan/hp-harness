@@ -53,6 +53,7 @@ func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
 		Model: r.cfg.Model, System: r.cfg.System, Messages: r.msgs,
 		Tools: r.deps.Tools.Defs(), MaxTokens: r.cfg.MaxTokens,
 	}
+	r.deps.Observer.emitTurnStart()
 	raw := r.deps.Provider.Stream(ctx, req)
 	seq := tap(raw, r.deps.Observer.emitEvent)
 	msg, u, err := provider.Collect(seq)

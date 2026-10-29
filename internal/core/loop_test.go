@@ -136,9 +136,40 @@ func TestObserver(t *testing.T) {
 
 func TestObserverNilSafe(t *testing.T) {
 	var o Observer
+	o.emitTurnStart()
 	o.emitEvent(provider.Event{})
 	o.emitToolStart(provider.ToolCall{})
 	o.emitToolResult(provider.ToolResult{})
+}
+
+func TestOnTurnStart(t *testing.T) {
+	h := host.NewMemory()
+	reg := tool.NewRegistry(tool.Builtins()...)
+	call := provider.ToolCall{ID: "c", Name: "read", Args: json.RawMessage(`{"path":"x"}`)}
+	fp := &fake.Provider{Turns: []fake.Turn{
+		fake.Turn{Events: []provider.Event{
+			{Kind: provider.EventText, Text: "a"},
+			{Kind: provider.EventToolCall, Call: call},
+			{Kind: provider.EventDone},
+		}},
+		fake.TextTurn("b"),
+	}}
+	var order []string
+	obs := Observer{
+		OnTurnStart: func() { order = append(order, "start") },
+		OnEvent:     func(ev provider.Event) { order = append(order, "ev:"+ev.Text) },
+	}
+	cfg := Config{
+		RunID: "r", Model: "m", System: "s", Dir: "/w",
+		JournalPath: "/j", Prompt: "p", StepLimit: 5,
+	}
+	if _, err := Run(context.Background(), Deps{Host: h, Provider: fp, Tools: reg, Observer: obs}, cfg); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"start", "ev:a", "start", "ev:b"}
+	if !reflect.DeepEqual(order, want) {
+		t.Fatalf("order %v", order)
+	}
 }
 
 func TestStepLimitDefault(t *testing.T) {

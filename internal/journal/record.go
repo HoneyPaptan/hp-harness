@@ -31,6 +31,10 @@ type RunStart struct {
 	System    string `json:"system"`
 	Dir       string `json:"dir"`
 	StepLimit int    `json:"step_limit"`
+	Preset    string `json:"preset"`
+	BaseURL   string `json:"base_url"`
+	KeyEnv    string `json:"key_env"`
+	MaxTokens int    `json:"max_tokens"`
 }
 
 type User struct {

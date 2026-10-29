@@ -10,6 +10,31 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 )
 
+func TestReadStart(t *testing.T) {
+	fixed := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	want := RunStart{
+		RunID: "r1", Model: "m", System: "s", Dir: "/w", StepLimit: 3,
+		Preset: "p", BaseURL: "https://b", KeyEnv: "K", MaxTokens: 100,
+	}
+	h := host.NewMemory()
+	h.Clock = fixed
+	path := "/j"
+	if _, err := Create(h, path, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ReadStart(h, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("got %+v", got)
+	}
+	_, err = ReadStart(h, "/missing")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestRead(t *testing.T) {
 	fixed := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
 	start := RunStart{RunID: "r1", Model: "m", System: "s", Dir: "/w", StepLimit: 3}

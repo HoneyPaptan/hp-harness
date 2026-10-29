@@ -8,6 +8,17 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 )
 
+func ReadStart(h host.Host, path string) (RunStart, error) {
+	recs, err := Read(h, path)
+	if err != nil {
+		return RunStart{}, err
+	}
+	if err := checkStart(recs); err != nil {
+		return RunStart{}, err
+	}
+	return decode[RunStart](recs[0])
+}
+
 func Read(h host.Host, path string) ([]Record, error) {
 	data, err := h.ReadFile(path)
 	if err != nil {
