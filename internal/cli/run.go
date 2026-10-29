@@ -22,6 +22,9 @@ func cmdRun(ctx context.Context, env Env, args []string) int {
 	if strings.TrimSpace(prompt) == "" {
 		return exitUsage(env, usagef("prompt required"))
 	}
+	if opts.detach {
+		return detachRun(ctx, env, opts, prompt)
+	}
 	return runAgent(ctx, env, opts, prompt)
 }
 
@@ -30,6 +33,7 @@ type runOpts struct {
 	steps, maxTokens            int
 	fallbacks                   []string
 	switchAfter, maxWait        time.Duration
+	detach                      bool
 }
 
 type stringList []string
@@ -55,6 +59,7 @@ func parseRunFlags(env Env, args []string) (runOpts, []string, error) {
 	fs.Var(&fb, "fallback", "fallback preset/model")
 	fs.DurationVar(&o.switchAfter, "switch-after", 20*time.Second, "switch after limit wait")
 	fs.DurationVar(&o.maxWait, "max-wait", 6*time.Hour, "max limit wait")
+	fs.BoolVar(&o.detach, "d", false, "detach")
 	if err := fs.Parse(args); err != nil {
 		return runOpts{}, nil, err
 	}

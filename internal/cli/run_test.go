@@ -101,6 +101,10 @@ func testEnv(t *testing.T, h *host.Memory, fp *fake.Provider, extra map[string]s
 		Stdout: stdout, Stderr: stderr, Host: h,
 		Rand: bytes.NewReader([]byte{1, 2}), Version: "dev",
 		NewProvider: func(ep Endpoint) provider.Provider { return fp },
+		Spawn:       func([]string, string) (int, error) { return 0, errors.New("spawn") },
+		Alive:       func(int) bool { return false },
+		Signal:      func(int) error { return nil },
+		Pid:         1,
 	}, stdout, stderr
 }
 

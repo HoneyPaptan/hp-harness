@@ -76,10 +76,13 @@ func printRunLine(env Env, dir, id string) {
 		return
 	}
 	fmt.Fprintf(env.Stdout, "%s  %s  %s/%s  %s\n",
-		id, listStatus(st), st.Start.Preset, st.Start.Model, cutRunes(oneLine(firstPrompt(st)), 50))
+		id, listStatus(env, id, st), st.Start.Preset, st.Start.Model, cutRunes(oneLine(firstPrompt(st)), 50))
 }
 
-func listStatus(st journal.State) string {
+func listStatus(env Env, id string, st journal.State) string {
+	if runAlive(env, id) {
+		return "running"
+	}
 	if st.Finished {
 		return st.EndReason
 	}

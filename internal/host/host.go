@@ -27,6 +27,7 @@ type ExecResult struct {
 type Host interface {
 	ReadFile(path string) ([]byte, error)
 	WriteFile(path string, data []byte) error
+	Remove(path string) error
 	Append(path string, line []byte) error
 	Stat(path string) (Entry, error)
 	ReadDir(path string) ([]Entry, error)

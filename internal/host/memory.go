@@ -46,6 +46,20 @@ func (m *Memory) WriteFile(p string, data []byte) error {
 	return m.putLocked(p, data, false)
 }
 
+func (m *Memory) Remove(p string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p = cleanAbs(p)
+	if _, ok := m.files[p]; !ok {
+		if m.isDirLocked(p) {
+			return pathErr("remove", p, fs.ErrInvalid)
+		}
+		return pathErr("remove", p, fs.ErrNotExist)
+	}
+	delete(m.files, p)
+	return nil
+}
+
 func (m *Memory) Append(p string, line []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

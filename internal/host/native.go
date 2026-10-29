@@ -28,6 +28,10 @@ func (Native) WriteFile(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+func (Native) Remove(path string) error {
+	return os.Remove(path)
+}
+
 func (Native) Append(path string, line []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

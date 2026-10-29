@@ -14,6 +14,8 @@ import (
 func cmdResume(ctx context.Context, env Env, args []string) int {
 	fs := flag.NewFlagSet("resume", flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
+	var detach bool
+	fs.BoolVar(&detach, "d", false, "detach")
 	if err := fs.Parse(args); err != nil {
 		return exitUsage(env, err)
 	}
@@ -21,7 +23,15 @@ func cmdResume(ctx context.Context, env Env, args []string) int {
 	if len(rest) == 0 {
 		return exitUsage(env, usagef("run id required"))
 	}
-	return resumeRun(ctx, env, rest[0])
+	id := rest[0]
+	if detach {
+		jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
+		if _, err := journal.ReadStart(env.Host, jpath); err != nil {
+			return exitUsage(env, usagef("run %q not found", id))
+		}
+		return spawnDetached(env, id)
+	}
+	return resumeRun(ctx, env, id)
 }
 
 func resumeRun(ctx context.Context, env Env, id string) int {
@@ -30,6 +40,11 @@ func resumeRun(ctx context.Context, env Env, id string) int {
 	if err != nil {
 		return exitUsage(env, usagef("run %q not found", id))
 	}
+	cleanup, code := beginResume(env, id)
+	if code >= 0 {
+		return code
+	}
+	defer cleanup()
 	ep, bySpec, err := resolveResumeSpecs(start, env.Getenv)
 	if err != nil {
 		return exitUsage(env, err)

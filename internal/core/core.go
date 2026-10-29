@@ -48,15 +48,14 @@ func Run(ctx context.Context, d Deps, c Config) (Outcome, error) {
 	if err != nil {
 		return Outcome{}, err
 	}
-	start := runStartFromConfig(c)
-	w, err := journal.Create(d.Host, c.JournalPath, start)
+	if err := Seed(d, c); err != nil {
+		return Outcome{}, err
+	}
+	w, _, err := journal.Open(d.Host, c.JournalPath)
 	if err != nil {
 		return Outcome{}, err
 	}
 	r.w = w
-	if err := w.User(c.Prompt); err != nil {
-		return Outcome{}, err
-	}
 	return r.run(ctx)
 }
 
