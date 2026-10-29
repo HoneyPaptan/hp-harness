@@ -36,7 +36,7 @@ func TestResumeInterrupted(t *testing.T) {
 	if code := Main(context.Background(), env); code != 0 {
 		t.Fatalf("code %d %s", code, stderr.String())
 	}
-	if stdout.String() != "finished" {
+	if stdout.String() != "finished\n" {
 		t.Fatalf("stdout %q", stdout.String())
 	}
 }

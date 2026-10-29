@@ -40,7 +40,7 @@ func TestRunFinalAnswer(t *testing.T) {
 	if code := Main(context.Background(), env); code != 0 {
 		t.Fatalf("code %d stderr %s", code, stderr.String())
 	}
-	if stdout.String() != "hello world" {
+	if stdout.String() != "hello world\n" {
 		t.Fatalf("stdout %q", stdout.String())
 	}
 	if !strings.Contains(stderr.String(), "run ") || !strings.Contains(stderr.String(), "final") {
@@ -232,6 +232,21 @@ func TestRunInterruptEndsStdoutLine(t *testing.T) {
 		t.Fatalf("code %d", code)
 	}
 	if stdout.String() != "partial\n" {
+		t.Fatalf("stdout %q", stdout.String())
+	}
+}
+
+func TestRunToolFirstHasNoBlankLine(t *testing.T) {
+	h := host.NewMemory()
+	h.WriteFile("/proj/a.txt", []byte("x"))
+	call := provider.ToolCall{ID: "c1", Name: "read", Args: json.RawMessage(`{"path":"a.txt"}`)}
+	fp := &fake.Provider{Turns: []fake.Turn{fake.ToolTurn(call), fake.TextTurn("done")}}
+	env, stdout, _ := testEnv(t, h, fp, nil)
+	env.Args = []string{"run", "-m", "xai/grok", "x"}
+	if code := Main(context.Background(), env); code != 0 {
+		t.Fatalf("code %d", code)
+	}
+	if stdout.String() != "done\n" {
 		t.Fatalf("stdout %q", stdout.String())
 	}
 }

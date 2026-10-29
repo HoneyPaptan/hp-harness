@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/core"
@@ -13,7 +14,7 @@ import (
 type printer struct {
 	env       Env
 	id        string
-	outNL     bool
+	midLine   bool
 	turnStart time.Time
 	ttft      time.Duration
 	ttftDone  bool
@@ -36,11 +37,11 @@ func (p *printer) onTurnStart() {
 
 func (p *printer) onEvent(ev provider.Event) {
 	p.markTTFT()
-	if ev.Kind != provider.EventText {
+	if ev.Kind != provider.EventText || ev.Text == "" {
 		return
 	}
 	io.WriteString(p.env.Stdout, ev.Text)
-	p.outNL = len(ev.Text) > 0 && ev.Text[len(ev.Text)-1] == '\n'
+	p.midLine = !strings.HasSuffix(ev.Text, "\n")
 }
 
 func (p *printer) markTTFT() {
@@ -66,15 +67,15 @@ func (p *printer) onToolResult(r provider.ToolResult) {
 }
 
 func (p *printer) ensureOutNL() {
-	if p.outNL {
+	if !p.midLine {
 		return
 	}
 	io.WriteString(p.env.Stdout, "\n")
-	p.outNL = true
+	p.midLine = false
 }
 
 func (p *printer) summary(out core.Outcome) {
-	io.WriteString(p.env.Stderr, "\n")
+	p.ensureOutNL()
 	fmt.Fprintf(p.env.Stderr, "run %s  %s  steps %d  tokens %d/%d  ttft %dms\n",
 		p.id, out.Reason, out.Steps, out.Usage.InputTokens, out.Usage.OutputTokens, p.ttft.Milliseconds())
 }
