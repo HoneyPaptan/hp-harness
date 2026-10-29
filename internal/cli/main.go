@@ -23,6 +23,12 @@ func Main(ctx context.Context, env Env) int {
 	switch args[0] {
 	case "run":
 		return cmdRun(ctx, env, args[1:])
+	case "resume":
+		return cmdResume(ctx, env, args[1:])
+	case "runs":
+		return cmdRuns(env, args[1:])
+	case "version":
+		return cmdVersion(env, args[1:])
 	case "help", "-h", "--help":
 		printUsage(env.Stderr)
 		return 0
@@ -41,5 +47,5 @@ func printVersion(env Env) {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: hp run [-m preset/model] [flags] \"prompt\"")
+	fmt.Fprintln(w, "usage: hp <run|resume|runs|version> ...")
 }
