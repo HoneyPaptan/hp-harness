@@ -3,6 +3,7 @@ package journal
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func TestReadStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v", got)
 	}
 	_, err = ReadStart(h, "/missing")

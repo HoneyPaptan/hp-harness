@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -83,9 +84,37 @@ func TestWriter(t *testing.T) {
 	if err := json.Unmarshal(recs[0].Data, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got != start {
+	if !reflect.DeepEqual(got, start) {
 		t.Fatalf("run_start %+v", got)
 	}
+
+	t.Run("run start limit fields round trip", func(t *testing.T) {
+		h := host.NewMemory()
+		h.Clock = fixed
+		path := "/limit.journal"
+		start := RunStart{
+			RunID: "r1", Model: "m", System: "s", Dir: "/w", StepLimit: 10,
+			Preset: "groq", BaseURL: "https://api.example", KeyEnv: "GROQ_API_KEY", MaxTokens: 8192,
+			Fallbacks: []string{"groq/fallback"}, SwitchAfter: 20 * time.Second, MaxWait: 6 * time.Hour,
+		}
+		if _, err := Create(h, path, start); err != nil {
+			t.Fatal(err)
+		}
+		recs, err := Read(h, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		st, err := Replay(recs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(st.Start.Fallbacks, start.Fallbacks) {
+			t.Fatalf("fallbacks %#v", st.Start.Fallbacks)
+		}
+		if st.Start.SwitchAfter != start.SwitchAfter || st.Start.MaxWait != start.MaxWait {
+			t.Fatalf("durations switch=%v max=%v", st.Start.SwitchAfter, st.Start.MaxWait)
+		}
+	})
 
 	h2 := host.NewMemory()
 	h2.Clock = fixed

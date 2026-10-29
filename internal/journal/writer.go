@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
@@ -51,6 +52,14 @@ func (w *Writer) ToolStarted(c provider.ToolCall) error {
 
 func (w *Writer) ToolResult(r provider.ToolResult) error {
 	return w.append(TypeToolResult, ToolResultData{Result: r})
+}
+
+func (w *Writer) LimitWait(model string, until time.Time) error {
+	return w.append(TypeLimitWait, LimitWait{Model: model, Until: until})
+}
+
+func (w *Writer) ModelSwitch(from, to string) error {
+	return w.append(TypeModelSwitch, ModelSwitch{From: from, To: to})
 }
 
 func (w *Writer) End(reason string) error {

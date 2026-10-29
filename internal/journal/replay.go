@@ -17,6 +17,7 @@ type State struct {
 	Messages  []provider.Message
 	Pending   []Pending
 	Steps     int
+	Current   string
 	Finished  bool
 	EndReason string
 }
@@ -62,6 +63,10 @@ func (r *replayer) apply(rec Record, i int) error {
 		return r.applyToolStarted(rec)
 	case TypeToolResult:
 		return r.applyToolResult(rec)
+	case TypeLimitWait:
+		return nil
+	case TypeModelSwitch:
+		return r.applyModelSwitch(rec)
 	case TypeRunEnd:
 		return r.applyRunEnd(rec)
 	default:
@@ -116,6 +121,15 @@ func (r *replayer) applyToolResult(rec Record) error {
 	}
 	r.resultIDs[tr.Result.CallID] = true
 	r.st.Messages = attachResult(r.st.Messages, tr.Result)
+	return nil
+}
+
+func (r *replayer) applyModelSwitch(rec Record) error {
+	sw, err := decode[ModelSwitch](rec)
+	if err != nil {
+		return err
+	}
+	r.st.Current = sw.To
 	return nil
 }
 

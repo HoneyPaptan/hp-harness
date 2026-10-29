@@ -15,6 +15,8 @@ const (
 	TypeAssistant   Type = "assistant"
 	TypeToolStarted Type = "tool_started"
 	TypeToolResult  Type = "tool_result"
+	TypeLimitWait   Type = "limit_wait"
+	TypeModelSwitch Type = "model_switch"
 	TypeRunEnd      Type = "run_end"
 )
 
@@ -26,15 +28,28 @@ type Record struct {
 }
 
 type RunStart struct {
-	RunID     string `json:"run_id"`
-	Model     string `json:"model"`
-	System    string `json:"system"`
-	Dir       string `json:"dir"`
-	StepLimit int    `json:"step_limit"`
-	Preset    string `json:"preset"`
-	BaseURL   string `json:"base_url"`
-	KeyEnv    string `json:"key_env"`
-	MaxTokens int    `json:"max_tokens"`
+	RunID       string        `json:"run_id"`
+	Model       string        `json:"model"`
+	System      string        `json:"system"`
+	Dir         string        `json:"dir"`
+	StepLimit   int           `json:"step_limit"`
+	Preset      string        `json:"preset"`
+	BaseURL     string        `json:"base_url"`
+	KeyEnv      string        `json:"key_env"`
+	MaxTokens   int           `json:"max_tokens"`
+	Fallbacks   []string      `json:"fallbacks,omitempty"`
+	SwitchAfter time.Duration `json:"switch_after,omitempty"`
+	MaxWait     time.Duration `json:"max_wait,omitempty"`
+}
+
+type LimitWait struct {
+	Model string    `json:"model"`
+	Until time.Time `json:"until"`
+}
+
+type ModelSwitch struct {
+	From string `json:"from"`
+	To   string `json:"to"`
 }
 
 type User struct {

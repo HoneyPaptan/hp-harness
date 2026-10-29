@@ -182,4 +182,69 @@ func TestReplay(t *testing.T) {
 			t.Fatalf("err %v", err)
 		}
 	})
+
+	t.Run("model switch sets current", func(t *testing.T) {
+		h := host.NewMemory()
+		h.Clock = fixed
+		w, err := Create(h, "/j", start)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := w.ModelSwitch("groq/a", "groq/b"); err != nil {
+			t.Fatal(err)
+		}
+		recs, err := Read(h, "/j")
+		if err != nil {
+			t.Fatal(err)
+		}
+		st, err := Replay(recs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.Current != "groq/b" {
+			t.Fatalf("current %q", st.Current)
+		}
+	})
+
+	t.Run("old journal current empty", func(t *testing.T) {
+		recs := writeTwoSteps(t)
+		st, err := Replay(recs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.Current != "" {
+			t.Fatalf("current %q", st.Current)
+		}
+	})
+
+	t.Run("limit wait unchanged messages", func(t *testing.T) {
+		h := host.NewMemory()
+		h.Clock = fixed
+		w, err := Create(h, "/j", start)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := w.User("hi"); err != nil {
+			t.Fatal(err)
+		}
+		until := fixed.Add(30 * time.Second)
+		if err := w.LimitWait("groq/m", until); err != nil {
+			t.Fatal(err)
+		}
+		recs, err := Read(h, "/j")
+		if err != nil {
+			t.Fatal(err)
+		}
+		st, err := Replay(recs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []provider.Message{{Role: provider.RoleUser, Text: "hi"}}
+		if !reflect.DeepEqual(st.Messages, want) {
+			t.Fatalf("messages %#v", st.Messages)
+		}
+		if st.Steps != 0 {
+			t.Fatalf("steps %d", st.Steps)
+		}
+	})
 }
