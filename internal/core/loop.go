@@ -2,23 +2,31 @@ package core
 
 import (
 	"context"
+	"errors"
 
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
 
 type runner struct {
-	deps  Deps
-	w     *journal.Writer
-	cfg   Config
-	msgs  []provider.Message
-	steps int
-	limit int
-	usage provider.Usage
+	deps     Deps
+	w        *journal.Writer
+	cfg      Config
+	msgs     []provider.Message
+	steps    int
+	limit    int
+	usage    provider.Usage
+	spec     string
+	reqModel string
+	prov     provider.Provider
 }
 
 func newRunner(d Deps, w *journal.Writer, c Config, msgs []provider.Message, limit int) *runner {
-	return &runner{deps: d, w: w, cfg: c, msgs: msgs, limit: limit}
+	r := &runner{deps: d, w: w, cfg: c, msgs: msgs, limit: limit}
+	r.prov = d.Provider
+	r.reqModel = c.Model
+	r.spec = modelSpec(c)
+	return r
 }
 
 func (r *runner) run(ctx context.Context) (Outcome, error) {
@@ -49,20 +57,35 @@ func (r *runner) turn(ctx context.Context) (Outcome, bool, error) {
 }
 
 func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
+	limitN := 0
+	spec := r.spec
+	for {
+		msg, u, err := r.streamTurn(ctx)
+		if err == nil {
+			r.usage.InputTokens += u.InputTokens
+			r.usage.OutputTokens += u.OutputTokens
+			return msg, nil
+		}
+		var rl *provider.RateLimitError
+		if !errors.As(err, &rl) {
+			return provider.Message{}, err
+		}
+		delay := limitDelay(rl, &limitN)
+		if err := r.waitLimit(ctx, spec, delay); err != nil {
+			return provider.Message{}, err
+		}
+	}
+}
+
+func (r *runner) streamTurn(ctx context.Context) (provider.Message, provider.Usage, error) {
 	req := provider.Request{
-		Model: r.cfg.Model, System: r.cfg.System, Messages: r.msgs,
+		Model: r.reqModel, System: r.cfg.System, Messages: r.msgs,
 		Tools: r.deps.Tools.Defs(), MaxTokens: r.cfg.MaxTokens,
 	}
 	r.deps.Observer.emitTurnStart()
-	raw := r.deps.Provider.Stream(ctx, req)
+	raw := r.prov.Stream(ctx, req)
 	seq := tap(raw, r.deps.Observer.emitEvent)
-	msg, u, err := provider.Collect(seq)
-	if err != nil {
-		return provider.Message{}, err
-	}
-	r.usage.InputTokens += u.InputTokens
-	r.usage.OutputTokens += u.OutputTokens
-	return msg, nil
+	return provider.Collect(seq)
 }
 
 func (r *runner) afterTools(ctx context.Context, calls []provider.ToolCall) (Outcome, bool, error) {

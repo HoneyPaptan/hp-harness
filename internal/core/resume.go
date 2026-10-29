@@ -47,12 +47,18 @@ func newResumeRunner(d Deps, w *journal.Writer, path string, st journal.State) *
 		Dir: st.Start.Dir, JournalPath: path, StepLimit: st.Start.StepLimit,
 		Preset: st.Start.Preset, BaseURL: st.Start.BaseURL, KeyEnv: st.Start.KeyEnv,
 		MaxTokens: st.Start.MaxTokens,
+		Fallbacks: append([]string(nil), st.Start.Fallbacks...),
+		SwitchAfter: st.Start.SwitchAfter, MaxWait: st.Start.MaxWait,
 	}
-	return &runner{
+	r := &runner{
 		deps: d, w: w, cfg: cfg,
 		msgs:  append([]provider.Message(nil), st.Messages...),
 		steps: st.Steps, limit: st.Start.StepLimit,
 	}
+	r.prov = d.Provider
+	r.reqModel = st.Start.Model
+	r.spec = modelSpec(cfg)
+	return r
 }
 
 func (r *runner) settlePending(ctx context.Context, pending []journal.Pending) error {

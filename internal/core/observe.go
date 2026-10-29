@@ -2,6 +2,7 @@ package core
 
 import (
 	"iter"
+	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
@@ -11,6 +12,7 @@ type Observer struct {
 	OnEvent      func(provider.Event)
 	OnToolStart  func(provider.ToolCall)
 	OnToolResult func(provider.ToolResult)
+	OnWait       func(spec string, d time.Duration, until time.Time)
 }
 
 func (o Observer) emitTurnStart() {
@@ -34,6 +36,12 @@ func (o Observer) emitToolStart(c provider.ToolCall) {
 func (o Observer) emitToolResult(r provider.ToolResult) {
 	if o.OnToolResult != nil {
 		o.OnToolResult(r)
+	}
+}
+
+func (o Observer) emitWait(spec string, d time.Duration, until time.Time) {
+	if o.OnWait != nil {
+		o.OnWait(spec, d, until)
 	}
 }
 

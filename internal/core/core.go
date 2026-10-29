@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
@@ -29,6 +30,8 @@ type Config struct {
 	RunID, Model, System, Dir, JournalPath, Prompt string
 	Preset, BaseURL, KeyEnv                        string
 	StepLimit, MaxTokens                           int
+	Fallbacks                                      []string
+	SwitchAfter, MaxWait                           time.Duration
 }
 
 type Outcome struct {
@@ -57,6 +60,8 @@ func runStartFromConfig(c Config) journal.RunStart {
 		RunID: c.RunID, Model: c.Model, System: c.System,
 		Dir: c.Dir, StepLimit: stepLimit(c),
 		Preset: c.Preset, BaseURL: c.BaseURL, KeyEnv: c.KeyEnv, MaxTokens: c.MaxTokens,
+		Fallbacks: append([]string(nil), c.Fallbacks...),
+		SwitchAfter: c.SwitchAfter, MaxWait: c.MaxWait,
 	}
 }
 

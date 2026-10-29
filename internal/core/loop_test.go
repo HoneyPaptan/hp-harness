@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
@@ -140,6 +141,11 @@ func TestObserverNilSafe(t *testing.T) {
 	o.emitEvent(provider.Event{})
 	o.emitToolStart(provider.ToolCall{})
 	o.emitToolResult(provider.ToolResult{})
+	o.emitWait("x", 0, hNow())
+}
+
+func hNow() time.Time {
+	return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 }
 
 func TestOnTurnStart(t *testing.T) {
