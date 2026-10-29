@@ -21,6 +21,9 @@ func main() {
 }
 
 func run() int {
+	if os.Getenv("HP_DETACHED") == "1" {
+		signal.Ignore(syscall.SIGHUP)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	env, err := buildEnv()
@@ -39,6 +42,7 @@ func buildEnv() (cli.Env, error) {
 		Args: os.Args[1:], Getenv: os.Getenv, Cwd: cwd,
 		Stdout: os.Stdout, Stderr: os.Stderr, Host: host.Native{},
 		Rand: rand.Reader, Version: version, NewProvider: newProvider,
+		Spawn: spawnDetached, Alive: processAlive, Signal: processSignal, Pid: os.Getpid(),
 	}, nil
 }
 
