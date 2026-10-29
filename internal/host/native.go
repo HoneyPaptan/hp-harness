@@ -61,7 +61,9 @@ func (Native) ReadDir(path string) ([]Entry, error) {
 		if err != nil {
 			continue
 		}
-		out = append(out, entryFromFileInfo(e.Name(), info))
+		ent := entryFromFileInfo(e.Name(), info)
+		ent.IsLink = e.Type()&fs.ModeSymlink != 0
+		out = append(out, ent)
 	}
 	return out, nil
 }

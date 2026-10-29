@@ -212,7 +212,7 @@ func TestNativeReadDirFollowsSymlinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ents) != 2 || ents[0].Name != "link" || !ents[0].IsDir || ents[1].Name != "target" {
+	if len(ents) != 2 || ents[0].Name != "link" || !ents[0].IsDir || !ents[0].IsLink || ents[1].IsLink {
 		t.Fatalf("entries %+v", ents)
 	}
 }

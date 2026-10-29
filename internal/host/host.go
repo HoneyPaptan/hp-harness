@@ -6,9 +6,10 @@ import (
 )
 
 type Entry struct {
-	Name  string
-	IsDir bool
-	Size  int64
+	Name   string
+	IsDir  bool
+	IsLink bool
+	Size   int64
 }
 
 type ExecRequest struct {

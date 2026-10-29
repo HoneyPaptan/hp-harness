@@ -132,7 +132,7 @@ func walkDir(env Env, dir string, file func(string)) error {
 	for _, e := range ents {
 		p := filepath.Join(dir, e.Name)
 		if e.IsDir {
-			if e.Name == ".git" {
+			if e.Name == ".git" || e.IsLink {
 				continue
 			}
 			if err := walkDir(env, p, file); err != nil {
