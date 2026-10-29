@@ -117,3 +117,23 @@ func seedRun(t *testing.T, h *host.Memory, getenv func(string) string, id, promp
 		}
 	}
 }
+
+func TestResumeInterruptedAgain(t *testing.T) {
+	h := host.NewMemory()
+	cancelled := fake.Turn{Events: []provider.Event{{Kind: provider.EventText, Text: "par"}}, Err: context.Canceled}
+	fp := &fake.Provider{Turns: []fake.Turn{cancelled, cancelled}}
+	env, _, stderr := testEnv(t, h, fp, nil)
+	env.Args = []string{"run", "-m", "xai/grok", "go"}
+	if Main(context.Background(), env) != 130 {
+		t.Fatal(stderr.String())
+	}
+	id := parseResumeID(stderr.String())
+	stderr.Reset()
+	env.Args = []string{"resume", id}
+	if code := Main(context.Background(), env); code != 130 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "interrupted, resume with: hp resume "+id) {
+		t.Fatal(stderr.String())
+	}
+}

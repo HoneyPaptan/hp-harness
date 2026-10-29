@@ -35,7 +35,7 @@ func resumeRun(ctx context.Context, env Env, id string) int {
 		return exitUsage(env, err)
 	}
 	out, pr, err := execResume(ctx, env, ep, start, jpath, id)
-	return finishResume(env, id, pr, out, err)
+	return finishResume(ctx, env, id, jpath, pr, out, err)
 }
 
 func endpointFromStart(st journal.RunStart, getenv func(string) string) (Endpoint, error) {
@@ -57,18 +57,13 @@ func execResume(ctx context.Context, env Env, ep Endpoint, start journal.RunStar
 	return out, pr, err
 }
 
-func finishResume(env Env, id string, pr *printer, out core.Outcome, err error) int {
+func finishResume(ctx context.Context, env Env, id, jpath string, pr *printer, out core.Outcome, err error) int {
 	if errors.Is(err, core.ErrFinished) {
 		fmt.Fprintf(env.Stderr, "run %s already finished\n", id)
 		return 1
 	}
-	if err != nil {
-		fmt.Fprintf(env.Stderr, "error: %v\n", err)
-		return 1
+	if pr == nil {
+		return exitErr(env, id, jpath, err)
 	}
-	pr.summary(out)
-	if out.Reason == core.ReasonStepLimit {
-		return 3
-	}
-	return 0
+	return finishRun(ctx, env, id, jpath, pr, out, err)
 }
