@@ -15,13 +15,18 @@ func (e *HTTPError) Error() string {
 }
 
 type RateLimitError struct {
+	Overloaded bool
 	RetryAfter time.Duration
 	Body       string
 }
 
 func (e *RateLimitError) Error() string {
-	if e.RetryAfter > 0 {
-		return fmt.Sprintf("http 429: rate limited, retry after %s: %s", e.RetryAfter, e.Body)
+	kind := "rate limited"
+	if e.Overloaded {
+		kind = "overloaded"
 	}
-	return fmt.Sprintf("http 429: rate limited: %s", e.Body)
+	if e.RetryAfter > 0 {
+		return fmt.Sprintf("http 429: %s, retry after %s: %s", kind, e.RetryAfter, e.Body)
+	}
+	return fmt.Sprintf("http 429: %s: %s", kind, e.Body)
 }
