@@ -31,6 +31,21 @@ func TestParseFrontmatter(t *testing.T) {
 			wantFM: true, wantKey: map[string]string{"description": "a\nb"}, wantPre: "",
 		},
 		{
+			name:   "plain with colon and brackets",
+			in:     "---\ndescription: Use when: a [b] {c}\n---\n",
+			wantFM: true, wantKey: map[string]string{"description": "Use when: a [b] {c}"}, wantPre: "",
+		},
+		{
+			name:   "folded strip",
+			in:     "---\ndescription: >-\n  x\n  y\n---\n",
+			wantFM: true, wantKey: map[string]string{"description": "x y"}, wantPre: "",
+		},
+		{
+			name:   "plain multi line",
+			in:     "---\ndescription:\n  Builds things\n  well.\nname: x\n---\n",
+			wantFM: true, wantKey: map[string]string{"description": "Builds things well.", "name": "x"}, wantPre: "",
+		},
+		{
 			name:   "none",
 			in:     "no front\n",
 			wantFM: false, wantPre: "no front\n",

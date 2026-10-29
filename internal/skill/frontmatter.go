@@ -61,8 +61,8 @@ func parseFieldLine(line string) (key, val, block string, ok bool) {
 		return "", "", "", false
 	}
 	rest := strings.TrimSpace(line[i+1:])
-	if rest == ">" || rest == "|" {
-		return key, "", rest, true
+	if kind, ok := blockKind(rest); ok {
+		return key, "", kind, true
 	}
 	val, ok = parseScalar(rest)
 	if !ok {
@@ -81,10 +81,17 @@ func parseScalar(rest string) (string, bool) {
 	if rest[0] == '"' {
 		return parseQuoted(rest, '"')
 	}
-	if strings.ContainsAny(rest, ":{}[]") {
-		return "", false
-	}
 	return rest, true
+}
+
+func blockKind(rest string) (string, bool) {
+	switch strings.TrimRight(rest, "-+") {
+	case ">", "":
+		return ">", true
+	case "|":
+		return "|", true
+	}
+	return "", false
 }
 
 func parseQuoted(s string, q byte) (string, bool) {
