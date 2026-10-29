@@ -18,28 +18,38 @@ func cmdRuns(env Env, args []string) int {
 		return exitUsage(env, usagef("unexpected arguments"))
 	}
 	dir := runsDir(env.Getenv)
-	ents, err := env.Host.ReadDir(dir)
+	ids, empty, err := listRunIDs(env, dir)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			fmt.Fprintln(env.Stdout, "no runs yet")
-			return 0
-		}
 		fmt.Fprintf(env.Stderr, "error: %v\n", err)
 		return 1
 	}
-	ids := runIDs(ents)
-	if len(ids) == 0 {
+	if empty {
 		fmt.Fprintln(env.Stdout, "no runs yet")
 		return 0
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(ids)))
-	if len(ids) > 20 {
-		ids = ids[:20]
 	}
 	for _, id := range ids {
 		printRunLine(env, dir, id)
 	}
 	return 0
+}
+
+func listRunIDs(env Env, dir string) ([]string, bool, error) {
+	ents, err := env.Host.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, true, nil
+		}
+		return nil, false, err
+	}
+	ids := runIDs(ents)
+	if len(ids) == 0 {
+		return nil, true, nil
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(ids)))
+	if len(ids) > 20 {
+		ids = ids[:20]
+	}
+	return ids, false, nil
 }
 
 func runIDs(ents []host.Entry) []string {

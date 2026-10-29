@@ -12,14 +12,25 @@ func Main(ctx context.Context, env Env) int {
 		printUsage(env.Stderr)
 		return 2
 	}
+	if code, done := globalFlags(env, args); done {
+		return code
+	}
+	return dispatch(ctx, env, args)
+}
+
+func globalFlags(env Env, args []string) (int, bool) {
 	if args[0] == "--version" || args[0] == "-version" {
 		printVersion(env)
-		return 0
+		return 0, true
 	}
 	if isHelp(args[0]) && len(args) == 1 {
 		printUsage(env.Stderr)
-		return 0
+		return 0, true
 	}
+	return 0, false
+}
+
+func dispatch(ctx context.Context, env Env, args []string) int {
 	switch args[0] {
 	case "run":
 		return cmdRun(ctx, env, args[1:])

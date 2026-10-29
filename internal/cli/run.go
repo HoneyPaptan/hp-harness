@@ -26,7 +26,7 @@ func cmdRun(ctx context.Context, env Env, args []string) int {
 
 type runOpts struct {
 	model, dir, baseURL, keyEnv string
-	steps, maxTokens             int
+	steps, maxTokens            int
 }
 
 func parseRunFlags(env Env, args []string) (runOpts, []string, error) {
