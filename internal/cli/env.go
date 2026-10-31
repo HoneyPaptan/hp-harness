@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"io"
 
 	"github.com/HoneyPaptan/hp-harness/internal/host"
@@ -23,4 +24,14 @@ type Env struct {
 	Alive       func(pid int) bool
 	Signal      func(pid int) error
 	Pid         int
+	Term        Terminal
+}
+
+type Terminal interface {
+	io.Reader
+	io.Writer
+	Interactive() bool
+	MakeRaw() (func() error, error)
+	Width() int
+	Signals(ctx context.Context) (context.Context, context.CancelFunc)
 }

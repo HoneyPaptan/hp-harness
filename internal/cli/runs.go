@@ -17,39 +17,62 @@ func cmdRuns(env Env, args []string) int {
 	if len(args) != 0 {
 		return exitUsage(env, usagef("unexpected arguments"))
 	}
-	dir := runsDir(env.Getenv)
-	ids, empty, err := listRunIDs(env, dir)
+	lines, err := runLines(env)
 	if err != nil {
 		fmt.Fprintf(env.Stderr, "error: %v\n", err)
 		return 1
 	}
-	if empty {
-		fmt.Fprintln(env.Stdout, "no runs yet")
-		return 0
-	}
-	for _, id := range ids {
-		printRunLine(env, dir, id)
+	for _, line := range lines {
+		fmt.Fprintln(env.Stdout, line)
 	}
 	return 0
 }
 
-func listRunIDs(env Env, dir string) ([]string, bool, error) {
-	ents, err := env.Host.ReadDir(dir)
+func runLines(env Env) ([]string, error) {
+	dir := runsDir(env.Getenv)
+	ids, err := sortedRunIDs(env, dir)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, true, nil
-		}
-		return nil, false, err
+		return nil, err
 	}
-	ids := runIDs(ents)
 	if len(ids) == 0 {
-		return nil, true, nil
+		return []string{"no runs yet"}, nil
 	}
-	sort.Sort(sort.Reverse(sort.StringSlice(ids)))
 	if len(ids) > 20 {
 		ids = ids[:20]
 	}
-	return ids, false, nil
+	lines := make([]string, 0, len(ids))
+	for _, id := range ids {
+		lines = append(lines, runLine(env, dir, id))
+	}
+	return lines, nil
+}
+
+func sortedRunIDs(env Env, dir string) ([]string, error) {
+	ents, err := env.Host.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	ids := runIDs(ents)
+	sort.Sort(sort.Reverse(sort.StringSlice(ids)))
+	return ids, nil
+}
+
+func latestRunIn(env Env, dir string) (string, error) {
+	base := runsDir(env.Getenv)
+	ids, err := sortedRunIDs(env, base)
+	if err != nil {
+		return "", err
+	}
+	for _, id := range ids {
+		start, err := journal.ReadStart(env.Host, filepath.Join(base, id+".jsonl"))
+		if err == nil && filepath.Clean(start.Dir) == filepath.Clean(dir) {
+			return id, nil
+		}
+	}
+	return "", nil
 }
 
 func runIDs(ents []host.Entry) []string {
@@ -63,19 +86,12 @@ func runIDs(ents []host.Entry) []string {
 	return out
 }
 
-func printRunLine(env Env, dir, id string) {
-	jpath := filepath.Join(dir, id+".jsonl")
-	recs, err := journal.Read(env.Host, jpath)
+func runLine(env Env, dir, id string) string {
+	st, err := replayRun(env, filepath.Join(dir, id+".jsonl"))
 	if err != nil {
-		fmt.Fprintf(env.Stdout, "%s  broken\n", id)
-		return
+		return id + "  broken"
 	}
-	st, err := journal.Replay(recs)
-	if err != nil {
-		fmt.Fprintf(env.Stdout, "%s  broken\n", id)
-		return
-	}
-	fmt.Fprintf(env.Stdout, "%s  %s  %s/%s  %s\n",
+	return fmt.Sprintf("%s  %s  %s/%s  %s",
 		id, listStatus(env, id, st), st.Start.Preset, st.Start.Model, cutRunes(oneLine(firstPrompt(st)), 50))
 }
 

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"strings"
+
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
@@ -23,6 +25,39 @@ func resolveResumeSpecs(st journal.RunStart, getenv func(string) string) (Endpoi
 		return Endpoint{}, nil, err
 	}
 	return finishSpecMap(primary, st.Fallbacks, getenv)
+}
+
+func bindCurrent(env Env, jpath string, primary Endpoint, bySpec map[string]Endpoint) error {
+	st, err := replayRun(env, jpath)
+	if err != nil || st.Current == "" {
+		return nil
+	}
+	if _, ok := bySpec[st.Current]; ok {
+		return nil
+	}
+	ep, err := endpointFor(primary, st.Current, env.Getenv)
+	if err != nil {
+		return err
+	}
+	bySpec[st.Current] = ep
+	return nil
+}
+
+func endpointFor(cur Endpoint, spec string, getenv func(string) string) (Endpoint, error) {
+	spec = strings.TrimPrefix(spec, "custom/")
+	baseURL, keyEnv := cur.BaseURL, cur.KeyEnv
+	preset, _ := splitFirstSlash(spec)
+	if _, known := presets[preset]; known && preset != cur.Preset {
+		baseURL, keyEnv = "", ""
+	}
+	ep, err := resolveEndpoint(spec, baseURL, keyEnv, getenv)
+	if err != nil {
+		return Endpoint{}, err
+	}
+	if ep.Model == "" {
+		return Endpoint{}, usagef("model must be preset/name")
+	}
+	return ep, nil
 }
 
 func finishSpecMap(primary Endpoint, fallbacks []string, getenv func(string) string) (Endpoint, map[string]Endpoint, error) {
