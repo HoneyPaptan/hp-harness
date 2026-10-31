@@ -54,6 +54,9 @@ func resumeRun(ctx context.Context, env Env, id string) int {
 	if err != nil {
 		return exitUsage(env, err)
 	}
+	if err := bindCurrent(env, jpath, ep, bySpec); err != nil {
+		return exitUsage(env, err)
+	}
 	client, err := openJev(env, start.Jev)
 	if err != nil {
 		return exitUsage(env, err)
@@ -73,7 +76,7 @@ func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]End
 		return core.Outcome{}, nil, err
 	}
 	pr := newPrinter(env, id, client)
-	deps := runDeps(env, ep, bySpec, skills, pr, client)
+	deps := runDeps(env, ep, bySpec, skills, pr.observer(), client)
 	out, err := core.Resume(ctx, deps, jpath)
 	return out, pr, err
 }

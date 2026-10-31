@@ -36,19 +36,31 @@ func (p *printer) observer() core.Observer {
 
 func (p *printer) onWait(spec string, d time.Duration, until time.Time) {
 	p.ensureOutNL()
+	fmt.Fprintln(p.env.Stderr, waitLine(spec, d, until))
+}
+
+func waitLine(spec string, d time.Duration, until time.Time) string {
 	sec := d.Round(time.Second)
 	local := until.In(time.Local).Format("15:04:05")
-	fmt.Fprintf(p.env.Stderr, "limited on %s, waiting %s until %s\n", spec, sec, local)
+	return fmt.Sprintf("limited on %s, waiting %s until %s", spec, sec, local)
+}
+
+func switchLine(from, to string) string {
+	return fmt.Sprintf("switching from %s to %s", from, to)
+}
+
+func retryLine(d time.Duration, attempt, max int) string {
+	return fmt.Sprintf("stream failed, retrying in %s (attempt %d/%d)", d.Round(time.Second), attempt, max)
 }
 
 func (p *printer) onSwitch(from, to string) {
 	p.ensureOutNL()
-	fmt.Fprintf(p.env.Stderr, "switching from %s to %s\n", from, to)
+	fmt.Fprintln(p.env.Stderr, switchLine(from, to))
 }
 
 func (p *printer) onRetry(d time.Duration, attempt, max int) {
 	p.ensureOutNL()
-	fmt.Fprintf(p.env.Stderr, "stream failed, retrying in %s (attempt %d/%d)\n", d.Round(time.Second), attempt, max)
+	fmt.Fprintln(p.env.Stderr, retryLine(d, attempt, max))
 }
 
 func (p *printer) onTurnStart() {

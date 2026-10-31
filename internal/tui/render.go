@@ -74,6 +74,16 @@ func (r *Renderer) Finish() error {
 	return err
 }
 
+func (r *Renderer) Clear() error {
+	var out strings.Builder
+	moveUp(&out, r.cursorRow)
+	out.WriteString("\r" + eraseBelow)
+	r.cursorRow = 0
+	r.lastRow = 0
+	_, err := io.WriteString(r.w, out.String())
+	return err
+}
+
 func moveUp(out *strings.Builder, rows int) {
 	if rows > 0 {
 		fmt.Fprintf(out, "\x1b[%dA", rows)

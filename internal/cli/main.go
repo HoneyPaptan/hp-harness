@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 )
 
 func Main(ctx context.Context, env Env) int {
 	args := env.Args
 	if len(args) == 0 {
-		printUsage(env.Stderr)
-		return 2
+		return cmdSession(ctx, env, args)
 	}
 	if code, done := globalFlags(env, args); done {
 		return code
@@ -48,9 +48,16 @@ func dispatch(ctx context.Context, env Env, args []string) int {
 		printUsage(env.Stderr)
 		return 0
 	default:
-		printUsage(env.Stderr)
-		return 2
+		return unknownCommand(ctx, env, args)
 	}
+}
+
+func unknownCommand(ctx context.Context, env Env, args []string) int {
+	if strings.HasPrefix(args[0], "-") {
+		return cmdSession(ctx, env, args)
+	}
+	printUsage(env.Stderr)
+	return 2
 }
 
 func isHelp(s string) bool {

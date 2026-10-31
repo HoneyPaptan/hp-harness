@@ -2,7 +2,7 @@
 
 A small, fast coding agent for the terminal, built so a run never dies.
 
-> Early work in progress. Runs, journals, resumes, waits out rate limits, falls back to other models and runs in the background today. Reboot survival, a TUI and `hp add` are next.
+> Early work in progress. Runs, journals, resumes, waits out rate limits, falls back to other models and runs in the background today, and bare `hp` opens an inline session. Reboot survival and `hp add` are next.
 
 ## Why
 
@@ -31,6 +31,7 @@ Requires Go 1.27 or newer.
 
 ```
 export OPENCODE_API_KEY=...
+./hp -m opencode/grok-4.6
 ./hp run -m opencode/grok-4.6 "find the TODOs in this repo and fix the easy ones"
 ./hp runs
 ./hp resume <run-id>
@@ -51,6 +52,23 @@ Any other OpenAI compatible server works with `--base-url` and `--key-env`. `HP_
 Text streams to stdout, tool calls print one line each to stderr, and a summary line ends the run. Press Ctrl-C at any time: the run stays resumable. Journals live in `~/.local/state/hp/runs`.
 
 Built-in tools: `read`, `write`, `edit`, `bash`, `grep`, plus `search` with `--jev`. Skills are folders with a `SKILL.md` in `.hp/skills`, `.claude/skills` or `~/.config/hp/skills`; the model sees their names and loads one with the `skill` tool when it needs it.
+
+## Session
+
+Bare `hp` on a terminal opens a session. The conversation prints inline into normal scrollback, with one dim status line after each turn. Every follow-up continues the same journaled run, so a session survives like any other run.
+
+```
+./hp -m opencode/grok-4.6
+./hp -c
+```
+
+`-c` continues the latest run in this directory, and finishes it first if it stopped midway. `-m`, `-C`, `--jev`, `--base-url` and `--key-env` work here too. Without a terminal, bare `hp` prints usage. A run in a live session shows as `running`, and a second session or `hp resume` on it is refused.
+
+Ctrl-C or Esc stops a turn and returns to the prompt; keys typed during a turn wait there as the next draft. At the prompt, Ctrl-C clears the text, twice on an empty prompt quits, and so does Ctrl-D.
+
+Commands stay local and send nothing to the model: `/help`, `/model` shows the model, `/model preset/name` switches it for following turns, `/new` starts a fresh run, `/runs`, `/quit`. `//text` sends a literal `/text`.
+
+`NO_COLOR` or `TERM=dumb` turns colour off.
 
 ## Jev
 

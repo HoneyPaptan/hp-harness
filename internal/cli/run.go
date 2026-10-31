@@ -47,26 +47,31 @@ func (s *stringList) Set(v string) error {
 }
 
 func parseRunFlags(env Env, args []string) (runOpts, []string, error) {
-	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	fs, o, fb := runFlagSet(env, "run")
+	if err := fs.Parse(args); err != nil {
+		return runOpts{}, nil, err
+	}
+	o.fallbacks = append([]string(nil), *fb...)
+	return *o, fs.Args(), nil
+}
+
+func runFlagSet(env Env, name string) (*flag.FlagSet, *runOpts, *stringList) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
-	var o runOpts
+	o := &runOpts{}
+	fb := &stringList{}
 	fs.StringVar(&o.model, "m", "", "preset/model")
 	fs.StringVar(&o.dir, "C", "", "working directory")
 	fs.IntVar(&o.steps, "steps", 0, "step limit")
 	fs.IntVar(&o.maxTokens, "max-tokens", 0, "max tokens")
 	fs.StringVar(&o.baseURL, "base-url", "", "API base URL")
 	fs.StringVar(&o.keyEnv, "key-env", "", "API key env var")
-	var fb stringList
-	fs.Var(&fb, "fallback", "fallback preset/model")
+	fs.Var(fb, "fallback", "fallback preset/model")
 	fs.DurationVar(&o.switchAfter, "switch-after", 20*time.Second, "switch after limit wait")
 	fs.DurationVar(&o.maxWait, "max-wait", 6*time.Hour, "max limit wait")
 	fs.BoolVar(&o.detach, "d", false, "detach")
 	fs.BoolVar(&o.jev, "jev", env.Getenv("HP_JEV") == "1", "use Jev for search and tool choice")
-	if err := fs.Parse(args); err != nil {
-		return runOpts{}, nil, err
-	}
-	o.fallbacks = append([]string(nil), fb...)
-	return o, fs.Args(), nil
+	return fs, o, fb
 }
 
 func runAgent(ctx context.Context, env Env, o runOpts, prompt string) int {
@@ -98,15 +103,15 @@ func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoi
 	}
 	pr := newPrinter(env, id, client)
 	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env)
-	deps := runDeps(env, ep, bySpec, skills, pr, client)
+	deps := runDeps(env, ep, bySpec, skills, pr.observer(), client)
 	out, err := core.Run(ctx, deps, cfg)
 	return out, pr, err
 }
 
-func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, skills []skill.Skill, pr *printer, client *jev.Client) core.Deps {
+func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, skills []skill.Skill, obs core.Observer, client *jev.Client) core.Deps {
 	d := core.Deps{
 		Host: env.Host, Provider: env.NewProvider(ep), Tools: buildRegistry(skills, jevTools(client)),
-		ToolChooser: jevChooser(client), Observer: pr.observer(),
+		ToolChooser: jevChooser(client), Observer: obs,
 	}
 	d.Providers = limitProviders(env, bySpec)
 	return d
