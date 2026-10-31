@@ -63,8 +63,9 @@ func (r *runner) turn(ctx context.Context) (Outcome, bool, error) {
 
 func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
 	limitN := 0
+	tools := r.turnTools(ctx)
 	for {
-		msg, u, err := r.streamTurn(ctx)
+		msg, u, err := r.streamTurn(ctx, tools)
 		if err == nil {
 			r.usage.InputTokens += u.InputTokens
 			r.usage.OutputTokens += u.OutputTokens
@@ -80,10 +81,10 @@ func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
 	}
 }
 
-func (r *runner) streamTurn(ctx context.Context) (provider.Message, provider.Usage, error) {
+func (r *runner) streamTurn(ctx context.Context, tools []provider.ToolDef) (provider.Message, provider.Usage, error) {
 	req := provider.Request{
 		Model: r.reqModel, System: r.cfg.System, Messages: r.msgs,
-		Tools: r.deps.Tools.Defs(), MaxTokens: r.cfg.MaxTokens,
+		Tools: tools, MaxTokens: r.cfg.MaxTokens,
 	}
 	r.deps.Observer.emitTurnStart()
 	raw := r.prov.Stream(ctx, req)

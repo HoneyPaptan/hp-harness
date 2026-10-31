@@ -19,12 +19,17 @@ const (
 
 var ErrFinished = errors.New("run already finished")
 
+type ToolChooser interface {
+	Choose(ctx context.Context, msgs []provider.Message, defs []provider.ToolDef) []provider.ToolDef
+}
+
 type Deps struct {
-	Host      host.Host
-	Provider  provider.Provider
-	Providers func(spec string) (provider.Provider, string, error)
-	Tools     *tool.Registry
-	Observer  Observer
+	Host        host.Host
+	Provider    provider.Provider
+	Providers   func(spec string) (provider.Provider, string, error)
+	Tools       *tool.Registry
+	ToolChooser ToolChooser
+	Observer    Observer
 }
 
 type Config struct {

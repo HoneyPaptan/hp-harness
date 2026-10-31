@@ -9,6 +9,17 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
 
+func (r *runner) turnTools(ctx context.Context) []provider.ToolDef {
+	defs := r.deps.Tools.Defs()
+	if r.deps.ToolChooser == nil {
+		return defs
+	}
+	if chosen := r.deps.ToolChooser.Choose(ctx, r.msgs, defs); len(chosen) > 0 {
+		return chosen
+	}
+	return defs
+}
+
 func (r *runner) runTools(ctx context.Context, calls []provider.ToolCall) ([]provider.ToolResult, error) {
 	env := tool.Env{Host: r.deps.Host, Dir: r.cfg.Dir}
 	out := make([]provider.ToolResult, 0, len(calls))
