@@ -21,6 +21,8 @@ func errorFromResponse(resp *http.Response) error {
 		return &provider.RateLimitError{RetryAfter: delay, Body: body}
 	case 503, 529:
 		return &provider.RateLimitError{Overloaded: true, RetryAfter: delay, Body: body}
+	case 408, 409, 500, 502, 504:
+		return &provider.TransientError{Err: &provider.HTTPError{Status: resp.StatusCode, Body: body}}
 	default:
 		return &provider.HTTPError{Status: resp.StatusCode, Body: body}
 	}

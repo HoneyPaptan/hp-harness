@@ -37,7 +37,7 @@ func (c *Client) runStream(ctx context.Context, req provider.Request, yield func
 	}
 	resp, err := c.httpClient().Do(httpReq)
 	if err != nil {
-		yield(provider.Event{}, err)
+		yield(provider.Event{}, streamFailure(ctx, err))
 		return
 	}
 	defer resp.Body.Close()
@@ -45,7 +45,7 @@ func (c *Client) runStream(ctx context.Context, req provider.Request, yield func
 		yield(provider.Event{}, errorFromResponse(resp))
 		return
 	}
-	for ev, err := range c.readStream(resp.Body) {
+	for ev, err := range c.readStream(ctx, resp.Body) {
 		if !yield(ev, err) {
 			return
 		}
@@ -83,21 +83,25 @@ func (c *Client) httpClient() *http.Client {
 	return http.DefaultClient
 }
 
-func (c *Client) readStream(body io.Reader) iter.Seq2[provider.Event, error] {
-	chunks := chunkSeq(body)
+func (c *Client) readStream(ctx context.Context, body io.Reader) iter.Seq2[provider.Event, error] {
+	chunks := chunkSeq(ctx, body)
 	return streamEvents(chunks)
 }
 
-func chunkSeq(body io.Reader) iter.Seq2[wireStreamChunk, error] {
+func chunkSeq(ctx context.Context, body io.Reader) iter.Seq2[wireStreamChunk, error] {
 	return func(yield func(wireStreamChunk, error) bool) {
 		for data, err := range sseData(body) {
 			if err != nil {
-				yield(wireStreamChunk{}, err)
+				yield(wireStreamChunk{}, readFailure(ctx, err))
 				return
 			}
 			chunk, err := decodeChunk(data)
 			if err != nil {
-				yield(wireStreamChunk{}, err)
+				yield(wireStreamChunk{}, decodeFailure(ctx, data, err))
+				return
+			}
+			if chunk.Error != nil {
+				yield(wireStreamChunk{}, chunk.Error.asError())
 				return
 			}
 			if !yield(chunk, nil) {

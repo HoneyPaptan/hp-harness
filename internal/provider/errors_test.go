@@ -17,6 +17,17 @@ func TestHTTPError(t *testing.T) {
 	}
 }
 
+func TestTransientError(t *testing.T) {
+	cause := errors.New("reset")
+	err := error(&TransientError{Err: cause})
+	if got := err.Error(); got != "reset" {
+		t.Fatalf("Error() = %q", got)
+	}
+	if !errors.Is(err, cause) {
+		t.Fatal("errors.Is cause")
+	}
+}
+
 func TestRateLimitError(t *testing.T) {
 	withDelay := &RateLimitError{RetryAfter: 30 * time.Second, Body: "slow"}
 	if got := withDelay.Error(); got != "http 429: rate limited, retry after 30s: slow" {

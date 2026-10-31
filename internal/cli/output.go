@@ -30,7 +30,7 @@ func (p *printer) observer() core.Observer {
 	return core.Observer{
 		OnTurnStart: p.onTurnStart, OnEvent: p.onEvent,
 		OnToolStart: p.onToolStart, OnToolResult: p.onToolResult,
-		OnWait: p.onWait, OnSwitch: p.onSwitch,
+		OnWait: p.onWait, OnSwitch: p.onSwitch, OnRetry: p.onRetry,
 	}
 }
 
@@ -44,6 +44,11 @@ func (p *printer) onWait(spec string, d time.Duration, until time.Time) {
 func (p *printer) onSwitch(from, to string) {
 	p.ensureOutNL()
 	fmt.Fprintf(p.env.Stderr, "switching from %s to %s\n", from, to)
+}
+
+func (p *printer) onRetry(d time.Duration, attempt, max int) {
+	p.ensureOutNL()
+	fmt.Fprintf(p.env.Stderr, "stream failed, retrying in %s (attempt %d/%d)\n", d.Round(time.Second), attempt, max)
 }
 
 func (p *printer) onTurnStart() {

@@ -58,6 +58,7 @@ type wireTool struct {
 type wireStreamChunk struct {
 	Choices []wireStreamChoice `json:"choices"`
 	Usage   *wireUsage         `json:"usage,omitempty"`
+	Error   *wireStreamError   `json:"error,omitempty"`
 }
 
 type wireStreamChoice struct {
