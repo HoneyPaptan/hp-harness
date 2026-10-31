@@ -248,3 +248,90 @@ func TestReplay(t *testing.T) {
 		}
 	})
 }
+
+func TestReplayContinuation(t *testing.T) {
+	assistant := provider.Message{Role: provider.RoleAssistant, Text: "a"}
+	call := provider.ToolCall{ID: "same", Name: "read"}
+	withCall := provider.Message{Role: provider.RoleAssistant, ToolCalls: []provider.ToolCall{call}}
+	finish := func(w *Writer) error {
+		if err := w.User("one"); err != nil {
+			return err
+		}
+		if err := w.Assistant(assistant); err != nil {
+			return err
+		}
+		return w.End("final")
+	}
+	tests := []struct {
+		name         string
+		write        func(*Writer) error
+		wantFinished bool
+		wantReason   string
+		wantSteps    int
+		wantPending  int
+	}{
+		{"finished", finish, true, "final", 1, 0},
+		{"user after run_end opens the run", func(w *Writer) error {
+			if err := finish(w); err != nil {
+				return err
+			}
+			return w.User("two")
+		}, false, "", 0, 0},
+		{"second run_end closes it again", func(w *Writer) error {
+			if err := finish(w); err != nil {
+				return err
+			}
+			if err := w.User("two"); err != nil {
+				return err
+			}
+			if err := w.Assistant(assistant); err != nil {
+				return err
+			}
+			return w.End("step_limit")
+		}, true, "step_limit", 1, 0},
+		{"reused call id stays pending", func(w *Writer) error {
+			if err := w.User("one"); err != nil {
+				return err
+			}
+			if err := w.Assistant(withCall); err != nil {
+				return err
+			}
+			if err := w.ToolStarted(call); err != nil {
+				return err
+			}
+			if err := w.ToolResult(provider.ToolResult{CallID: "same", Text: "x"}); err != nil {
+				return err
+			}
+			return w.Assistant(withCall)
+		}, false, "", 2, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := host.NewMemory()
+			w, err := Create(h, "/j", RunStart{RunID: "r"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.write(w); err != nil {
+				t.Fatal(err)
+			}
+			recs, err := Read(h, "/j")
+			if err != nil {
+				t.Fatal(err)
+			}
+			st, err := Replay(recs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if st.Finished != tt.wantFinished || st.EndReason != tt.wantReason || st.Steps != tt.wantSteps {
+				t.Fatalf("state %+v", st)
+			}
+			if len(st.Pending) != tt.wantPending {
+				t.Fatalf("pending %+v", st.Pending)
+			}
+			if tt.wantPending > 0 && st.Pending[0].Started {
+				t.Fatalf("pending %+v", st.Pending)
+			}
+		})
+	}
+}

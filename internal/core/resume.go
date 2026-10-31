@@ -89,14 +89,18 @@ func (r *runner) settlePending(ctx context.Context, pending []journal.Pending) e
 
 func (r *runner) settleOne(ctx context.Context, env tool.Env, p journal.Pending) (provider.ToolResult, error) {
 	if p.Started {
-		tr := provider.ToolResult{CallID: p.Call.ID, Text: interruptedMsg, IsError: true}
-		if err := r.w.ToolResult(tr); err != nil {
-			return provider.ToolResult{}, err
-		}
-		r.deps.Observer.emitToolResult(tr)
-		return tr, nil
+		return r.abandonCall(p.Call.ID, interruptedMsg)
 	}
 	return r.execCall(ctx, env, p.Call)
+}
+
+func (r *runner) abandonCall(id, text string) (provider.ToolResult, error) {
+	tr := provider.ToolResult{CallID: id, Text: text, IsError: true}
+	if err := r.w.ToolResult(tr); err != nil {
+		return provider.ToolResult{}, err
+	}
+	r.deps.Observer.emitToolResult(tr)
+	return tr, nil
 }
 
 func (r *runner) maybeFinishAfterCrash() (Outcome, bool, error) {

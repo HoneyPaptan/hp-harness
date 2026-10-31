@@ -92,6 +92,9 @@ func (r *replayer) applyUser(rec Record) error {
 		return err
 	}
 	r.st.Messages = append(r.st.Messages, provider.Message{Role: provider.RoleUser, Text: u.Text})
+	r.st.Steps = 0
+	r.st.Finished = false
+	r.st.EndReason = ""
 	return nil
 }
 
@@ -102,6 +105,8 @@ func (r *replayer) applyAssistant(rec Record) error {
 	}
 	r.st.Messages = append(r.st.Messages, a.Message)
 	r.st.Steps++
+	clear(r.started)
+	clear(r.resultIDs)
 	return nil
 }
 
