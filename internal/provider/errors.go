@@ -14,6 +14,18 @@ func (e *HTTPError) Error() string {
 	return fmt.Sprintf("http %d: %s", e.Status, e.Body)
 }
 
+type TransientError struct {
+	Err error
+}
+
+func (e *TransientError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *TransientError) Unwrap() error {
+	return e.Err
+}
+
 type RateLimitError struct {
 	Overloaded bool
 	RetryAfter time.Duration

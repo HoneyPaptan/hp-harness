@@ -33,6 +33,28 @@ func TestRunLimitWaitLine(t *testing.T) {
 	}
 }
 
+func TestRunStreamRetryLine(t *testing.T) {
+	h := host.NewMemory()
+	fp := &fake.Provider{Turns: []fake.Turn{
+		{
+			Events: []provider.Event{{Kind: provider.EventText, Text: "par"}},
+			Err:    &provider.TransientError{Err: errors.New("cut")},
+		},
+		fake.TextTurn("ok"),
+	}}
+	env, stdout, stderr := testEnv(t, h, fp, nil)
+	env.Args = []string{"run", "-m", "xai/grok", "go"}
+	if code := Main(context.Background(), env); code != 0 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "stream failed, retrying in 2s (attempt 1/5)\n") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+	if stdout.String() != "par\nok\n" {
+		t.Fatalf("stdout %q", stdout.String())
+	}
+}
+
 func TestRunLimitSwitchLine(t *testing.T) {
 	h := host.NewMemory()
 	primary := &fake.Provider{Turns: []fake.Turn{

@@ -68,10 +68,21 @@ func TestErrorFromResponseStatus(t *testing.T) {
 		wantRL     bool
 		overloaded bool
 		wantHTTP   bool
+		transient  bool
 	}{
 		{name: "529 overloaded", status: 529, wantRL: true, overloaded: true},
 		{name: "503 overloaded", status: 503, wantRL: true, overloaded: true},
-		{name: "500 http error", status: 500, wantHTTP: true},
+		{name: "429 limited", status: 429, wantRL: true},
+		{name: "408 transient", status: 408, wantHTTP: true, transient: true},
+		{name: "409 transient", status: 409, wantHTTP: true, transient: true},
+		{name: "500 transient", status: 500, wantHTTP: true, transient: true},
+		{name: "502 transient", status: 502, wantHTTP: true, transient: true},
+		{name: "504 transient", status: 504, wantHTTP: true, transient: true},
+		{name: "400 permanent", status: 400, wantHTTP: true},
+		{name: "401 permanent", status: 401, wantHTTP: true},
+		{name: "403 permanent", status: 403, wantHTTP: true},
+		{name: "404 permanent", status: 404, wantHTTP: true},
+		{name: "422 permanent", status: 422, wantHTTP: true},
 	}
 
 	for _, tc := range tests {
@@ -84,6 +95,10 @@ func TestErrorFromResponseStatus(t *testing.T) {
 			err := errorFromResponse(resp)
 			var rl *provider.RateLimitError
 			var he *provider.HTTPError
+			var te *provider.TransientError
+			if errors.As(err, &te) != tc.transient {
+				t.Fatalf("err = %#v", err)
+			}
 			switch {
 			case tc.wantRL:
 				if !errors.As(err, &rl) {

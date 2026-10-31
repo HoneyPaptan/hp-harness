@@ -42,7 +42,7 @@ func streamEvents(chunks iter.Seq2[wireStreamChunk, error]) iter.Seq2[provider.E
 			}
 		}
 		if a.finishReason == "" {
-			yield(provider.Event{}, ErrTruncated)
+			yield(provider.Event{}, &provider.TransientError{Err: ErrTruncated})
 			return
 		}
 		for _, ev := range a.finish() {

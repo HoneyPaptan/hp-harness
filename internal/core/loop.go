@@ -62,7 +62,7 @@ func (r *runner) turn(ctx context.Context) (Outcome, bool, error) {
 }
 
 func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
-	limitN := 0
+	limitN, failures := 0, 0
 	tools := r.turnTools(ctx)
 	for {
 		msg, u, err := r.streamTurn(ctx, tools)
@@ -71,14 +71,22 @@ func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
 			r.usage.OutputTokens += u.OutputTokens
 			return msg, nil
 		}
-		var rl *provider.RateLimitError
-		if !errors.As(err, &rl) {
-			return provider.Message{}, err
-		}
-		if err := r.handleRateLimit(ctx, rl, &limitN); err != nil {
+		if err := r.recoverTurn(ctx, err, &limitN, &failures); err != nil {
 			return provider.Message{}, err
 		}
 	}
+}
+
+func (r *runner) recoverTurn(ctx context.Context, err error, limitN, failures *int) error {
+	var rl *provider.RateLimitError
+	if errors.As(err, &rl) {
+		return r.handleRateLimit(ctx, rl, limitN)
+	}
+	var te *provider.TransientError
+	if errors.As(err, &te) {
+		return r.retryStream(ctx, err, failures)
+	}
+	return err
 }
 
 func (r *runner) streamTurn(ctx context.Context, tools []provider.ToolDef) (provider.Message, provider.Usage, error) {

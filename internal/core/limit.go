@@ -41,15 +41,19 @@ func limitDelay(rl *provider.RateLimitError, n *int) time.Duration {
 		*n = 0
 		return rl.RetryAfter
 	}
+	d := backoff(*n)
+	*n++
+	return d
+}
+
+func backoff(n int) time.Duration {
 	d := backoffStart
-	for i := 0; i < *n; i++ {
+	for i := 0; i < n; i++ {
 		d *= 2
 		if d > backoffCap {
-			d = backoffCap
-			break
+			return backoffCap
 		}
 	}
-	*n++
 	return d
 }
 

@@ -209,6 +209,18 @@ func TestStreamTruncatedWithoutFinish(t *testing.T) {
 	}
 }
 
+func TestStreamTruncatedIsTransient(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, sseBody(chunkText("par")))
+	}))
+	defer srv.Close()
+	_, _, err := provider.Collect(testClient(srv, "").Stream(context.Background(), provider.Request{Model: "m"}))
+	var te *provider.TransientError
+	if !errors.As(err, &te) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestStreamHTTP400(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
