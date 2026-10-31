@@ -52,7 +52,7 @@ func newResumeRunner(d Deps, w *journal.Writer, path string, st journal.State) (
 		Preset: st.Start.Preset, BaseURL: st.Start.BaseURL, KeyEnv: st.Start.KeyEnv,
 		MaxTokens:   st.Start.MaxTokens,
 		Fallbacks:   append([]string(nil), st.Start.Fallbacks...),
-		SwitchAfter: st.Start.SwitchAfter, MaxWait: st.Start.MaxWait,
+		SwitchAfter: st.Start.SwitchAfter, MaxWait: st.Start.MaxWait, Jev: st.Start.Jev,
 	}
 	spec := st.Current
 	if spec == "" {

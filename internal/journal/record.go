@@ -40,6 +40,7 @@ type RunStart struct {
 	Fallbacks   []string      `json:"fallbacks,omitempty"`
 	SwitchAfter time.Duration `json:"switch_after,omitempty"`
 	MaxWait     time.Duration `json:"max_wait,omitempty"`
+	Jev         bool          `json:"jev,omitempty"`
 }
 
 type LimitWait struct {

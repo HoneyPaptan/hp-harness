@@ -21,8 +21,8 @@ func discoverSkills(env Env, dir string) ([]skill.Skill, error) {
 	return skill.Discover(env.Host, skillDirs(dir, env.Getenv("HOME")))
 }
 
-func buildRegistry(skills []skill.Skill) *tool.Registry {
-	b := tool.Builtins()
+func buildRegistry(skills []skill.Skill, extra []tool.Tool) *tool.Registry {
+	b := append(tool.Builtins(), extra...)
 	if len(skills) == 0 {
 		return tool.NewRegistry(b...)
 	}

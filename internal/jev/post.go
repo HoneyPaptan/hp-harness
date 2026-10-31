@@ -18,7 +18,12 @@ func (c *Client) askChunk(ctx context.Context, state any, qs map[string]Question
 	if err != nil {
 		return nil, Usage{}, err
 	}
-	return decodeResponse(respBody)
+	answers, usage, err := decodeResponse(respBody)
+	if err != nil {
+		return nil, Usage{}, err
+	}
+	c.countUsage(usage)
+	return answers, usage, nil
 }
 
 func (c *Client) post(ctx context.Context, body []byte) ([]byte, error) {
@@ -62,6 +67,7 @@ func (c *Client) doPost(ctx context.Context, body []byte) (*http.Response, error
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.Key)
+	c.countRequest()
 	return c.httpClient().Do(req)
 }
 

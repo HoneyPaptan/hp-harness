@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/HoneyPaptan/hp-harness/internal/core"
+	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 )
 
@@ -26,8 +27,12 @@ func cmdResume(ctx context.Context, env Env, args []string) int {
 	id := rest[0]
 	if detach {
 		jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
-		if _, err := journal.ReadStart(env.Host, jpath); err != nil {
+		start, err := journal.ReadStart(env.Host, jpath)
+		if err != nil {
 			return exitUsage(env, usagef("run %q not found", id))
+		}
+		if _, err := openJev(env, start.Jev); err != nil {
+			return exitUsage(env, err)
 		}
 		return spawnDetached(env, id)
 	}
@@ -49,7 +54,11 @@ func resumeRun(ctx context.Context, env Env, id string) int {
 	if err != nil {
 		return exitUsage(env, err)
 	}
-	out, pr, err := execResume(ctx, env, ep, bySpec, start, jpath, id)
+	client, err := openJev(env, start.Jev)
+	if err != nil {
+		return exitUsage(env, err)
+	}
+	out, pr, err := execResume(ctx, env, ep, bySpec, client, start, jpath, id)
 	return finishResume(ctx, env, id, jpath, pr, out, err)
 }
 
@@ -58,13 +67,13 @@ func endpointFromStart(st journal.RunStart, getenv func(string) string) (Endpoin
 	return applyKey(ep, getenv)
 }
 
-func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, start journal.RunStart, jpath, id string) (core.Outcome, *printer, error) {
+func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, start journal.RunStart, jpath, id string) (core.Outcome, *printer, error) {
 	skills, err := discoverSkills(env, start.Dir)
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
-	pr := newPrinter(env, id)
-	deps := runDeps(env, ep, bySpec, skills, pr)
+	pr := newPrinter(env, id, client)
+	deps := runDeps(env, ep, bySpec, skills, pr, client)
 	out, err := core.Resume(ctx, deps, jpath)
 	return out, pr, err
 }

@@ -8,20 +8,22 @@ import (
 	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/core"
+	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
 
 type printer struct {
 	env       Env
 	id        string
+	jev       *jev.Client
 	midLine   bool
 	turnStart time.Time
 	ttft      time.Duration
 	ttftDone  bool
 }
 
-func newPrinter(env Env, id string) *printer {
-	return &printer{env: env, id: id}
+func newPrinter(env Env, id string, client *jev.Client) *printer {
+	return &printer{env: env, id: id, jev: client}
 }
 
 func (p *printer) observer() core.Observer {
@@ -89,8 +91,16 @@ func (p *printer) ensureOutNL() {
 
 func (p *printer) summary(out core.Outcome) {
 	p.ensureOutNL()
-	fmt.Fprintf(p.env.Stderr, "run %s  %s  steps %d  tokens %d/%d  ttft %dms\n",
-		p.id, out.Reason, out.Steps, out.Usage.InputTokens, out.Usage.OutputTokens, p.ttft.Milliseconds())
+	fmt.Fprintf(p.env.Stderr, "run %s  %s  steps %d  tokens %d/%d  ttft %dms%s\n",
+		p.id, out.Reason, out.Steps, out.Usage.InputTokens, out.Usage.OutputTokens, p.ttft.Milliseconds(), p.jevSummary())
+}
+
+func (p *printer) jevSummary() string {
+	if p.jev == nil {
+		return ""
+	}
+	s := p.jev.Spent()
+	return fmt.Sprintf("  jev requests %d tokens %d/%d", s.Requests, s.InputTokens, s.OutputTokens)
 }
 
 func toolMainArg(raw json.RawMessage) string {

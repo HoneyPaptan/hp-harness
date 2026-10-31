@@ -23,6 +23,9 @@ func detachRun(_ context.Context, env Env, o runOpts, prompt string) int {
 	if err != nil {
 		return exitUsage(env, err)
 	}
+	if _, err := openJev(env, o.jev); err != nil {
+		return exitUsage(env, err)
+	}
 	dir, err := resolveWorkDir(env, o.dir)
 	if err != nil {
 		return exitErr(env, "", "", err)

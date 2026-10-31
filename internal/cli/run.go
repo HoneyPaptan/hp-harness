@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/core"
+	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/skill"
 )
 
@@ -33,7 +34,7 @@ type runOpts struct {
 	steps, maxTokens            int
 	fallbacks                   []string
 	switchAfter, maxWait        time.Duration
-	detach                      bool
+	detach, jev                 bool
 }
 
 type stringList []string
@@ -60,6 +61,7 @@ func parseRunFlags(env Env, args []string) (runOpts, []string, error) {
 	fs.DurationVar(&o.switchAfter, "switch-after", 20*time.Second, "switch after limit wait")
 	fs.DurationVar(&o.maxWait, "max-wait", 6*time.Hour, "max limit wait")
 	fs.BoolVar(&o.detach, "d", false, "detach")
+	fs.BoolVar(&o.jev, "jev", env.Getenv("HP_JEV") == "1", "use Jev for search and tool choice")
 	if err := fs.Parse(args); err != nil {
 		return runOpts{}, nil, err
 	}
@@ -72,6 +74,10 @@ func runAgent(ctx context.Context, env Env, o runOpts, prompt string) int {
 	if err != nil {
 		return exitUsage(env, err)
 	}
+	client, err := openJev(env, o.jev)
+	if err != nil {
+		return exitUsage(env, err)
+	}
 	dir, err := resolveWorkDir(env, o.dir)
 	if err != nil {
 		return exitErr(env, "", "", err)
@@ -81,26 +87,26 @@ func runAgent(ctx context.Context, env Env, o runOpts, prompt string) int {
 		return exitErr(env, "", "", err)
 	}
 	jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
-	out, pr, err := execRun(ctx, env, ep, bySpec, dir, id, jpath, o, prompt)
+	out, pr, err := execRun(ctx, env, ep, bySpec, client, dir, id, jpath, o, prompt)
 	return finishRun(ctx, env, id, jpath, pr, out, err)
 }
 
-func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, dir, id, jpath string, o runOpts, prompt string) (core.Outcome, *printer, error) {
+func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, dir, id, jpath string, o runOpts, prompt string) (core.Outcome, *printer, error) {
 	skills, err := discoverSkills(env, dir)
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
-	pr := newPrinter(env, id)
+	pr := newPrinter(env, id, client)
 	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env)
-	deps := runDeps(env, ep, bySpec, skills, pr)
+	deps := runDeps(env, ep, bySpec, skills, pr, client)
 	out, err := core.Run(ctx, deps, cfg)
 	return out, pr, err
 }
 
-func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, skills []skill.Skill, pr *printer) core.Deps {
+func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, skills []skill.Skill, pr *printer, client *jev.Client) core.Deps {
 	d := core.Deps{
-		Host: env.Host, Provider: env.NewProvider(ep), Tools: buildRegistry(skills),
-		Observer: pr.observer(),
+		Host: env.Host, Provider: env.NewProvider(ep), Tools: buildRegistry(skills, jevTools(client)),
+		ToolChooser: jevChooser(client), Observer: pr.observer(),
 	}
 	d.Providers = limitProviders(env, bySpec)
 	return d
@@ -112,6 +118,7 @@ func runConfig(id string, ep Endpoint, dir, jpath string, o runOpts, prompt stri
 		Dir: dir, JournalPath: jpath, Prompt: prompt, StepLimit: o.steps,
 		MaxTokens: o.maxTokens, Preset: ep.Preset, BaseURL: ep.BaseURL, KeyEnv: ep.KeyEnv,
 		Fallbacks: append([]string(nil), o.fallbacks...), SwitchAfter: o.switchAfter, MaxWait: o.maxWait,
+		Jev: o.jev,
 	}
 }
 

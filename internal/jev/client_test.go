@@ -257,7 +257,7 @@ func TestFromEnv(t *testing.T) {
 				t.Fatal(err)
 			}
 			if c.URL != tt.wantURL || c.Key != tt.wantKey || c.Model != tt.wantMod {
-				t.Fatalf("client %#v", c)
+				t.Fatalf("client %q %q %q", c.URL, c.Key, c.Model)
 			}
 		})
 	}

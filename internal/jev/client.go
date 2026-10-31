@@ -13,6 +13,9 @@ type Client struct {
 	Model string
 	HTTP  *http.Client
 	Sleep func(time.Duration)
+
+	mu    sync.Mutex
+	spent Spend
 }
 
 func (c *Client) Ask(ctx context.Context, state any, qs map[string]Question) (Answers, Usage, error) {

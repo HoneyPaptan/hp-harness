@@ -10,6 +10,7 @@ import (
 
 	"github.com/HoneyPaptan/hp-harness/internal/cli"
 	"github.com/HoneyPaptan/hp-harness/internal/host"
+	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/openai"
 )
@@ -41,9 +42,17 @@ func buildEnv() (cli.Env, error) {
 	return cli.Env{
 		Args: os.Args[1:], Getenv: os.Getenv, Cwd: cwd,
 		Stdout: os.Stdout, Stderr: os.Stderr, Host: host.Native{},
-		Rand: rand.Reader, Version: version, NewProvider: newProvider,
+		Rand: rand.Reader, Version: version, NewProvider: newProvider, NewJev: newJev,
 		Spawn: spawnDetached, Alive: processAlive, Signal: processSignal, Pid: os.Getpid(),
 	}, nil
+}
+
+func newJev(getenv func(string) string) (*jev.Client, error) {
+	c, err := jev.FromEnv(getenv)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
 }
 
 func newProvider(ep cli.Endpoint) provider.Provider {

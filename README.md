@@ -50,7 +50,22 @@ Any other OpenAI compatible server works with `--base-url` and `--key-env`. `HP_
 
 Text streams to stdout, tool calls print one line each to stderr, and a summary line ends the run. Press Ctrl-C at any time: the run stays resumable. Journals live in `~/.local/state/hp/runs`.
 
-Built-in tools: `read`, `write`, `edit`, `bash`, `grep`. Skills are folders with a `SKILL.md` in `.hp/skills`, `.claude/skills` or `~/.config/hp/skills`; the model sees their names and loads one with the `skill` tool when it needs it.
+Built-in tools: `read`, `write`, `edit`, `bash`, `grep`, plus `search` with `--jev`. Skills are folders with a `SKILL.md` in `.hp/skills`, `.claude/skills` or `~/.config/hp/skills`; the model sees their names and loads one with the `skill` tool when it needs it.
+
+## Jev
+
+```
+export TYPESAFE_API_KEY=...
+./hp run --jev -m groq/openai/gpt-oss-120b "where are rate limit headers parsed?"
+```
+
+`--jev` or `HP_JEV=1` turns on Jev, TypeSafe's yes/no judgment model, for one run. It is off by default, and when off nothing below happens. It needs `TYPESAFE_API_KEY` or `OPENROUTER_API_KEY`; if both are set, TypeSafe wins. With neither set, hp exits with code 2 before it starts. `HP_JEV_MODEL` picks the model.
+
+With Jev on, the `search` tool finds code by meaning and lists `path:start-end` ranges with scores, best first. When a turn would send more than 8 tools, Jev also picks the ones the next step is likely to need; if that fails, hp sends them all. The summary line adds Jev requests and tokens.
+
+What leaves the machine: for `search`, file paths and file excerpts go to the Jev service, and secret-looking files such as `.env`, `*.pem` and `id_rsa` are withheld. For tool choice, the first user message, the last assistant text and tool names go there, never tool output.
+
+The setting is journaled, so a run stays resumable with Jev on: `hp resume` reads it from the journal and ignores `HP_JEV`, and the key must still be set.
 
 ## Limits and background runs
 
