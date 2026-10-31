@@ -97,6 +97,10 @@ func (d *Decoder) Flush() []Key {
 	return keys
 }
 
+func (d *Decoder) Waiting() bool {
+	return len(d.pending) > 0 && !d.pasting
+}
+
 func flushedKey(b byte) Key {
 	if b == esc {
 		return Key{Type: KeyEsc}
