@@ -70,6 +70,16 @@ Commands stay local and send nothing to the model: `/help`, `/model` shows the m
 
 `NO_COLOR` or `TERM=dumb` turns colour off.
 
+## Web
+
+```
+./hp web -m groq/openai/gpt-oss-120b
+```
+
+`hp web` serves a page from the binary and prints a URL with a one-time token to stderr. A run started there uses the same journal as `hp run`: closing the tab leaves it going, reopening replays the journal and rejoins live, and stopping the server leaves it resumable. Runs live in another process are shown but refused.
+
+`-m`, `--jev`, `-C` and the other `hp run` flags work here. `--port` picks the port (default 7878, or a free one with a note if it is taken). It binds 127.0.0.1 unless `--listen host:port` says otherwise. The token is sent without TLS, so a non-loopback `--listen` is only as private as that network. The agent can run shell commands: anyone with the URL can too. The server checks the token, `Host` and `Origin` on requests, and only `127.0.0.1`, `localhost` and the `--listen` host are accepted, so use a concrete host rather than `0.0.0.0`.
+
 ## Jev
 
 ```

@@ -58,12 +58,12 @@ func optsFromStart(st journal.RunStart) runOpts {
 }
 
 func (a *sessionAgent) Send(ctx context.Context, prompt string, emit func(tui.Event)) (tui.Outcome, error) {
-	deps := a.begin(emit)
+	deps := a.begin(a.observer(emit))
 	return a.finish(a.dispatch(ctx, deps, prompt))
 }
 
 func (a *sessionAgent) Resume(ctx context.Context, emit func(tui.Event)) (tui.Outcome, error) {
-	deps := a.begin(emit)
+	deps := a.begin(a.observer(emit))
 	return a.finish(core.Resume(ctx, deps, a.jpath))
 }
 
@@ -101,9 +101,9 @@ func (a *sessionAgent) register() error {
 	return writeRunPid(a.env, id)
 }
 
-func (a *sessionAgent) begin(emit func(tui.Event)) core.Deps {
+func (a *sessionAgent) begin(obs core.Observer) core.Deps {
 	a.clock = newPrinter(a.env, a.id, a.client)
-	d := runDeps(a.env, a.ep, a.bySpec, a.skills, a.observer(emit), a.client)
+	d := runDeps(a.env, a.ep, a.bySpec, a.skills, a.tracked(obs), a.client)
 	d.Providers = providerFactory(a.env, a.bySpec)
 	return d
 }
@@ -132,29 +132,46 @@ func (a *sessionAgent) observer(emit func(tui.Event)) core.Observer {
 	return core.Observer{
 		OnTurnStart: func() {
 			a.settling = false
-			a.clock.onTurnStart()
 			emit(tui.Event{Kind: tui.EventStep})
 		},
 		OnEvent: func(ev provider.Event) {
-			a.clock.markTTFT()
 			emit(tui.Event{Kind: tui.EventText, Text: ev.Text})
 		},
 		OnToolStart: func(c provider.ToolCall) {
-			a.clock.markTTFT()
 			emit(tui.Event{Kind: tui.EventTool, Text: strings.TrimSpace(c.Name + " " + toolMainArg(c.Args))})
 		},
 		OnToolResult: func(r provider.ToolResult) { a.toolResult(r, emit) },
 		OnWait: func(spec string, d time.Duration, until time.Time) {
 			note(waitLine(spec, d, until))
 		},
-		OnSwitch: func(from, to string) {
-			a.ep = a.bySpec[to]
-			note(switchLine(from, to))
-		},
+		OnSwitch: func(from, to string) { note(switchLine(from, to)) },
 		OnRetry: func(d time.Duration, attempt, max int) {
 			note(retryLine(d, attempt, max))
 		},
 	}
+}
+
+func (a *sessionAgent) tracked(o core.Observer) core.Observer {
+	turnStart, event, toolStart, onSwitch := o.OnTurnStart, o.OnEvent, o.OnToolStart, o.OnSwitch
+	o.OnTurnStart = func() {
+		a.clock.onTurnStart()
+		if turnStart != nil {
+			turnStart()
+		}
+	}
+	o.OnEvent = func(ev provider.Event) {
+		a.clock.markTTFT()
+		event(ev)
+	}
+	o.OnToolStart = func(c provider.ToolCall) {
+		a.clock.markTTFT()
+		toolStart(c)
+	}
+	o.OnSwitch = func(from, to string) {
+		a.ep = a.bySpec[to]
+		onSwitch(from, to)
+	}
+	return o
 }
 
 func (a *sessionAgent) toolResult(r provider.ToolResult, emit func(tui.Event)) {

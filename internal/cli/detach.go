@@ -95,8 +95,13 @@ func runAlive(env Env, id string) bool {
 	return env.Alive(pid)
 }
 
+func liveElsewhere(env Env, id string) bool {
+	pid, ok := readRunPid(env, id)
+	return ok && env.Alive(pid) && pid != env.Pid
+}
+
 func beginResume(env Env, id string) (func(), int) {
-	if pid, ok := readRunPid(env, id); ok && env.Alive(pid) && pid != env.Pid {
+	if liveElsewhere(env, id) {
 		fmt.Fprintf(env.Stderr, "run %s is running, follow it with: hp attach %s\n", id, id)
 		return nil, 1
 	}
