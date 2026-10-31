@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/HoneyPaptan/hp-harness/internal/host"
 )
 
 var grepTool = Tool{
@@ -110,65 +112,20 @@ func filterGlob(paths []string, glob string) []string {
 }
 
 func listGrepPaths(env Env, root string) ([]string, error) {
-	ent, err := env.Host.Stat(root)
-	if err != nil {
-		return nil, err
-	}
-	if !ent.IsDir {
-		return []string{root}, nil
-	}
 	var out []string
-	if err := walkDir(env, root, func(p string) { out = append(out, p) }); err != nil {
+	err := Walk(env, root, func(p string, _ host.Entry) { out = append(out, p) })
+	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func walkDir(env Env, dir string, file func(string)) error {
-	ents, err := env.Host.ReadDir(dir)
-	if err != nil {
-		return err
-	}
-	for _, e := range ents {
-		p := filepath.Join(dir, e.Name)
-		if e.IsDir {
-			if e.Name == ".git" || e.IsLink {
-				continue
-			}
-			if err := walkDir(env, p, file); err != nil {
-				return err
-			}
-			continue
-		}
-		file(p)
-	}
-	return nil
-}
-
 func matchFile(env Env, re *regexp.Regexp, path string) ([]grepMatch, error) {
-	data, ok, err := readGrepFile(env, path)
+	data, ok, err := ReadText(env, path)
 	if err != nil || !ok {
 		return nil, err
 	}
 	return scanLines(path, string(data), re), nil
-}
-
-func readGrepFile(env Env, path string) ([]byte, bool, error) {
-	ent, err := env.Host.Stat(path)
-	if err != nil {
-		return nil, false, err
-	}
-	if ent.Size > 1<<20 {
-		return nil, false, nil
-	}
-	data, err := env.Host.ReadFile(path)
-	if err != nil {
-		return nil, false, err
-	}
-	if isBinary(data) {
-		return nil, false, nil
-	}
-	return data, true, nil
 }
 
 func scanLines(path, text string, re *regexp.Regexp) []grepMatch {
@@ -181,14 +138,6 @@ func scanLines(path, text string, re *regexp.Regexp) []grepMatch {
 		out = append(out, grepMatch{path: path, line: i + 1, text: line})
 	}
 	return out
-}
-
-func isBinary(data []byte) bool {
-	n := len(data)
-	if n > 8000 {
-		n = 8000
-	}
-	return strings.IndexByte(string(data[:n]), 0) >= 0
 }
 
 func formatGrep(workDir string, matches []grepMatch) Result {
@@ -218,7 +167,7 @@ func writeMatches(workDir string, matches []grepMatch, capped bool) string {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
-		b.WriteString(displayPath(workDir, m.path))
+		b.WriteString(DisplayPath(workDir, m.path))
 		b.WriteByte(':')
 		b.WriteString(fmt.Sprintf("%d: %s", m.line, m.text))
 	}
@@ -226,12 +175,4 @@ func writeMatches(workDir string, matches []grepMatch, capped bool) string {
 		b.WriteString("\n[capped at 200 matches]")
 	}
 	return b.String()
-}
-
-func displayPath(workDir, p string) string {
-	rel, err := filepath.Rel(workDir, p)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return p
-	}
-	return rel
 }
