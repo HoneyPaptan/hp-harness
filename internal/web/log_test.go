@@ -114,3 +114,34 @@ func TestTurnEndAlwaysCarriesStats(t *testing.T) {
 		}
 	}
 }
+
+func TestDropPartial(t *testing.T) {
+	text := Event{Kind: KindText, Text: "x"}
+	think := Event{Kind: KindThinking}
+	user := Event{Kind: KindUser}
+	cases := []struct {
+		name  string
+		items []Event
+		want  bool
+		kinds string
+	}{
+		{name: "text", items: []Event{user, text}, want: true, kinds: "user"},
+		{name: "thinking after text", items: []Event{user, text, think}, want: true, kinds: "user"},
+		{name: "thinking only", items: []Event{user, think}, kinds: "user thinking"},
+		{name: "empty"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var l eventLog
+			for _, ev := range c.items {
+				l.add(ev)
+			}
+			if got := l.dropPartial(); got != c.want {
+				t.Fatalf("dropped %v", got)
+			}
+			if got := kinds(l.since(0)); got != c.kinds {
+				t.Fatalf("kinds %q", got)
+			}
+		})
+	}
+}

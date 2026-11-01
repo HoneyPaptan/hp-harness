@@ -38,6 +38,9 @@ func (l *eventLog) addText(text string) Event {
 
 func (l *eventLog) dropPartial() bool {
 	n := len(l.items)
+	for n > 0 && l.items[n-1].ev.Kind == KindThinking {
+		n--
+	}
 	if n == 0 || l.items[n-1].ev.Kind != KindText {
 		return false
 	}

@@ -136,9 +136,7 @@ func (a *sessionAgent) observer(emit func(tui.Event)) core.Observer {
 			a.settling = false
 			emit(tui.Event{Kind: tui.EventStep})
 		},
-		OnEvent: func(ev provider.Event) {
-			emit(tui.Event{Kind: tui.EventText, Text: ev.Text})
-		},
+		OnEvent: func(ev provider.Event) { emit(streamEvent(ev)) },
 		OnToolStart: func(c provider.ToolCall) {
 			emit(tui.Event{Kind: tui.EventTool, Text: strings.TrimSpace(c.Name + " " + toolMainArg(c.Args))})
 		},
@@ -151,6 +149,13 @@ func (a *sessionAgent) observer(emit func(tui.Event)) core.Observer {
 			note(retryLine(d, attempt, max))
 		},
 	}
+}
+
+func streamEvent(ev provider.Event) tui.Event {
+	if ev.Kind == provider.EventReasoning {
+		return tui.Event{Kind: tui.EventThinking}
+	}
+	return tui.Event{Kind: tui.EventText, Text: ev.Text}
 }
 
 func (a *sessionAgent) tracked(o core.Observer) core.Observer {
@@ -181,6 +186,11 @@ func (a *sessionAgent) toolResult(r provider.ToolResult, emit func(tui.Event)) {
 		return
 	}
 	emit(tui.Event{Kind: tui.EventToolError, Text: cutRunes(firstLine(r.Text), 120)})
+}
+
+func (a *sessionAgent) Preconnect(ctx context.Context) {
+	p := a.env.NewProvider(a.ep)
+	go provider.Preconnect(ctx, p)
 }
 
 func (a *sessionAgent) Model() string {

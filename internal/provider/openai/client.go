@@ -10,12 +10,15 @@ import (
 	"strings"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
+	"github.com/HoneyPaptan/hp-harness/internal/provider/transport"
 )
 
 type Client struct {
-	BaseURL string
-	APIKey  string
-	HTTP    *http.Client
+	BaseURL         string
+	APIKey          string
+	HTTP            *http.Client
+	DisableThinking bool
+	NoStreamOptions bool
 }
 
 func (c *Client) Stream(ctx context.Context, req provider.Request) iter.Seq2[provider.Event, error] {
@@ -37,7 +40,7 @@ func (c *Client) runStream(ctx context.Context, req provider.Request, yield func
 	}
 	resp, err := c.httpClient().Do(httpReq)
 	if err != nil {
-		yield(provider.Event{}, streamFailure(ctx, err))
+		yield(provider.Event{}, transport.Failure(ctx, err))
 		return
 	}
 	defer resp.Body.Close()
@@ -58,7 +61,12 @@ func (c *Client) runStream(ctx context.Context, req provider.Request, yield func
 func (c *Client) encodeStreamRequest(req provider.Request) ([]byte, error) {
 	w := buildRequest(req)
 	w.Stream = true
-	w.StreamOptions = &wireStreamOptions{IncludeUsage: true}
+	if !c.NoStreamOptions {
+		w.StreamOptions = &wireStreamOptions{IncludeUsage: true}
+	}
+	if c.DisableThinking {
+		w.Thinking = &wireThinking{Type: "disabled"}
+	}
 	return json.Marshal(w)
 }
 
@@ -76,6 +84,10 @@ func (c *Client) newStreamHTTPRequest(ctx context.Context, body []byte) (*http.R
 	return httpReq, nil
 }
 
+func (c *Client) Preconnect(ctx context.Context) {
+	transport.Preconnect(ctx, c.httpClient(), c.BaseURL)
+}
+
 func (c *Client) httpClient() *http.Client {
 	if c.HTTP != nil {
 		return c.HTTP
@@ -90,14 +102,14 @@ func (c *Client) readStream(ctx context.Context, body io.Reader) iter.Seq2[provi
 
 func chunkSeq(ctx context.Context, body io.Reader) iter.Seq2[wireStreamChunk, error] {
 	return func(yield func(wireStreamChunk, error) bool) {
-		for data, err := range sseData(body) {
+		for data, err := range transport.SSEData(body) {
 			if err != nil {
-				yield(wireStreamChunk{}, readFailure(ctx, err))
+				yield(wireStreamChunk{}, transport.ReadFailure(ctx, err))
 				return
 			}
 			chunk, err := decodeChunk(data)
 			if err != nil {
-				yield(wireStreamChunk{}, decodeFailure(ctx, data, err))
+				yield(wireStreamChunk{}, transport.DecodeFailure(ctx, data, err))
 				return
 			}
 			if chunk.Error != nil {

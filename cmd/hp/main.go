@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,7 +11,9 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
+	"github.com/HoneyPaptan/hp-harness/internal/provider/anthropic"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/openai"
+	"github.com/HoneyPaptan/hp-harness/internal/provider/transport"
 )
 
 var version = "dev"
@@ -42,7 +43,7 @@ func buildEnv() (cli.Env, error) {
 	return cli.Env{
 		Args: os.Args[1:], Getenv: os.Getenv, Cwd: cwd,
 		Stdout: os.Stdout, Stderr: os.Stderr, Host: host.Native{},
-		Rand: rand.Reader, Version: version, NewProvider: newProvider, NewJev: newJev,
+		Rand: rand.Reader, Version: version, NewProvider: cli.SharedProviders(newProvider), NewJev: newJev,
 		Spawn: spawnDetached, Alive: processAlive, Signal: processSignal, Pid: os.Getpid(),
 		Term: stdTerminal{},
 	}, nil
@@ -57,7 +58,11 @@ func newJev(getenv func(string) string) (*jev.Client, error) {
 }
 
 func newProvider(ep cli.Endpoint) provider.Provider {
+	if ep.Preset == "anthropic" {
+		return &anthropic.Client{BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: transport.NewHTTPClient()}
+	}
 	return &openai.Client{
-		BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: &http.Client{},
+		BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: transport.NewHTTPClient(),
+		DisableThinking: ep.Preset == "deepseek", NoStreamOptions: ep.Preset == "mistral",
 	}
 }

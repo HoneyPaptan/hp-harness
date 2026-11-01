@@ -397,7 +397,8 @@ export class Transcript {
     this.root = root;
     this.hooks = hooks;
     this.working = make("p", "working");
-    this.working.append(make("span", "spinner"), document.createTextNode("Working"));
+    this.workingLabel = document.createTextNode("Working");
+    this.working.append(make("span", "spinner"), this.workingLabel);
     this.frame = 0;
     this.reset();
   }
@@ -449,6 +450,10 @@ export class Transcript {
     this.text = null;
   }
 
+  setActivity(label) {
+    this.workingLabel.data = label;
+  }
+
   setWorking(on) {
     if (on) this.root.append(this.working);
     else this.working.remove();
@@ -459,10 +464,12 @@ export class Transcript {
     if (ev.id <= this.lastId) return false;
     this.lastId = ev.id;
     if (ev.kind === "text") {
+      this.setActivity("Working");
       this.pending += ev.text || "";
       this.schedule();
       return true;
     }
+    this.setActivity(ev.kind === "thinking" ? "thinking…" : "Working");
     if (ev.discard) this.discard();
     this.closeText();
     const render = this[`on_${ev.kind}`];

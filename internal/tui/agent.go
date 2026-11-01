@@ -13,6 +13,7 @@ const (
 	EventTool
 	EventToolError
 	EventNote
+	EventThinking
 )
 
 type Event struct {
@@ -35,4 +36,8 @@ type Agent interface {
 	SetModel(spec string) error
 	Reset() error
 	Runs() ([]string, error)
+}
+
+type Preconnector interface {
+	Preconnect(ctx context.Context)
 }

@@ -1,4 +1,4 @@
-package openai
+package transport
 
 import (
 	"bufio"
@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-const sseMaxLine = 1024 * 1024
+const MaxSSELine = 1024 * 1024
 
-func sseData(r io.Reader) iter.Seq2[string, error] {
+func SSEData(r io.Reader) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		scan := bufio.NewScanner(r)
-		scan.Buffer(make([]byte, 0, 64*1024), sseMaxLine)
+		scan.Buffer(make([]byte, 0, 64*1024), MaxSSELine)
 		for scan.Scan() {
 			line := scan.Text()
 			payload, ok, err := sseLinePayload(line)

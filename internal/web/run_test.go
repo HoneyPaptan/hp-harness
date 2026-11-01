@@ -13,6 +13,7 @@ import (
 
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
+	"github.com/HoneyPaptan/hp-harness/internal/provider/fake"
 	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
 
@@ -416,5 +417,57 @@ func TestListAndState(t *testing.T) {
 		if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "application/json" {
 			t.Fatalf("%s %d", path, resp.StatusCode)
 		}
+	}
+}
+
+func TestReasoningShowsOnceAndStaysOutOfText(t *testing.T) {
+	prov := &fake.Provider{Turns: []fake.Turn{{Events: []provider.Event{
+		{Kind: provider.EventReasoning, Text: "secret"},
+		{Kind: provider.EventReasoning, Text: "more"},
+		{Kind: provider.EventText, Text: "answer"},
+		{Kind: provider.EventDone, StopReason: "end_turn"},
+	}}}}
+	h := newHarness(t, newBackend(prov), nil)
+	id := h.start("first")
+	got := h.connect(id, 0).until(statusIs(StatusFinished))
+	var thinking int
+	for _, ev := range got {
+		if ev.Kind == KindThinking {
+			thinking++
+			if ev.Text != "" {
+				t.Fatalf("reasoning reached the page: %+v", ev)
+			}
+		}
+	}
+	if thinking != 1 || textOf(got) != "answer" {
+		t.Fatalf("thinking %d text %q", thinking, textOf(got))
+	}
+	records := recordTypes(t, h.b, id)
+	raw, err := h.b.Records(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rec := range raw {
+		if strings.Contains(string(rec.Data), "secret") {
+			t.Fatalf("reasoning journaled in %s: %s", records, rec.Data)
+		}
+	}
+}
+
+func TestPageLoadPreconnects(t *testing.T) {
+	b := newBackend(&fake.Provider{})
+	h := newHarness(t, b, nil)
+	req, err := http.NewRequest(http.MethodGet, h.ts.URL+"/api/state", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+testToken)
+	resp, err := h.ts.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if got := b.preconnects.Load(); got != 1 {
+		t.Fatalf("preconnects = %d", got)
 	}
 }

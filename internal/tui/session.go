@@ -9,6 +9,7 @@ import (
 const (
 	promptGlyph = "› "
 	flushDelay  = 30 * time.Millisecond
+	rewarmAfter = 60 * time.Second
 	quitGrace   = 500 * time.Millisecond
 	readSize    = 4096
 )
@@ -21,6 +22,7 @@ type Config struct {
 	Agent  Agent
 	Resume bool
 	Intro  string
+	Now    func() time.Time
 }
 
 type turnResult struct {
@@ -43,6 +45,7 @@ type Session struct {
 	stopped  chan struct{}
 	flush    <-chan time.Time
 	cancel   context.CancelFunc
+	lastKey  time.Time
 	stopping bool
 	armed    bool
 	drawn    bool
@@ -52,7 +55,7 @@ type Session struct {
 
 func NewSession(cfg Config) *Session {
 	return &Session{
-		cfg:      cfg,
+		cfg:      withClock(cfg),
 		renderer: NewRenderer(cfg.Out, cfg.Width()),
 		out:      output{w: cfg.Out, color: cfg.Color},
 		input:    make(chan []byte),
@@ -60,6 +63,13 @@ func NewSession(cfg Config) *Session {
 		done:     make(chan turnResult),
 		stopped:  make(chan struct{}),
 	}
+}
+
+func withClock(cfg Config) Config {
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
+	return cfg
 }
 
 func (s *Session) Run(ctx context.Context) {
@@ -73,7 +83,22 @@ func (s *Session) Run(ctx context.Context) {
 	s.leave()
 }
 
+func (s *Session) preconnect(ctx context.Context) {
+	s.lastKey = s.cfg.Now()
+	if p, ok := s.cfg.Agent.(Preconnector); ok {
+		p.Preconnect(ctx)
+	}
+}
+
+func (s *Session) rewarm(ctx context.Context) {
+	if !s.busy() && s.cfg.Now().Sub(s.lastKey) >= rewarmAfter {
+		s.preconnect(ctx)
+	}
+	s.lastKey = s.cfg.Now()
+}
+
 func (s *Session) begin(ctx context.Context) {
+	s.preconnect(ctx)
 	if s.cfg.Intro != "" {
 		s.note(s.cfg.Intro)
 	}
@@ -129,6 +154,7 @@ func (s *Session) feed(ctx context.Context, chunk []byte) {
 		s.stopNow()
 		return
 	}
+	s.rewarm(ctx)
 	s.handleKeys(ctx, s.decoder.Feed(chunk))
 	s.flush = nil
 	if s.decoder.Waiting() {
@@ -178,6 +204,7 @@ func (s *Session) emit(ev Event) {
 
 func (s *Session) finishTurn(ctx context.Context, res turnResult) {
 	s.settle(res)
+	s.lastKey = s.cfg.Now()
 	switch {
 	case s.stopping:
 		s.stopping = false

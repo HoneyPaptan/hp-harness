@@ -52,6 +52,7 @@ type Stats struct {
 
 type Backend interface {
 	State() State
+	Preconnect()
 	Runs() ([]Run, error)
 	Records(id string) ([]journal.Record, error)
 	Busy(id string) bool

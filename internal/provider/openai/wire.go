@@ -1,6 +1,9 @@
 package openai
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 type wireRequest struct {
 	Model         string             `json:"model"`
@@ -9,6 +12,11 @@ type wireRequest struct {
 	Stream        bool               `json:"stream"`
 	StreamOptions *wireStreamOptions `json:"stream_options,omitempty"`
 	MaxTokens     *int               `json:"max_tokens,omitempty"`
+	Thinking      *wireThinking      `json:"thinking,omitempty"`
+}
+
+type wireThinking struct {
+	Type string `json:"type"`
 }
 
 type wireStreamOptions struct {
@@ -38,9 +46,10 @@ func (c wireContent) MarshalJSON() ([]byte, error) {
 }
 
 type wireToolCall struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	Function wireFunction `json:"function"`
+	ID           string          `json:"id"`
+	Type         string          `json:"type"`
+	Function     wireFunction    `json:"function"`
+	ExtraContent json.RawMessage `json:"extra_content,omitempty"`
 }
 
 type wireFunction struct {
@@ -67,17 +76,44 @@ type wireStreamChoice struct {
 }
 
 type wireStreamDelta struct {
-	Content   string               `json:"content"`
-	ToolCalls []wireStreamToolCall `json:"tool_calls"`
+	Content          wireText             `json:"content"`
+	Reasoning        wireText             `json:"reasoning"`
+	ReasoningContent wireText             `json:"reasoning_content"`
+	ToolCalls        []wireStreamToolCall `json:"tool_calls"`
 }
 
 type wireStreamToolCall struct {
-	Index    int          `json:"index"`
-	ID       string       `json:"id"`
-	Function wireFunction `json:"function"`
+	Index        int             `json:"index"`
+	ID           string          `json:"id"`
+	Function     wireFunction    `json:"function"`
+	ExtraContent json.RawMessage `json:"extra_content"`
 }
 
 type wireUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
+}
+
+type wireText string
+
+func (t *wireText) UnmarshalJSON(b []byte) error {
+	var s string
+	if json.Unmarshal(b, &s) == nil {
+		*t = wireText(s)
+		return nil
+	}
+	*t = wireText(joinTextChunks(b))
+	return nil
+}
+
+func joinTextChunks(b []byte) string {
+	var chunks []struct {
+		Text string `json:"text"`
+	}
+	_ = json.Unmarshal(b, &chunks)
+	var out strings.Builder
+	for _, c := range chunks {
+		out.WriteString(c.Text)
+	}
+	return out.String()
 }

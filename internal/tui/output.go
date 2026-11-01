@@ -9,6 +9,7 @@ import (
 
 const (
 	activityText = "working…"
+	thinkingText = "thinking…"
 	eraseLine    = "\r\x1b[K"
 	sgrDim       = "\x1b[2m"
 	sgrRed       = "\x1b[31m"
@@ -19,7 +20,7 @@ type output struct {
 	w       io.Writer
 	color   bool
 	midLine bool
-	active  bool
+	active  string
 }
 
 func (o *output) write(s string) {
@@ -34,19 +35,24 @@ func (o *output) paint(sgr, s string) string {
 }
 
 func (o *output) activity() {
-	if o.active || o.midLine {
+	o.showActivity(activityText)
+}
+
+func (o *output) showActivity(label string) {
+	if o.active == label || o.midLine {
 		return
 	}
-	o.write(o.paint(sgrDim, activityText))
-	o.active = true
+	o.clearActivity()
+	o.write(o.paint(sgrDim, label))
+	o.active = label
 }
 
 func (o *output) clearActivity() {
-	if !o.active {
+	if o.active == "" {
 		return
 	}
 	o.write(eraseLine)
-	o.active = false
+	o.active = ""
 }
 
 func (o *output) endLine() {
@@ -82,6 +88,9 @@ func (o *output) apply(ev Event) {
 	switch ev.Kind {
 	case EventText:
 		o.text(ev.Text)
+		return
+	case EventThinking:
+		o.showActivity(thinkingText)
 		return
 	case EventTool:
 		o.line(sgrDim, "  "+ev.Text)

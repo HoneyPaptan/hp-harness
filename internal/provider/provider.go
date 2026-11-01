@@ -14,9 +14,10 @@ const (
 )
 
 type ToolCall struct {
-	ID   string
-	Name string
-	Args json.RawMessage
+	ID    string
+	Name  string
+	Args  json.RawMessage
+	Extra json.RawMessage `json:",omitempty"`
 }
 
 type ToolResult struct {
@@ -57,6 +58,7 @@ const (
 	EventText EventKind = iota
 	EventToolCall
 	EventDone
+	EventReasoning
 )
 
 type Event struct {
@@ -69,4 +71,14 @@ type Event struct {
 
 type Provider interface {
 	Stream(ctx context.Context, req Request) iter.Seq2[Event, error]
+}
+
+type Preconnector interface {
+	Preconnect(ctx context.Context)
+}
+
+func Preconnect(ctx context.Context, p Provider) {
+	if c, ok := p.(Preconnector); ok {
+		c.Preconnect(ctx)
+	}
 }

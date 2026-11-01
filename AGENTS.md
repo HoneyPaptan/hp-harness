@@ -30,6 +30,7 @@ Create a package only when the first code for it lands.
 ```
 make test
 make check
+make bench
 ```
 
-`make check` runs gofmt, go vet, the no comments check, the core boundary check and the size budget.
+`make check` runs gofmt, go vet, the no comments check, the core boundary check and the size budget. `make bench` builds hp and fails if startup, `hp runs`, overhead to first byte or peak RSS go over the bounds in `tools/bench`.

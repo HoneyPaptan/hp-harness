@@ -38,6 +38,8 @@ func dispatch(ctx context.Context, env Env, args []string) int {
 		return cmdResume(ctx, env, args[1:])
 	case "runs":
 		return cmdRuns(env, args[1:])
+	case "providers":
+		return cmdProviders(env, args[1:])
 	case "attach":
 		return cmdAttach(ctx, env, args[1:])
 	case "stop":
@@ -77,5 +79,5 @@ func printVersion(env Env) {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|web|add|list|remove|version> ...")
+	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|providers|web|add|list|remove|version> ...")
 }

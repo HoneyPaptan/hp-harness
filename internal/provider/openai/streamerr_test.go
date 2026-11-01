@@ -13,6 +13,7 @@ import (
 	"testing/iotest"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
+	"github.com/HoneyPaptan/hp-harness/internal/provider/transport"
 )
 
 func readAll(ctx context.Context, body io.Reader) error {
@@ -136,7 +137,7 @@ func TestStreamReadFailure(t *testing.T) {
 		{
 			name:   "oversized line",
 			ctx:    context.Background(),
-			body:   strings.NewReader("data: " + strings.Repeat("x", sseMaxLine+1) + "\n"),
+			body:   strings.NewReader("data: " + strings.Repeat("x", transport.MaxSSELine+1) + "\n"),
 			wantIs: bufio.ErrTooLong,
 		},
 		{

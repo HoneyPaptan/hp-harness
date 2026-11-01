@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -86,13 +87,14 @@ func playStep(ctx context.Context, s step) (provider.Event, error) {
 }
 
 type testBackend struct {
-	h       *host.Memory
-	prov    provider.Provider
-	tools   *tool.Registry
-	mu      sync.Mutex
-	next    int
-	started int
-	foreign map[string]bool
+	preconnects atomic.Int32
+	h           *host.Memory
+	prov        provider.Provider
+	tools       *tool.Registry
+	mu          sync.Mutex
+	next        int
+	started     int
+	foreign     map[string]bool
 }
 
 func newBackend(prov provider.Provider, tools ...tool.Tool) *testBackend {
@@ -103,6 +105,10 @@ func journalFile(id string) string { return "/runs/" + id + ".jsonl" }
 
 func (b *testBackend) State() State {
 	return State{Model: "fake/m", Presets: []string{"fake"}, Dir: "/w"}
+}
+
+func (b *testBackend) Preconnect() {
+	b.preconnects.Add(1)
 }
 
 func (b *testBackend) Runs() ([]Run, error) {

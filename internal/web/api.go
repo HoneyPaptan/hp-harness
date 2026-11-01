@@ -87,6 +87,7 @@ func readPrompt(w http.ResponseWriter, r *http.Request) (promptBody, bool) {
 }
 
 func (s *Server) handleState(w http.ResponseWriter, _ *http.Request) {
+	s.mgr.b.Preconnect()
 	writeJSON(w, http.StatusOK, s.mgr.b.State())
 }
 

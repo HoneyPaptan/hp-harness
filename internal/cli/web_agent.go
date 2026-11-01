@@ -8,6 +8,7 @@ import (
 
 	"github.com/HoneyPaptan/hp-harness/internal/core"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
+	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/web"
 )
 
@@ -31,6 +32,15 @@ func (b *webBackend) State() web.State {
 		st.Model = endpointSpec(ep)
 	}
 	return st
+}
+
+func (b *webBackend) Preconnect() {
+	ep, _, err := resolveRunSpecs(b.opts, b.env.Getenv)
+	if err != nil {
+		return
+	}
+	p := b.env.NewProvider(ep)
+	go provider.Preconnect(context.Background(), p)
 }
 
 func configuredPresets(getenv func(string) string) []string {
