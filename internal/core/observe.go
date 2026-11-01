@@ -68,7 +68,7 @@ func tap(seq iter.Seq2[provider.Event, error], fn func(provider.Event)) iter.Seq
 				}
 				continue
 			}
-			if ev.Kind == provider.EventText {
+			if ev.Kind == provider.EventText || ev.Kind == provider.EventReasoning {
 				fn(ev)
 			}
 			if !yield(ev, err) {

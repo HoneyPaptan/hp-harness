@@ -12,6 +12,7 @@ import (
 const (
 	KindUser       = "user"
 	KindText       = "text"
+	KindThinking   = "thinking"
 	KindToolStart  = "tool_start"
 	KindToolResult = "tool_result"
 	KindTurnEnd    = "turn_end"

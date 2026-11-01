@@ -88,6 +88,8 @@ func (a *assembler) startBlock(index int, b wireStartBlock) []provider.Event {
 		a.tools[index] = &pendingToolCall{id: b.ID, name: b.Name, seed: b.Input}
 	case "text":
 		return textEvent(b.Text)
+	case "thinking", "redacted_thinking":
+		return []provider.Event{{Kind: provider.EventReasoning}}
 	}
 	return nil
 }
@@ -96,6 +98,8 @@ func (a *assembler) applyDelta(index int, d wireDelta) []provider.Event {
 	switch d.Type {
 	case "text_delta":
 		return textEvent(d.Text)
+	case "thinking_delta":
+		return []provider.Event{{Kind: provider.EventReasoning, Text: d.Thinking}}
 	case "input_json_delta":
 		if p := a.tools[index]; p != nil {
 			p.args += d.PartialJSON

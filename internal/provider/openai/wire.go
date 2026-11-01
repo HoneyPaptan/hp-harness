@@ -76,8 +76,10 @@ type wireStreamChoice struct {
 }
 
 type wireStreamDelta struct {
-	Content   wireText             `json:"content"`
-	ToolCalls []wireStreamToolCall `json:"tool_calls"`
+	Content          wireText             `json:"content"`
+	Reasoning        wireText             `json:"reasoning"`
+	ReasoningContent wireText             `json:"reasoning_content"`
+	ToolCalls        []wireStreamToolCall `json:"tool_calls"`
 }
 
 type wireStreamToolCall struct {

@@ -30,6 +30,7 @@ type run struct {
 	busy   bool
 	cancel context.CancelFunc
 	done   chan struct{}
+	musing bool
 }
 
 func newRun(id string, b Backend, queue int) *run {
@@ -139,7 +140,7 @@ func (r *run) begin(prompt string, cancel context.CancelFunc) {
 	if prompt != "" {
 		r.publish(Event{Kind: KindUser, Text: prompt})
 	}
-	r.cancel, r.done = cancel, make(chan struct{})
+	r.cancel, r.done, r.musing = cancel, make(chan struct{}), false
 	r.setStatus(StatusRunning)
 }
 
@@ -188,18 +189,42 @@ func (r *run) stop(wait time.Duration) bool {
 func (r *run) failedAttempt(ev Event) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.musing = false
 	ev.Discard = r.log.dropPartial()
 	r.publish(ev)
 }
 
+func (r *run) toolStart(c provider.ToolCall) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.musing = false
+	r.publish(toolStartEvent(c))
+}
+
+func (r *run) streamEvent(ev provider.Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if ev.Kind == provider.EventReasoning {
+		r.startMusing()
+		return
+	}
+	if ev.Text != "" {
+		r.musing = false
+		r.publish(Event{Kind: KindText, Text: ev.Text})
+	}
+}
+
+func (r *run) startMusing() {
+	if !r.musing {
+		r.musing = true
+		r.publish(Event{Kind: KindThinking})
+	}
+}
+
 func (r *run) observer() core.Observer {
 	return core.Observer{
-		OnEvent: func(ev provider.Event) {
-			if ev.Text != "" {
-				r.emit(Event{Kind: KindText, Text: ev.Text})
-			}
-		},
-		OnToolStart:  func(c provider.ToolCall) { r.emit(toolStartEvent(c)) },
+		OnEvent:      r.streamEvent,
+		OnToolStart:  r.toolStart,
 		OnToolResult: func(tr provider.ToolResult) { r.emit(toolResultEvent(tr)) },
 		OnWait: func(spec string, d time.Duration, until time.Time) {
 			r.failedAttempt(Event{Kind: KindWait, Model: spec, Until: until, DelayMS: d.Milliseconds()})

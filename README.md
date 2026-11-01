@@ -78,6 +78,8 @@ Ctrl-C or Esc stops a turn and returns to the prompt; keys typed during a turn w
 
 Commands stay local and send nothing to the model: `/help`, `/model` shows the model, `/model preset/name` switches it for following turns, `/new` starts a fresh run, `/runs`, `/quit`. `//text` sends a literal `/text`.
 
+A session opens its connection to the provider at start, and again on the first key after 60 seconds idle, so the first turn skips the TCP and TLS handshake. `hp web` does the same at page load. The probe is an unauthenticated `HEAD` on the base URL; if it fails, nothing shows and the turn connects as usual. On models that stream reasoning the activity line reads `thinking…`, time to first token stops there, and reasoning is neither printed nor journaled.
+
 `NO_COLOR` or `TERM=dumb` turns colour off.
 
 ## Web

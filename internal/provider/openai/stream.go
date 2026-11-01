@@ -61,6 +61,9 @@ func (a *assembler) feed(chunk wireStreamChunk) []provider.Event {
 		if ch.FinishReason != nil && *ch.FinishReason != "" {
 			a.finishReason = *ch.FinishReason
 		}
+		if text := ch.Delta.reasoning(); text != "" {
+			out = append(out, provider.Event{Kind: provider.EventReasoning, Text: text})
+		}
 		if ch.Delta.Content != "" {
 			out = append(out, provider.Event{Kind: provider.EventText, Text: string(ch.Delta.Content)})
 		}
@@ -69,6 +72,10 @@ func (a *assembler) feed(chunk wireStreamChunk) []provider.Event {
 		}
 	}
 	return out
+}
+
+func (d wireStreamDelta) reasoning() string {
+	return string(d.Reasoning) + string(d.ReasoningContent)
 }
 
 func (a *assembler) mergeUsage(u *wireUsage) {

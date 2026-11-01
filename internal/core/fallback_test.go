@@ -215,3 +215,28 @@ func TestProvidersNilNoSwitch(t *testing.T) {
 		}
 	}
 }
+
+func TestTapForwardsReasoningAndCollectDropsIt(t *testing.T) {
+	seq := func(yield func(provider.Event, error) bool) {
+		for _, ev := range []provider.Event{
+			{Kind: provider.EventReasoning, Text: "secret"},
+			{Kind: provider.EventText, Text: "answer"},
+			{Kind: provider.EventDone},
+		} {
+			if !yield(ev, nil) {
+				return
+			}
+		}
+	}
+	var seen []provider.EventKind
+	msg, _, err := provider.Collect(tap(seq, func(ev provider.Event) { seen = append(seen, ev.Kind) }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.Text != "answer" {
+		t.Fatalf("text = %q", msg.Text)
+	}
+	if len(seen) != 2 || seen[0] != provider.EventReasoning || seen[1] != provider.EventText {
+		t.Fatalf("seen = %v", seen)
+	}
+}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
@@ -89,6 +90,21 @@ func limitProviders(env Env, bySpec map[string]Endpoint) func(string) (provider.
 		return nil
 	}
 	return providerFactory(env, bySpec)
+}
+
+func SharedProviders(build func(Endpoint) provider.Provider) func(Endpoint) provider.Provider {
+	var mu sync.Mutex
+	made := make(map[Endpoint]provider.Provider)
+	return func(ep Endpoint) provider.Provider {
+		mu.Lock()
+		defer mu.Unlock()
+		p, ok := made[ep]
+		if !ok {
+			p = build(ep)
+			made[ep] = p
+		}
+		return p
+	}
 }
 
 func cmdProviders(env Env, args []string) int {

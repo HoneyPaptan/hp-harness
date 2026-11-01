@@ -84,6 +84,10 @@ func (c *Client) newStreamHTTPRequest(ctx context.Context, body []byte) (*http.R
 	return httpReq, nil
 }
 
+func (c *Client) Preconnect(ctx context.Context) {
+	transport.Preconnect(ctx, c.httpClient(), c.BaseURL)
+}
+
 func (c *Client) httpClient() *http.Client {
 	if c.HTTP != nil {
 		return c.HTTP
