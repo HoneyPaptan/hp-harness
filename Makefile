@@ -10,4 +10,7 @@ test:
 check:
 	./scripts/check.sh
 
-.PHONY: build test check
+bench:
+	go run ./tools/bench
+
+.PHONY: build test check bench

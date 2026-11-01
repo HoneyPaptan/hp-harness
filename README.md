@@ -134,6 +134,17 @@ A server's tools appear as `<server>__<tool>`. When a run would have more than 8
 
 hp speaks the handshake versions of MCP, up to `2025-11-25`. Servers that only speak `2026-07-28` or later are refused with the server's error. OAuth, MCP resources and prompts are not supported.
 
+## Speed
+
+`make bench` builds hp and measures it against a local fake server that replies at once, so the numbers are hp's own cost and exclude any provider. The same check runs in CI, where a slower shared runner gets the bounds below. Medians from one laptop run:
+
+| Measure | Local | CI bound |
+| --- | --- | --- |
+| `hp --version` | 4.6 ms | 10 ms |
+| `hp runs` with 500 journals | 6.5 ms | 100 ms |
+| `hp run` start to first byte | 4.4 ms | 15 ms |
+| Peak RSS | 15.5 MB | 40 MB |
+
 ## Limits and background runs
 
 ```
