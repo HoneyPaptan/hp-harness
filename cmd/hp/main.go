@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"github.com/HoneyPaptan/hp-harness/internal/cli"
@@ -40,13 +41,14 @@ func buildEnv() (cli.Env, error) {
 	if err != nil {
 		return cli.Env{}, err
 	}
+	exe, _ := os.Executable()
 	return cli.Env{
 		Args: os.Args[1:], Getenv: os.Getenv, Cwd: cwd,
 		Stdout: os.Stdout, Stderr: os.Stderr, Host: host.Native{},
 		Rand: rand.Reader, Version: version, NewProvider: cli.SharedProviders(newProvider), NewJev: newJev,
 		Spawn: spawnDetached, Alive: processAlive, Signal: processSignal, Pid: os.Getpid(),
-		Lock: hostLock,
-		Term: stdTerminal{},
+		Lock: hostLock, Exe: exe, Os: runtime.GOOS,
+		Term: stdTerminal{}, RunCtl: runCtl,
 	}, nil
 }
 

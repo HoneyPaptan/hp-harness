@@ -46,6 +46,8 @@ func dispatch(ctx context.Context, env Env, args []string) int {
 		return cmdStop(env, args[1:])
 	case "recover":
 		return cmdRecover(ctx, env, args[1:])
+	case "autostart":
+		return cmdAutostart(env, args[1:])
 	case "web":
 		return cmdWeb(ctx, env, args[1:])
 	case "add":

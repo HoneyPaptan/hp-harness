@@ -24,8 +24,11 @@ type Env struct {
 	Alive       func(pid int) bool
 	Signal      func(pid int) error
 	Lock        func(dir string) (func(), error)
+	Exe         string
+	Os          string
 	Pid         int
 	Term        Terminal
+	RunCtl      func(argv []string) error
 }
 
 type Terminal interface {
