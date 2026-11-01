@@ -1,8 +1,11 @@
 package web
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/HoneyPaptan/hp-harness/internal/journal"
 )
 
 func TestEventLogSince(t *testing.T) {
@@ -77,5 +80,37 @@ func TestCapText(t *testing.T) {
 				t.Fatal("not a prefix")
 			}
 		})
+	}
+}
+
+func TestReplayedRunEndHasNoStats(t *testing.T) {
+	data, err := json.Marshal(journal.RunEnd{Reason: "final"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evs := recordEvents(journal.Record{Type: journal.TypeRunEnd, Data: data})
+	if len(evs) != 1 || evs[0].Kind != KindTurnEnd || evs[0].Reason != "final" {
+		t.Fatalf("%+v", evs)
+	}
+	raw, err := json.Marshal(evs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"steps", "input_tokens", "output_tokens", "ttft_ms"} {
+		if strings.Contains(string(raw), key) {
+			t.Fatalf("%s in %s", key, raw)
+		}
+	}
+}
+
+func TestTurnEndAlwaysCarriesStats(t *testing.T) {
+	raw, err := json.Marshal(turnEndEvent(Stats{Reason: "final"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{`"steps":0`, `"input_tokens":0`, `"output_tokens":0`, `"ttft_ms":0`} {
+		if !strings.Contains(string(raw), key) {
+			t.Fatalf("no %s in %s", key, raw)
+		}
 	}
 }

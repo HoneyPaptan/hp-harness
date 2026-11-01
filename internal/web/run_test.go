@@ -199,7 +199,7 @@ func TestSSEReplayThenLive(t *testing.T) {
 	}
 	checkIncreasing(t, append(got, live...))
 	end := live[3]
-	if end.TTFTMS != 7 || end.Jev == nil || end.Jev.Requests != 1 {
+	if end.TTFTMS == nil || *end.TTFTMS != 7 || end.Jev == nil || end.Jev.Requests != 1 {
 		t.Fatalf("%+v", end)
 	}
 }

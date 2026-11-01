@@ -43,10 +43,10 @@ type Event struct {
 	Max          int       `json:"max,omitempty"`
 	Status       string    `json:"status,omitempty"`
 	Reason       string    `json:"reason,omitempty"`
-	Steps        int       `json:"steps,omitempty"`
-	InputTokens  int       `json:"input_tokens,omitempty"`
-	OutputTokens int       `json:"output_tokens,omitempty"`
-	TTFTMS       int64     `json:"ttft_ms,omitempty"`
+	Steps        *int      `json:"steps,omitempty"`
+	InputTokens  *int      `json:"input_tokens,omitempty"`
+	OutputTokens *int      `json:"output_tokens,omitempty"`
+	TTFTMS       *int64    `json:"ttft_ms,omitempty"`
 	Jev          *JevSpend `json:"jev,omitempty"`
 }
 
@@ -72,10 +72,11 @@ func toolResultEvent(r provider.ToolResult) Event {
 }
 
 func turnEndEvent(s Stats) Event {
+	ttft := s.TTFT.Milliseconds()
 	return Event{
-		Kind: KindTurnEnd, Reason: s.Reason, Steps: s.Steps,
-		InputTokens: s.InputTokens, OutputTokens: s.OutputTokens,
-		TTFTMS: s.TTFT.Milliseconds(), Jev: s.Jev,
+		Kind: KindTurnEnd, Reason: s.Reason, Steps: &s.Steps,
+		InputTokens: &s.InputTokens, OutputTokens: &s.OutputTokens,
+		TTFTMS: &ttft, Jev: s.Jev,
 	}
 }
 
@@ -94,7 +95,7 @@ func recordEvents(rec journal.Record) []Event {
 	case journal.TypeModelSwitch:
 		return decoded(rec, func(s journal.ModelSwitch) Event { return Event{Kind: KindSwitch, From: s.From, To: s.To} })
 	case journal.TypeRunEnd:
-		return decoded(rec, func(e journal.RunEnd) Event { return turnEndEvent(Stats{Reason: e.Reason}) })
+		return decoded(rec, func(e journal.RunEnd) Event { return Event{Kind: KindTurnEnd, Reason: e.Reason} })
 	}
 	return nil
 }

@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"strings"
-
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
@@ -44,7 +42,6 @@ func bindCurrent(env Env, jpath string, primary Endpoint, bySpec map[string]Endp
 }
 
 func endpointFor(cur Endpoint, spec string, getenv func(string) string) (Endpoint, error) {
-	spec = strings.TrimPrefix(spec, "custom/")
 	baseURL, keyEnv := cur.BaseURL, cur.KeyEnv
 	preset, _ := splitFirstSlash(spec)
 	if _, known := presets[preset]; known && preset != cur.Preset {

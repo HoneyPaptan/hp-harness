@@ -57,6 +57,10 @@ func TestResolveEndpoint(t *testing.T) {
 			want: Endpoint{Preset: "custom", Model: "foo/bar", BaseURL: "https://ex.example/v1"},
 		},
 		{
+			name: "custom spec round trips", model: "custom/foo/bar", base: "https://ex.example/v1", getenv: env,
+			want: Endpoint{Preset: "custom", Model: "foo/bar", BaseURL: "https://ex.example/v1"},
+		},
+		{
 			name: "override base", model: "xai/grok", base: "https://custom/v1", getenv: env,
 			want: Endpoint{Preset: "xai", Model: "grok", BaseURL: "https://custom/v1", KeyEnv: "XAI_API_KEY", APIKey: "k"},
 		},

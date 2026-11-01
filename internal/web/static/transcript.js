@@ -2,6 +2,7 @@ const FENCE_OPEN = /^ {0,3}```[^`]*$/;
 const FENCE_CLOSE = /^ {0,3}```\s*$/;
 const MAYBE_FENCE = /^ {0,3}`{0,3}$|^ {0,3}```/;
 const SUMMARY_KEYS = ["command", "path", "file_path", "pattern", "query", "url"];
+const OUTCOME_WORDS = { step_limit: "Step limit reached", interrupted: "Stopped" };
 const RESULT_CAP_NOTE = "Result cut to the first 30 KB.";
 
 function make(tag, className, text) {
@@ -66,14 +67,16 @@ function lineCount(text) {
 }
 
 function turnStats(ev) {
-  const parts = [];
-  if (ev.input_tokens || ev.output_tokens) {
-    parts.push(`${ev.input_tokens || 0} in`, `${ev.output_tokens || 0} out`);
-  }
-  if (ev.ttft_ms) parts.push(`ttft ${ev.ttft_ms} ms`);
-  if (ev.steps) parts.push(ev.steps === 1 ? "1 step" : `${ev.steps} steps`);
+  const outcome = OUTCOME_WORDS[ev.reason];
+  if (ev.steps === undefined) return outcome || "";
+  const parts = [
+    `${ev.input_tokens} in`,
+    `${ev.output_tokens} out`,
+    `ttft ${ev.ttft_ms} ms`,
+    ev.steps === 1 ? "1 step" : `${ev.steps} steps`,
+  ];
   if (ev.jev) parts.push(`jev ${ev.jev.requests} req`);
-  if (parts.length === 0 && ev.reason) parts.push(ev.reason);
+  if (outcome) parts.push(outcome);
   return parts.join(" · ");
 }
 

@@ -329,6 +329,134 @@ func TestWebRunLifecycle(t *testing.T) {
 	}
 }
 
+func usageTurn(turn fake.Turn, in, out int) fake.Turn {
+	turn.Events[len(turn.Events)-1].Usage = provider.Usage{InputTokens: in, OutputTokens: out}
+	return turn
+}
+
+func webToolTurn(id string, in, out int) fake.Turn {
+	call := provider.ToolCall{ID: id, Name: "read", Args: json.RawMessage(`{"path":"/nope"}`)}
+	return usageTurn(fake.ToolTurn(call), in, out)
+}
+
+func lastTurnEnd(t *testing.T, events []web.Event) web.Event {
+	t.Helper()
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Kind == web.KindTurnEnd {
+			return events[i]
+		}
+	}
+	t.Fatalf("no turn_end: %+v", events)
+	return web.Event{}
+}
+
+func TestWebTurnStatsCoverEachPrompt(t *testing.T) {
+	cases := []struct {
+		name      string
+		turns     []fake.Turn
+		steps, in int
+		out       int
+	}{
+		{"first turn with a tool", []fake.Turn{webToolTurn("a", 1, 2), usageTurn(fake.TextTurn("done"), 3, 4)}, 1, 4, 6},
+		{"two tool steps", []fake.Turn{webToolTurn("b", 100, 10), webToolTurn("c", 200, 20), usageTurn(fake.TextTurn("done"), 300, 30)}, 2, 600, 60},
+		{"text only", []fake.Turn{usageTurn(fake.TextTurn("done"), 7, 8)}, 0, 7, 8},
+	}
+	var turns []fake.Turn
+	for _, c := range cases {
+		turns = append(turns, c.turns...)
+	}
+	env, stderr := webTestEnv(t, host.NewMemory(), &fake.Provider{Turns: turns}, nil)
+	s := startWeb(t, env, stderr, "-m", "groq/m", "-C", "/work", "--listen", "127.0.0.1:0")
+	id := s.start("prompt")
+	for i, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if i > 0 {
+				s.awaitRunGone(id)
+				if code, body := s.post("/api/runs/"+id+"/messages", `{"prompt":"more"}`); code != 202 {
+					t.Fatalf("%d %s", code, body)
+				}
+			}
+			end := lastTurnEnd(t, s.awaitStatus(id, web.StatusFinished, i+1))
+			if end.Steps == nil || end.InputTokens == nil || end.OutputTokens == nil || end.TTFTMS == nil {
+				t.Fatalf("missing stats: %+v", end)
+			}
+			if *end.Steps != c.steps || *end.InputTokens != c.in || *end.OutputTokens != c.out {
+				t.Fatalf("steps %d tokens %d/%d, want %d %d/%d", *end.Steps, *end.InputTokens, *end.OutputTokens, c.steps, c.in, c.out)
+			}
+		})
+	}
+}
+
+func TestWebCustomSpecsRoundTrip(t *testing.T) {
+	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("one"), fake.TextTurn("two"), fake.TextTurn("three")}}
+	env, stderr := webTestEnv(t, host.NewMemory(), fp, map[string]string{"FAKE_KEY": "k"})
+	s := startWeb(t, env, stderr, "-m", "fake/model", "--base-url", "http://local/v1", "--key-env", "FAKE_KEY", "-C", "/work", "--listen", "127.0.0.1:0")
+
+	var st web.State
+	if err := json.Unmarshal([]byte(s.get("/api/state")), &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Model != "custom/fake/model" {
+		t.Fatalf("state model %q", st.Model)
+	}
+	runModel := func(id string) string {
+		var runs []web.Run
+		if err := json.Unmarshal([]byte(s.get("/api/runs")), &runs); err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range runs {
+			if r.ID == id {
+				return r.Model
+			}
+		}
+		t.Fatalf("run %s not listed", id)
+		return ""
+	}
+	start := func(spec string) string {
+		code, body := s.post("/api/runs", `{"prompt":"go","model":`+strconv.Quote(spec)+`}`)
+		if code != http.StatusCreated {
+			t.Fatalf("%d %s", code, body)
+		}
+		var out struct{ ID string }
+		if err := json.Unmarshal([]byte(body), &out); err != nil {
+			t.Fatal(err)
+		}
+		s.awaitStatus(out.ID, web.StatusFinished, 1)
+		s.awaitRunGone(out.ID)
+		return out.ID
+	}
+	setModel := func(id, spec, want string) {
+		t.Helper()
+		code, body := s.post("/api/runs/"+id+"/model", `{"model":`+strconv.Quote(spec)+`}`)
+		if code != 200 || !strings.Contains(body, `"`+want+`"`) {
+			t.Fatalf("%d %s", code, body)
+		}
+		if got := runModel(id); got != want {
+			t.Fatalf("run model %q, want %q", got, want)
+		}
+	}
+
+	id := start(st.Model)
+	if got := runModel(id); got != st.Model {
+		t.Fatalf("run model %q", got)
+	}
+	setModel(id, st.Model, st.Model)
+	setModel(id, "custom/other", "custom/other")
+	setModel(id, "custom/other", "custom/other")
+	setModel(id, "bare/name", "custom/bare/name")
+	if code, body := s.post("/api/runs/"+id+"/messages", `{"prompt":"more"}`); code != 202 {
+		t.Fatalf("%d %s", code, body)
+	}
+	s.awaitStatus(id, web.StatusFinished, 2)
+	s.awaitRunGone(id)
+	if got := runModel(id); got != "custom/bare/name" {
+		t.Fatalf("after send %q", got)
+	}
+	if other := start("custom/picked"); runModel(other) != "custom/picked" {
+		t.Fatalf("picked %q", runModel(other))
+	}
+}
+
 func (s *webSession) awaitRunGone(id string) {
 	s.t.Helper()
 	deadline := time.Now().Add(webWait)
