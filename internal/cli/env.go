@@ -23,6 +23,7 @@ type Env struct {
 	Spawn       func(args []string, logPath string) (int, error)
 	Alive       func(pid int) bool
 	Signal      func(pid int) error
+	Lock        func(dir string) (func(), error)
 	Pid         int
 	Term        Terminal
 }

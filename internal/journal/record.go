@@ -11,6 +11,8 @@ type Type string
 
 const (
 	TypeRunStart    Type = "run_start"
+	TypeDetached    Type = "detached"
+	TypeRunStop     Type = "run_stop"
 	TypeUser        Type = "user"
 	TypeAssistant   Type = "assistant"
 	TypeToolStarted Type = "tool_started"
@@ -41,6 +43,13 @@ type RunStart struct {
 	SwitchAfter time.Duration `json:"switch_after,omitempty"`
 	MaxWait     time.Duration `json:"max_wait,omitempty"`
 	Jev         bool          `json:"jev,omitempty"`
+	Detached    bool          `json:"detached,omitempty"`
+}
+
+type DetachedMark struct{}
+
+type RunStop struct {
+	Reason string `json:"reason"`
 }
 
 type LimitWait struct {

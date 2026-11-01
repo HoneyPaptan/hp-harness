@@ -11,6 +11,7 @@ import (
 
 	"github.com/HoneyPaptan/hp-harness/internal/core"
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
+	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/skill"
 	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
@@ -126,7 +127,7 @@ func runConfig(id string, ep Endpoint, dir, jpath string, o runOpts, prompt stri
 		Dir: dir, JournalPath: jpath, Prompt: prompt, StepLimit: o.steps,
 		MaxTokens: o.maxTokens, Preset: ep.Preset, BaseURL: ep.BaseURL, KeyEnv: ep.KeyEnv,
 		Fallbacks: append([]string(nil), o.fallbacks...), SwitchAfter: o.switchAfter, MaxWait: o.maxWait,
-		Jev: o.jev,
+		Detached: o.detach, Jev: o.jev,
 	}
 }
 
@@ -140,6 +141,7 @@ func finishRun(ctx context.Context, env Env, id, jpath string, pr *printer, out 
 	}
 	pr.ensureOutNL()
 	if isInterrupt(ctx, err) {
+		markUserStop(env, jpath)
 		fmt.Fprintf(env.Stderr, "interrupted, resume with: hp resume %s\n", id)
 		return 130
 	}
@@ -160,6 +162,12 @@ func isInterrupt(ctx context.Context, err error) bool {
 		return true
 	}
 	return ctx.Err() != nil
+}
+
+func markUserStop(env Env, jpath string) {
+	if err := journal.MarkStop(env.Host, jpath, "user"); err != nil {
+		fmt.Fprintf(env.Stderr, "note: %v\n", err)
+	}
 }
 
 func journalExists(env Env, path string) bool {

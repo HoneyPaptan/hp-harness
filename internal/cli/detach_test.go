@@ -63,6 +63,13 @@ func TestRunDetach(t *testing.T) {
 	if strings.TrimSpace(string(pidData)) != "42" {
 		t.Fatalf("pid file %q", pidData)
 	}
+	jst, err := journal.Replay(recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !jst.Start.Detached {
+		t.Fatal("detached run not marked in run_start")
+	}
 }
 
 func TestResumeLivePidRefused(t *testing.T) {

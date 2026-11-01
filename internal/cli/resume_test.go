@@ -198,3 +198,84 @@ func TestResumeInterruptedAgain(t *testing.T) {
 		t.Fatal(stderr.String())
 	}
 }
+
+func TestRunInterruptJournalsStopMark(t *testing.T) {
+	h := host.NewMemory()
+	cancelled := fake.Turn{Events: []provider.Event{{Kind: provider.EventText, Text: "par"}}, Err: context.Canceled}
+	fp := &fake.Provider{Turns: []fake.Turn{cancelled}}
+	env, _, stderr := testEnv(t, h, fp, nil)
+	env.Args = []string{"run", "-m", "xai/grok", "go"}
+	if Main(context.Background(), env) != 130 {
+		t.Fatal(stderr.String())
+	}
+	id := parseResumeID(stderr.String())
+	recs, err := journal.Read(h, filepath.Join(runsDir(env.Getenv), id+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recs[len(recs)-1].Type != journal.TypeRunStop {
+		t.Fatalf("last record %s", recs[len(recs)-1].Type)
+	}
+	st, err := journal.Replay(recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Stopped || st.Finished {
+		t.Fatalf("stopped=%v finished=%v", st.Stopped, st.Finished)
+	}
+}
+
+func TestDetachedResumeJournalsMark(t *testing.T) {
+	h := host.NewMemory()
+	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("ok")}}
+	env, _, _ := testEnv(t, h, fp, map[string]string{"HP_DETACHED": "1"})
+	env.Pid = 7
+	id := "dmark"
+	seedRun(t, h, env.Getenv, id, "p", "", false)
+	env.Args = []string{"resume", id}
+	if code := Main(context.Background(), env); code != 0 {
+		t.Fatalf("code %d", code)
+	}
+	recs, err := journal.Read(h, filepath.Join(runsDir(env.Getenv), id+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	marked := false
+	for _, rec := range recs {
+		if rec.Type == journal.TypeDetached {
+			marked = true
+		}
+	}
+	if !marked {
+		t.Fatal("detach mark missing")
+	}
+	st, err := journal.Replay(recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.Detached {
+		t.Fatal("detach mark lost")
+	}
+}
+
+func TestForegroundResumeSkipsMark(t *testing.T) {
+	h := host.NewMemory()
+	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("ok")}}
+	env, _, _ := testEnv(t, h, fp, nil)
+	env.Pid = 7
+	id := "fmark"
+	seedRun(t, h, env.Getenv, id, "p", "", false)
+	env.Args = []string{"resume", id}
+	if code := Main(context.Background(), env); code != 0 {
+		t.Fatalf("code %d", code)
+	}
+	recs, err := journal.Read(h, filepath.Join(runsDir(env.Getenv), id+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rec := range recs {
+		if rec.Type == journal.TypeDetached {
+			t.Fatal("foreground resume wrote a detach mark")
+		}
+	}
+}

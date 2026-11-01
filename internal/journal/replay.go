@@ -20,6 +20,8 @@ type State struct {
 	Current   string
 	Finished  bool
 	EndReason string
+	Detached  bool
+	Stopped   bool
 }
 
 type replayer struct {
@@ -65,6 +67,11 @@ func (r *replayer) apply(rec Record, i int) error {
 		return r.applyToolResult(rec)
 	case TypeLimitWait:
 		return nil
+	case TypeDetached:
+		r.st.Detached = true
+		return nil
+	case TypeRunStop:
+		return r.applyRunStop(rec)
 	case TypeModelSwitch:
 		return r.applyModelSwitch(rec)
 	case TypeRunEnd:
@@ -95,6 +102,7 @@ func (r *replayer) applyUser(rec Record) error {
 	r.st.Steps = 0
 	r.st.Finished = false
 	r.st.EndReason = ""
+	r.st.Stopped = false
 	return nil
 }
 
@@ -126,6 +134,14 @@ func (r *replayer) applyToolResult(rec Record) error {
 	}
 	r.resultIDs[tr.Result.CallID] = true
 	r.st.Messages = attachResult(r.st.Messages, tr.Result)
+	return nil
+}
+
+func (r *replayer) applyRunStop(rec Record) error {
+	if _, err := decode[RunStop](rec); err != nil {
+		return err
+	}
+	r.st.Stopped = true
 	return nil
 }
 

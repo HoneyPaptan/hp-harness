@@ -62,6 +62,30 @@ func (w *Writer) ModelSwitch(from, to string) error {
 	return w.append(TypeModelSwitch, ModelSwitch{From: from, To: to})
 }
 
+func (w *Writer) Detached() error {
+	return w.append(TypeDetached, DetachedMark{})
+}
+
+func (w *Writer) Stop(reason string) error {
+	return w.append(TypeRunStop, RunStop{Reason: reason})
+}
+
+func MarkDetached(h host.Host, path string) error {
+	w, _, err := Open(h, path)
+	if err != nil {
+		return err
+	}
+	return w.Detached()
+}
+
+func MarkStop(h host.Host, path, reason string) error {
+	w, _, err := Open(h, path)
+	if err != nil {
+		return err
+	}
+	return w.Stop(reason)
+}
+
 func (w *Writer) End(reason string) error {
 	return w.append(TypeRunEnd, RunEnd{Reason: reason})
 }

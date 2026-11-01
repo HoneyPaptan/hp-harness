@@ -36,6 +36,14 @@ func spawnDetached(args []string, logPath string) (int, error) {
 }
 
 func processAlive(pid int) bool {
+	alive, known := hpImageAlive(pid)
+	if known {
+		return alive
+	}
+	return killAlive(pid)
+}
+
+func killAlive(pid int) bool {
 	err := syscall.Kill(pid, 0)
 	if err == nil {
 		return true

@@ -126,6 +126,7 @@ func testEnv(t *testing.T, h *host.Memory, fp *fake.Provider, extra map[string]s
 		Spawn:       func([]string, string) (int, error) { return 0, errors.New("spawn") },
 		Alive:       func(int) bool { return false },
 		Signal:      func(int) error { return nil },
+		Lock:        h.Lock,
 		Pid:         1,
 	}, stdout, stderr
 }

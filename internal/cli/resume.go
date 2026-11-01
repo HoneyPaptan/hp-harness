@@ -45,6 +45,7 @@ func resumeRun(ctx context.Context, env Env, id string) int {
 	if err != nil {
 		return exitUsage(env, usagef("run %q not found", id))
 	}
+	markDetachedResume(env, jpath)
 	cleanup, code := beginResume(env, id)
 	if code >= 0 {
 		return code

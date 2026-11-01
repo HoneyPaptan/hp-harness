@@ -31,6 +31,7 @@ type Host interface {
 	Append(path string, line []byte) error
 	Stat(path string) (Entry, error)
 	ReadDir(path string) ([]Entry, error)
+	Lock(path string) (func(), error)
 	Exec(ctx context.Context, req ExecRequest) (ExecResult, error)
 	Now() time.Time
 	Sleep(ctx context.Context, d time.Duration) error

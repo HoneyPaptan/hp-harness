@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/HoneyPaptan/hp-harness/internal/core"
+	"github.com/HoneyPaptan/hp-harness/internal/journal"
 )
 
 func runLogPath(getenv func(string) string, id string) string {
@@ -69,6 +70,15 @@ func writeRunPidFor(env Env, id string, pid int) error {
 
 func writeRunPid(env Env, id string) error {
 	return writeRunPidFor(env, id, env.Pid)
+}
+
+func markDetachedResume(env Env, jpath string) {
+	if env.Getenv("HP_DETACHED") != "1" {
+		return
+	}
+	if err := journal.MarkDetached(env.Host, jpath); err != nil {
+		fmt.Fprintf(env.Stderr, "note: %v\n", err)
+	}
 }
 
 func readRunPid(env Env, id string) (int, bool) {

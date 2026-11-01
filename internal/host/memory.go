@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path"
 	"slices"
@@ -17,13 +18,33 @@ type Memory struct {
 	mu       sync.Mutex
 	files    map[string][]byte
 	dirs     map[string]struct{}
+	locked   map[string]struct{}
 	ExecFunc func(ctx context.Context, req ExecRequest) (ExecResult, error)
 	Clock    time.Time
 	Slept    time.Duration
 }
 
 func NewMemory() *Memory {
-	return &Memory{files: make(map[string][]byte), dirs: make(map[string]struct{})}
+	return &Memory{
+		files:  make(map[string][]byte),
+		dirs:   make(map[string]struct{}),
+		locked: make(map[string]struct{}),
+	}
+}
+
+func (m *Memory) Lock(p string) (func(), error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p = cleanAbs(p)
+	if _, ok := m.locked[p]; ok {
+		return nil, fmt.Errorf("%s is locked", p)
+	}
+	m.locked[p] = struct{}{}
+	return func() {
+		m.mu.Lock()
+		delete(m.locked, p)
+		m.mu.Unlock()
+	}, nil
 }
 func (m *Memory) ReadFile(p string) ([]byte, error) {
 	m.mu.Lock()

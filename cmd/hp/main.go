@@ -45,6 +45,7 @@ func buildEnv() (cli.Env, error) {
 		Stdout: os.Stdout, Stderr: os.Stderr, Host: host.Native{},
 		Rand: rand.Reader, Version: version, NewProvider: cli.SharedProviders(newProvider), NewJev: newJev,
 		Spawn: spawnDetached, Alive: processAlive, Signal: processSignal, Pid: os.Getpid(),
+		Lock: hostLock,
 		Term: stdTerminal{},
 	}, nil
 }
