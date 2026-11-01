@@ -12,6 +12,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/core"
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/skill"
+	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
 
 func cmdRun(ctx context.Context, env Env, args []string) int {
@@ -103,14 +104,16 @@ func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoi
 	}
 	pr := newPrinter(env, id, client)
 	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env)
-	deps := runDeps(env, ep, bySpec, skills, pr.observer(), client)
+	tools := openToolset(env, skills, client)
+	defer tools.close()
+	deps := runDeps(env, ep, bySpec, tools.reg, pr.observer(), client)
 	out, err := core.Run(ctx, deps, cfg)
 	return out, pr, err
 }
 
-func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, skills []skill.Skill, obs core.Observer, client *jev.Client) core.Deps {
+func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Registry, obs core.Observer, client *jev.Client) core.Deps {
 	d := core.Deps{
-		Host: env.Host, Provider: env.NewProvider(ep), Tools: buildRegistry(skills, jevTools(client)),
+		Host: env.Host, Provider: env.NewProvider(ep), Tools: tools,
 		ToolChooser: jevChooser(client), Observer: obs,
 	}
 	d.Providers = limitProviders(env, bySpec)

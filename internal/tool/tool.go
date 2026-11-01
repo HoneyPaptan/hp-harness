@@ -31,6 +31,7 @@ type Tool struct {
 	Name        string
 	Description string
 	Schema      json.RawMessage
+	Deferred    bool
 	Run         func(ctx context.Context, env Env, args json.RawMessage) (Result, error)
 }
 

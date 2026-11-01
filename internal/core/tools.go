@@ -10,7 +10,7 @@ import (
 )
 
 func (r *runner) turnTools(ctx context.Context) []provider.ToolDef {
-	defs := r.deps.Tools.Defs()
+	defs := r.deps.Tools.Request(loadedTools(r.msgs))
 	if r.deps.ToolChooser == nil {
 		return defs
 	}

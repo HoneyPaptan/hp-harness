@@ -63,22 +63,35 @@ func loadSkill(h host.Host, dir, folder string) (Skill, bool, error) {
 		}
 		return Skill{}, false, err
 	}
-	fields, _, ok := parseFrontmatter(string(data))
+	name, desc, ok := identify(string(data), folder)
 	if !ok {
 		return Skill{}, false, nil
-	}
-	desc := normSpace(fields["description"])
-	if desc == "" {
-		return Skill{}, false, nil
-	}
-	name := strings.TrimSpace(fields["name"])
-	if name == "" {
-		name = folder
 	}
 	return Skill{
 		Name: name, Description: desc,
 		Dir: path.Join(dir, folder), Path: skillPath,
 	}, true, nil
+}
+
+func Inspect(text, folder string) (string, bool) {
+	name, _, ok := identify(text, folder)
+	return name, ok
+}
+
+func identify(text, folder string) (string, string, bool) {
+	fields, _, ok := parseFrontmatter(text)
+	if !ok {
+		return "", "", false
+	}
+	desc := normSpace(fields["description"])
+	if desc == "" {
+		return "", "", false
+	}
+	name := strings.TrimSpace(fields["name"])
+	if name == "" {
+		name = folder
+	}
+	return name, desc, true
 }
 
 func normSpace(s string) string {

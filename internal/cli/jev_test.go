@@ -16,6 +16,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/fake"
+	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
 
 const jevKeyError = "error: TYPESAFE_API_KEY or OPENROUTER_API_KEY must be set\n"
@@ -191,10 +192,10 @@ func TestRunDepsChooser(t *testing.T) {
 	h := host.NewMemory()
 	env, _, _ := testEnv(t, h, &fake.Provider{}, nil)
 	pr := newPrinter(env, "id", nil)
-	if d := runDeps(env, Endpoint{}, nil, nil, pr.observer(), nil); d.ToolChooser != nil {
+	if d := runDeps(env, Endpoint{}, nil, tool.NewRegistry(), pr.observer(), nil); d.ToolChooser != nil {
 		t.Fatal("chooser set with jev off")
 	}
-	if d := runDeps(env, Endpoint{}, nil, nil, pr.observer(), &jev.Client{}); d.ToolChooser == nil {
+	if d := runDeps(env, Endpoint{}, nil, tool.NewRegistry(), pr.observer(), &jev.Client{}); d.ToolChooser == nil {
 		t.Fatal("chooser missing with jev on")
 	}
 }

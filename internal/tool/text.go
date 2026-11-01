@@ -2,6 +2,10 @@ package tool
 
 import "fmt"
 
+func Truncate(s string) string {
+	return truncateMiddle(s, MaxOutput)
+}
+
 func truncateHead(s string, max int) string {
 	if len(s) <= max {
 		return s

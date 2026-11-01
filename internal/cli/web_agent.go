@@ -17,10 +17,12 @@ type webBackend struct {
 	env  Env
 	opts runOpts
 	dir  string
+	pool *toolPool
 }
 
 type webAgent struct {
 	*sessionAgent
+	pool *toolPool
 }
 
 func (b *webBackend) State() web.State {
@@ -124,7 +126,7 @@ func (b *webBackend) Start(model, prompt string) (web.Agent, error) {
 		a.release()
 		return nil, err
 	}
-	return &webAgent{a}, nil
+	return &webAgent{a, b.pool}, nil
 }
 
 func (a *sessionAgent) seed(prompt string) error {
@@ -164,12 +166,18 @@ func (b *webBackend) Open(id string) (web.Agent, error) {
 		return nil, err
 	}
 	a.open = !st.Finished
-	return &webAgent{a}, nil
+	if parked := b.pool.take(id); parked != nil {
+		a.tools = parked
+	}
+	return &webAgent{a, b.pool}, nil
 }
 
 func (a *webAgent) ID() string { return a.id }
 
-func (a *webAgent) Release() { a.release() }
+func (a *webAgent) Release() {
+	a.releaseRun()
+	a.pool.park(a.id, a.tools)
+}
 
 func (a *webAgent) SetModel(spec string) error {
 	err := a.sessionAgent.SetModel(spec)

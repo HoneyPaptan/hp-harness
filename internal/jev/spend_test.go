@@ -3,6 +3,7 @@ package jev
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +28,11 @@ func spendServer(t *testing.T, status func(hit int64, qs map[string]wireQuestion
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req wireRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Error(err)
+			var bad *json.SyntaxError
+			if errors.As(err, &bad) {
+				t.Error(err)
+			}
+			return
 		}
 		if code := status(hits.Add(1), req.Questions); code != http.StatusOK {
 			w.WriteHeader(code)

@@ -21,13 +21,15 @@ func discoverSkills(env Env, dir string) ([]skill.Skill, error) {
 	return skill.Discover(env.Host, skillDirs(dir, env.Getenv("HOME")))
 }
 
-func buildRegistry(skills []skill.Skill, extra []tool.Tool) *tool.Registry {
-	b := append(tool.Builtins(), extra...)
-	if len(skills) == 0 {
-		return tool.NewRegistry(b...)
+func buildRegistry(skills []skill.Skill, extra, connected []tool.Tool, deferring bool) *tool.Registry {
+	direct := append(tool.Builtins(), extra...)
+	if len(skills) > 0 {
+		direct = append(direct, skill.NewTool(skills))
 	}
-	all := append(append([]tool.Tool(nil), b...), skill.NewTool(skills))
-	return tool.NewRegistry(all...)
+	if deferring {
+		return tool.NewRegistry(tool.Compose(direct, connected)...)
+	}
+	return tool.NewRegistry(append(direct, connected...)...)
 }
 
 func buildSystem(env Env, dir string, skills []skill.Skill) string {
