@@ -209,7 +209,7 @@ svg rect { fill: currentColor; }
 [data-empty="true"] .thread { display: none; }
 [data-empty="true"] .dock { margin-bottom: auto; }
 
-.user, .prose {
+.user, .answer p, .answer li, .answer blockquote, .answer h3, .answer h4 {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -223,6 +223,26 @@ svg rect { fill: currentColor; }
 .column > .user:first-child { margin-top: 0; }
 
 .answer { margin: var(--space-3) 0; }
+.answer > * + * { margin-top: var(--space-3); }
+.answer strong { font-weight: 500; }
+.answer h3 { font-size: var(--text-lg); }
+.answer h4 { font-size: var(--text-md); }
+.answer ul, .answer ol { padding-left: var(--space-5); }
+.answer ul { list-style: disc; }
+.answer ol { list-style: decimal; }
+.answer li + li { margin-top: var(--space-1); }
+.answer li::marker { color: var(--ink-muted); }
+.answer blockquote {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--line-soft);
+  color: var(--ink-muted);
+}
+.answer code {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  font-size: var(--text-sm);
+}
 
 .code, .tool-text {
   font-size: var(--text-sm);
