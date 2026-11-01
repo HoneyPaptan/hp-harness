@@ -15,6 +15,13 @@ import (
 //go:embed static
 var staticFS embed.FS
 
+var staticTypes = map[string]string{
+	".html":  "text/html; charset=utf-8",
+	".css":   "text/css; charset=utf-8",
+	".js":    "text/javascript; charset=utf-8",
+	".woff2": "font/woff2",
+}
+
 type staticFile struct {
 	data []byte
 	etag string
@@ -45,6 +52,10 @@ func newStaticFile(data []byte) staticFile {
 	return staticFile{data: data, etag: `"` + hex.EncodeToString(sum[:8]) + `"`}
 }
 
+func staticType(name string) string {
+	return staticTypes[path.Ext(name)]
+}
+
 func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 	if name == "" {
@@ -55,6 +66,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
+	w.Header().Set("Content-Type", staticType(name))
 	w.Header().Set("ETag", f.etag)
 	w.Header().Set("Cache-Control", "no-cache")
 	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(f.data))
