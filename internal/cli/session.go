@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/HoneyPaptan/hp-harness/internal/jev"
+	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/tui"
 )
 
@@ -96,18 +98,11 @@ func openRun(env Env, o runOpts, id string) (*sessionAgent, bool, int) {
 	if err != nil {
 		return nil, false, exitErr(env, "", "", err)
 	}
-	ep, bySpec, err := resolveResumeSpecs(st.Start, env.Getenv)
+	w, err := resolveStored(env, st, jpath)
 	if err != nil {
 		return nil, false, exitUsage(env, err)
 	}
-	if err := bindCurrent(env, jpath, ep, bySpec); err != nil {
-		return nil, false, exitUsage(env, err)
-	}
-	client, err := openJev(env, st.Start.Jev)
-	if err != nil {
-		return nil, false, exitUsage(env, err)
-	}
-	a, err := restoredAgent(env, st, bySpec, ep, client, id, jpath)
+	a, err := restoredAgent(env, st, w.bySpec, w.ep, w.client, id, jpath)
 	if err != nil {
 		return nil, false, exitErr(env, "", "", err)
 	}
@@ -115,6 +110,27 @@ func openRun(env Env, o runOpts, id string) (*sessionAgent, bool, int) {
 		return nil, false, code
 	}
 	return a, !st.Finished, -1
+}
+
+type storedWiring struct {
+	ep     Endpoint
+	bySpec map[string]Endpoint
+	client *jev.Client
+}
+
+func resolveStored(env Env, st journal.State, jpath string) (storedWiring, error) {
+	ep, bySpec, err := resolveResumeSpecs(st.Start, env.Getenv)
+	if err != nil {
+		return storedWiring{}, err
+	}
+	if err := bindCurrent(env, jpath, ep, bySpec); err != nil {
+		return storedWiring{}, err
+	}
+	client, err := openJev(env, st.Start.Jev)
+	if err != nil {
+		return storedWiring{}, err
+	}
+	return storedWiring{ep: ep, bySpec: bySpec, client: client}, nil
 }
 
 func runSession(ctx context.Context, env Env, a tui.Agent, resume bool, intro string) int {

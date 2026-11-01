@@ -466,6 +466,7 @@ func TestEndpointFor(t *testing.T) {
 	}{
 		{name: "custom keeps the endpoint", cur: custom, spec: "b", wantSpec: "custom/b", wantBase: "http://local"},
 		{name: "custom prefix", cur: custom, spec: "custom/b", wantSpec: "custom/b", wantBase: "http://local"},
+		{name: "custom prefix over a preset name", cur: custom, spec: "custom/groq/f", wantSpec: "custom/groq/f", wantBase: "http://local"},
 		{name: "known preset uses its own endpoint", cur: custom, spec: "groq/f", wantSpec: "groq/f", wantBase: presets["groq"].baseURL},
 		{name: "empty model", cur: custom, spec: "groq", wantErr: true},
 		{name: "unknown preset", cur: Endpoint{Preset: "xai"}, spec: "nope/x", wantErr: true},

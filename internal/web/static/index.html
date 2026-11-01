@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>hp</title>
+<link rel="icon" href="data:,">
+<link rel="preload" href="/fonts/Geist-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/base.css">
+<link rel="stylesheet" href="/app.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="rail" id="rail" aria-label="Runs">
+    <div class="rail-head">
+      <span class="brand">hp</span>
+      <button class="ghost" id="new-run" type="button">New run</button>
+    </div>
+    <nav class="rail-list" aria-label="Run history">
+      <div class="hover-mark" id="hover-mark" aria-hidden="true"></div>
+      <ul id="runs"></ul>
+      <p class="rail-empty" id="runs-empty" hidden>Your runs will appear here.</p>
+    </nav>
+    <p class="rail-foot t-meta" id="dir"></p>
+  </aside>
+  <button class="scrim" id="scrim" type="button" tabindex="-1" aria-label="Close runs"></button>
+  <main class="main" id="main">
+    <header class="bar">
+      <button class="icon" id="menu" type="button" aria-label="Show runs" aria-expanded="false" aria-controls="rail">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+      </button>
+      <span class="brand">hp</span>
+      <button class="ghost" id="new-run-bar" type="button">New run</button>
+    </header>
+    <h1 class="sr-only">hp</h1>
+    <h2 class="hero" id="hero" tabindex="-1">Ask hp to read, change or run something</h2>
+    <div class="thread" id="thread" tabindex="0" role="region" aria-label="Transcript">
+      <div class="column" id="transcript"></div>
+    </div>
+    <div class="dock" id="dock">
+      <button class="jump" id="jump" type="button" hidden>
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 3v10M4 9l4 4 4-4"/></svg>
+        Jump to latest
+      </button>
+      <p class="conn" id="conn" hidden>Reconnecting…</p>
+      <p class="notice" id="notice" hidden></p>
+      <form class="composer t-grain" id="composer" novalidate>
+        <label class="sr-only" for="prompt">Message</label>
+        <textarea id="prompt" rows="1" placeholder="Message hp" autocomplete="off" spellcheck="false"></textarea>
+        <div class="composer-row">
+          <label class="sr-only" for="model">Model, as preset/name</label>
+          <input class="model" id="model" list="models" placeholder="preset/model" autocomplete="off" spellcheck="false">
+          <datalist id="models"></datalist>
+          <button class="send" id="send" type="submit" aria-label="Send message" data-mode="send" disabled>
+            <svg class="glyph-send" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
+            <svg class="glyph-stop" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1"/></svg>
+          </button>
+        </div>
+      </form>
+    </div>
+    <div class="sr-only" id="live" role="status" aria-live="polite"></div>
+  </main>
+</div>
+</body>
+</html>

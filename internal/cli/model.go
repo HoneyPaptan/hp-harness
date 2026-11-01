@@ -6,6 +6,8 @@ type Endpoint struct {
 	Preset, Model, BaseURL, KeyEnv, APIKey string
 }
 
+const customPreset = "custom"
+
 type presetDef struct {
 	baseURL string
 	keyEnv  string
@@ -40,7 +42,7 @@ func splitModel(model, baseURL, keyEnv string) (Endpoint, error) {
 		return mergePreset(preset, rest, def, baseURL, keyEnv), nil
 	}
 	if baseURL != "" {
-		return Endpoint{Preset: "custom", Model: model, BaseURL: baseURL, KeyEnv: keyEnv}, nil
+		return Endpoint{Preset: customPreset, Model: strings.TrimPrefix(model, customPreset+"/"), BaseURL: baseURL, KeyEnv: keyEnv}, nil
 	}
 	return Endpoint{}, unknownPreset(preset)
 }
