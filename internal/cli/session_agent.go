@@ -20,6 +20,7 @@ type sessionAgent struct {
 	client   *jev.Client
 	dir      string
 	skills   []skill.Skill
+	tools    *toolset
 	ep       Endpoint
 	bySpec   map[string]Endpoint
 	id       string
@@ -35,7 +36,8 @@ func newSessionAgent(env Env, o runOpts, ep Endpoint, bySpec map[string]Endpoint
 	if err != nil {
 		return nil, err
 	}
-	return &sessionAgent{env: env, opts: o, client: client, dir: dir, skills: skills, ep: ep, bySpec: bySpec}, nil
+	tools := openToolset(env, skills, client)
+	return &sessionAgent{env: env, opts: o, client: client, dir: dir, skills: skills, tools: tools, ep: ep, bySpec: bySpec}, nil
 }
 
 func restoredAgent(env Env, st journal.State, bySpec map[string]Endpoint, ep Endpoint, client *jev.Client, id, jpath string) (*sessionAgent, error) {
@@ -103,7 +105,7 @@ func (a *sessionAgent) register() error {
 
 func (a *sessionAgent) begin(obs core.Observer) core.Deps {
 	a.clock = newPrinter(a.env, a.id, a.client)
-	d := runDeps(a.env, a.ep, a.bySpec, a.skills, a.tracked(obs), a.client)
+	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, a.tracked(obs), a.client)
 	d.Providers = providerFactory(a.env, a.bySpec)
 	return d
 }
@@ -225,6 +227,7 @@ func (a *sessionAgent) Runs() ([]string, error) {
 }
 
 func (a *sessionAgent) release() {
+	a.tools.close()
 	if a.id != "" {
 		removeRunPid(a.env, a.id)
 	}

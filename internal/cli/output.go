@@ -125,7 +125,7 @@ func toolMainArg(raw json.RawMessage) string {
 	if json.Unmarshal(raw, &m) != nil {
 		return ""
 	}
-	for _, k := range []string{"path", "command", "pattern", "name"} {
+	for _, k := range []string{"path", "command", "pattern", "name", "query"} {
 		if v, ok := m[k]; ok {
 			return cutRunes(cleanArg(v), 80)
 		}

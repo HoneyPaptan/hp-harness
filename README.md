@@ -2,7 +2,7 @@
 
 A small, fast coding agent for the terminal, built so a run never dies.
 
-> Early work in progress. Runs, journals, resumes, waits out rate limits, falls back to other models and runs in the background today, and bare `hp` opens an inline session. Reboot survival and `hp add` are next.
+> Early work in progress. Runs, journals, resumes, waits out rate limits, falls back to other models and runs in the background today, bare `hp` opens an inline session, and `hp add` connects MCP servers and skills. Reboot survival is next.
 
 ## Why
 
@@ -51,7 +51,7 @@ Any other OpenAI compatible server works with `--base-url` and `--key-env`. `HP_
 
 Text streams to stdout, tool calls print one line each to stderr, and a summary line ends the run. Press Ctrl-C at any time: the run stays resumable. Journals live in `~/.local/state/hp/runs`.
 
-Built-in tools: `read`, `write`, `edit`, `bash`, `grep`, plus `search` with `--jev`. Skills are folders with a `SKILL.md` in `.hp/skills`, `.claude/skills` or `~/.config/hp/skills`; the model sees their names and loads one with the `skill` tool when it needs it.
+Built-in tools: `read`, `write`, `edit`, `bash`, `grep`, plus `search` with `--jev`. Skills are folders with a `SKILL.md` in `.hp/skills`, `.claude/skills` or `~/.config/hp/skills`; the model sees their names and loads one with the `skill` tool when it needs it. MCP servers are added with `hp add`.
 
 ## Session
 
@@ -94,6 +94,31 @@ With Jev on, the `search` tool finds code by meaning and lists `path:start-end` 
 What leaves the machine: for `search`, file paths and file excerpts go to the Jev service, and secret-looking files such as `.env`, `*.pem` and `id_rsa` are withheld. For tool choice, the first user message, the last assistant text and tool names go there, never tool output.
 
 The setting is journaled, so a run stays resumable with Jev on: `hp resume` reads it from the journal and ignores `HP_JEV`, and the key must still be set.
+
+## Connections
+
+```
+./hp add fs -- npx -y @modelcontextprotocol/server-filesystem /home/me/notes
+./hp add docs https://example.com/mcp --header 'Authorization=Bearer $DOCS_TOKEN'
+./hp add gh --env 'GITHUB_TOKEN=$GITHUB_TOKEN' -- github-mcp-server stdio
+./hp add ./my-skill
+./hp add https://github.com/someone/some-skill.git
+./hp list
+./hp add --refresh fs
+./hp remove fs
+```
+
+`hp add` connects to a server once, reads its tools, stops it and prints `added fs: 12 tools`. If it cannot connect, nothing is saved and the error shows the end of the server's stderr. Run `--refresh` when a server's tools change. A folder or git URL with a `SKILL.md` is copied to `~/.config/hp/skills/<name>`; a git repo is cloned shallow, may hold the skill at its root or one folder down, and none of its code runs. Symlinks in a skill are not copied.
+
+Connections live in `~/.config/hp/connections.json` with the tool schemas cached next to it, both mode 0600. They are only ever read from there, never from a project, so a cloned repo cannot start a command. Quote `$NAME` so your shell leaves it alone: the file keeps the reference, and hp reads the value from its environment when it connects. A literal value is stored as typed.
+
+A stdio server runs in the folder you added it from. It gets `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `TERM`, `LANG`, `LC_ALL`, `TMPDIR` and your `--env` values, and not the rest of your environment, so model API keys stay with hp. HTTP servers need `https`, or `http` on a loopback address, and redirects are not followed.
+
+Connections add nothing to start time. A server starts when one of its tools is first called, and stops when the run ends; in a session it stops when you quit or use `/new`, and in `hp web` after each turn. A tool that fails, or a server that will not start, gives the model an error and the run carries on. A server that crashes is restarted once on the next call. Calls time out after 60 seconds.
+
+A server's tools appear as `<server>__<tool>`. When a run would have more than 8 tools, its server tools stay out of the request and the model gets a `tools` tool to search them by name or description; up to 5 matches join the request from the next turn, and stay loaded after `hp resume`. With `--jev` every tool goes to the chooser instead. If you remove a connection, runs that used it still resume; a new call to its tools returns an error.
+
+hp speaks the handshake versions of MCP, up to `2025-11-25`. Servers that only speak `2026-07-28` or later are refused with the server's error. OAuth, MCP resources and prompts are not supported.
 
 ## Limits and background runs
 

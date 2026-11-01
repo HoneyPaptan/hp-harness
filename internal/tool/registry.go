@@ -27,8 +27,28 @@ func (r *Registry) Get(name string) (Tool, bool) {
 func (r *Registry) Defs() []provider.ToolDef {
 	out := make([]provider.ToolDef, len(r.order))
 	for i, name := range r.order {
-		t := r.tools[name]
-		out[i] = provider.ToolDef{Name: t.Name, Description: t.Description, Schema: t.Schema}
+		out[i] = toolDef(r.tools[name])
 	}
 	return out
+}
+
+func (r *Registry) Request(loaded []string) []provider.ToolDef {
+	out := make([]provider.ToolDef, 0, len(r.order))
+	for _, name := range r.order {
+		if t := r.tools[name]; !t.Deferred {
+			out = append(out, toolDef(t))
+		}
+	}
+	seen := make(map[string]bool, len(loaded))
+	for _, name := range loaded {
+		if t, ok := r.tools[name]; ok && t.Deferred && !seen[name] {
+			seen[name] = true
+			out = append(out, toolDef(t))
+		}
+	}
+	return out
+}
+
+func toolDef(t Tool) provider.ToolDef {
+	return provider.ToolDef{Name: t.Name, Description: t.Description, Schema: t.Schema}
 }

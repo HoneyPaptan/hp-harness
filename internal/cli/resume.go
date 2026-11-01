@@ -76,7 +76,9 @@ func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]End
 		return core.Outcome{}, nil, err
 	}
 	pr := newPrinter(env, id, client)
-	deps := runDeps(env, ep, bySpec, skills, pr.observer(), client)
+	tools := openToolset(env, skills, client)
+	defer tools.close()
+	deps := runDeps(env, ep, bySpec, tools.reg, pr.observer(), client)
 	out, err := core.Resume(ctx, deps, jpath)
 	return out, pr, err
 }
