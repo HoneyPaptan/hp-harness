@@ -44,6 +44,12 @@ func dispatch(ctx context.Context, env Env, args []string) int {
 		return cmdStop(env, args[1:])
 	case "web":
 		return cmdWeb(ctx, env, args[1:])
+	case "add":
+		return cmdAdd(ctx, env, args[1:])
+	case "list":
+		return cmdList(env, args[1:])
+	case "remove":
+		return cmdRemove(env, args[1:])
 	case "version":
 		return cmdVersion(env, args[1:])
 	case "help", "-h", "--help":
@@ -71,5 +77,5 @@ func printVersion(env Env) {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|web|version> ...")
+	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|web|add|list|remove|version> ...")
 }
