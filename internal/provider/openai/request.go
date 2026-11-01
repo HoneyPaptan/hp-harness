@@ -90,6 +90,7 @@ func mapAssistantToolCalls(calls []provider.ToolCall) []wireToolCall {
 				Name:      c.Name,
 				Arguments: toolCallArguments(c.Args),
 			},
+			ExtraContent: c.Extra,
 		}
 	}
 	return out

@@ -12,9 +12,10 @@ import (
 var ErrTruncated = errors.New("stream ended before a finish reason")
 
 type pendingToolCall struct {
-	id   string
-	name string
-	args string
+	id    string
+	name  string
+	args  string
+	extra json.RawMessage
 }
 
 type assembler struct {
@@ -61,7 +62,7 @@ func (a *assembler) feed(chunk wireStreamChunk) []provider.Event {
 			a.finishReason = *ch.FinishReason
 		}
 		if ch.Delta.Content != "" {
-			out = append(out, provider.Event{Kind: provider.EventText, Text: ch.Delta.Content})
+			out = append(out, provider.Event{Kind: provider.EventText, Text: string(ch.Delta.Content)})
 		}
 		for _, tc := range ch.Delta.ToolCalls {
 			a.mergeToolDelta(tc)
@@ -90,6 +91,9 @@ func (a *assembler) mergeToolDelta(tc wireStreamToolCall) {
 	if tc.Function.Name != "" {
 		p.name = tc.Function.Name
 	}
+	if len(tc.ExtraContent) > 0 {
+		p.extra = tc.ExtraContent
+	}
 	p.args += tc.Function.Arguments
 }
 
@@ -104,7 +108,7 @@ func (a *assembler) finish() []provider.Event {
 		}
 		out = append(out, provider.Event{
 			Kind: provider.EventToolCall,
-			Call: provider.ToolCall{ID: p.id, Name: p.name, Args: json.RawMessage(args)},
+			Call: provider.ToolCall{ID: p.id, Name: p.name, Args: json.RawMessage(args), Extra: p.extra},
 		})
 	}
 	out = append(out, provider.Event{

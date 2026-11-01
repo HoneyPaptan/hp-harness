@@ -42,10 +42,20 @@ export OPENCODE_API_KEY=...
 | Preset | Endpoint | Key |
 | --- | --- | --- |
 | `opencode` | `https://opencode.ai/inference/openai/v1` | `OPENCODE_API_KEY` |
+| `openai` | `https://api.openai.com/v1` | `OPENAI_API_KEY` |
+| `anthropic` | `https://api.anthropic.com/v1` | `ANTHROPIC_API_KEY` |
+| `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai` | `GEMINI_API_KEY` |
 | `xai` | `https://api.x.ai/v1` | `XAI_API_KEY` |
+| `deepseek` | `https://api.deepseek.com` | `DEEPSEEK_API_KEY` |
+| `mistral` | `https://api.mistral.ai/v1` | `MISTRAL_API_KEY` |
+| `cerebras` | `https://api.cerebras.ai/v1` | `CEREBRAS_API_KEY` |
+| `together` | `https://api.together.ai/v1` | `TOGETHER_API_KEY` |
+| `fireworks` | `https://api.fireworks.ai/inference/v1` | `FIREWORKS_API_KEY` |
 | `openrouter` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` |
 | `groq` | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` |
 | `ollama` | `http://127.0.0.1:11434/v1` | none |
+
+`hp providers` lists these with whether each key is set, and never prints a key. `anthropic` speaks the Messages API, with prompt caching on the system prompt, the tools and the conversation so far; the rest speak OpenAI chat completions. `deepseek` runs with thinking off, because its API requires reasoning to be sent back on every tool call and hp does not keep reasoning. `anthropic` uses 16000 for `max_tokens` unless you pass `--max-tokens`.
 
 Any other OpenAI compatible server works with `--base-url` and `--key-env`. `HP_MODEL` sets a default model.
 
@@ -130,7 +140,7 @@ hp speaks the handshake versions of MCP, up to `2025-11-25`. Servers that only s
 ./hp stop <run-id>
 ```
 
-On a rate limit (429) or overload (503, 529) hp reads the reset time from `Retry-After` or the `x-ratelimit-reset-*` headers, prints when it will continue, waits and retries the same step. If the wait is longer than `--switch-after` (default 20s) and a `--fallback` model is free, it switches at once instead. `--max-wait` (default 6h) caps one wait; past it hp stops with exit code 4 and the run stays resumable. Waits and switches are journaled, so `hp resume` keeps the model the run was on.
+On a rate limit (429) or overload (503, 529) hp reads the reset time from `Retry-After` or the `x-ratelimit-reset-*` and `anthropic-ratelimit-*-reset` headers, prints when it will continue, waits and retries the same step. If the wait is longer than `--switch-after` (default 20s) and a `--fallback` model is free, it switches at once instead. `--max-wait` (default 6h) caps one wait; past it hp stops with exit code 4 and the run stays resumable. Waits and switches are journaled, so `hp resume` keeps the model the run was on.
 
 `-d` on `run` or `resume` starts the run in its own session and returns. Output goes to `<run-id>.log` next to the journal. `hp attach` prints it and follows along; Ctrl-C detaches and leaves the run going. `hp runs` shows live runs as `running`, and a second `hp resume` on a live run is refused.
 

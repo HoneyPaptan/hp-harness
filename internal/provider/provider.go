@@ -14,9 +14,10 @@ const (
 )
 
 type ToolCall struct {
-	ID   string
-	Name string
-	Args json.RawMessage
+	ID    string
+	Name  string
+	Args  json.RawMessage
+	Extra json.RawMessage `json:",omitempty"`
 }
 
 type ToolResult struct {

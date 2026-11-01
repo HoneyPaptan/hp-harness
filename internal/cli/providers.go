@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
@@ -87,4 +89,37 @@ func limitProviders(env Env, bySpec map[string]Endpoint) func(string) (provider.
 		return nil
 	}
 	return providerFactory(env, bySpec)
+}
+
+func cmdProviders(env Env, args []string) int {
+	if len(args) != 0 {
+		return exitUsage(env, usagef("unexpected arguments"))
+	}
+	names := presetNames()
+	nameWidth, urlWidth := presetWidths(names)
+	for _, name := range names {
+		def := presets[name]
+		fmt.Fprintf(env.Stdout, "%-*s  %-*s  %s\n", nameWidth, name, urlWidth, def.baseURL, keyStatus(def.keyEnv, env.Getenv))
+	}
+	return 0
+}
+
+func presetWidths(names []string) (int, int) {
+	var nameWidth, urlWidth int
+	for _, name := range names {
+		nameWidth = max(nameWidth, len(name))
+		urlWidth = max(urlWidth, len(presets[name].baseURL))
+	}
+	return nameWidth, urlWidth
+}
+
+func keyStatus(keyEnv string, getenv func(string) string) string {
+	switch {
+	case keyEnv == "":
+		return "no key needed"
+	case getenv(keyEnv) == "":
+		return keyEnv + " not set"
+	default:
+		return keyEnv + " set"
+	}
 }

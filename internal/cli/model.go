@@ -15,7 +15,15 @@ type presetDef struct {
 
 var presets = map[string]presetDef{
 	"opencode":   {baseURL: "https://opencode.ai/inference/openai/v1", keyEnv: "OPENCODE_API_KEY"},
+	"openai":     {baseURL: "https://api.openai.com/v1", keyEnv: "OPENAI_API_KEY"},
+	"anthropic":  {baseURL: "https://api.anthropic.com/v1", keyEnv: "ANTHROPIC_API_KEY"},
+	"gemini":     {baseURL: "https://generativelanguage.googleapis.com/v1beta/openai", keyEnv: "GEMINI_API_KEY"},
 	"xai":        {baseURL: "https://api.x.ai/v1", keyEnv: "XAI_API_KEY"},
+	"deepseek":   {baseURL: "https://api.deepseek.com", keyEnv: "DEEPSEEK_API_KEY"},
+	"mistral":    {baseURL: "https://api.mistral.ai/v1", keyEnv: "MISTRAL_API_KEY"},
+	"cerebras":   {baseURL: "https://api.cerebras.ai/v1", keyEnv: "CEREBRAS_API_KEY"},
+	"together":   {baseURL: "https://api.together.ai/v1", keyEnv: "TOGETHER_API_KEY"},
+	"fireworks":  {baseURL: "https://api.fireworks.ai/inference/v1", keyEnv: "FIREWORKS_API_KEY"},
 	"openrouter": {baseURL: "https://openrouter.ai/api/v1", keyEnv: "OPENROUTER_API_KEY"},
 	"groq":       {baseURL: "https://api.groq.com/openai/v1", keyEnv: "GROQ_API_KEY"},
 	"ollama":     {baseURL: "http://127.0.0.1:11434/v1", keyEnv: ""},

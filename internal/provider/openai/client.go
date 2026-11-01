@@ -14,9 +14,11 @@ import (
 )
 
 type Client struct {
-	BaseURL string
-	APIKey  string
-	HTTP    *http.Client
+	BaseURL         string
+	APIKey          string
+	HTTP            *http.Client
+	DisableThinking bool
+	NoStreamOptions bool
 }
 
 func (c *Client) Stream(ctx context.Context, req provider.Request) iter.Seq2[provider.Event, error] {
@@ -59,7 +61,12 @@ func (c *Client) runStream(ctx context.Context, req provider.Request, yield func
 func (c *Client) encodeStreamRequest(req provider.Request) ([]byte, error) {
 	w := buildRequest(req)
 	w.Stream = true
-	w.StreamOptions = &wireStreamOptions{IncludeUsage: true}
+	if !c.NoStreamOptions {
+		w.StreamOptions = &wireStreamOptions{IncludeUsage: true}
+	}
+	if c.DisableThinking {
+		w.Thinking = &wireThinking{Type: "disabled"}
+	}
 	return json.Marshal(w)
 }
 

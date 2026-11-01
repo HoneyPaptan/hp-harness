@@ -12,6 +12,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
+	"github.com/HoneyPaptan/hp-harness/internal/provider/anthropic"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/openai"
 )
 
@@ -57,7 +58,11 @@ func newJev(getenv func(string) string) (*jev.Client, error) {
 }
 
 func newProvider(ep cli.Endpoint) provider.Provider {
+	if ep.Preset == "anthropic" {
+		return &anthropic.Client{BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: &http.Client{}}
+	}
 	return &openai.Client{
 		BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: &http.Client{},
+		DisableThinking: ep.Preset == "deepseek", NoStreamOptions: ep.Preset == "mistral",
 	}
 }
