@@ -2,7 +2,7 @@
 
 A small, fast coding agent for the terminal, built so a run never dies.
 
-> Early work in progress. Runs, journals, resumes, waits out rate limits, falls back to other models and runs in the background today, bare `hp` opens an inline session, and `hp add` connects MCP servers and skills. Reboot survival is next.
+> Early work in progress. Runs, journals, resumes, waits out rate limits, falls back to other models, runs in the background with `-d`, and restarts detached runs after a crash, a kill or a reboot with `hp recover`. Bare `hp` opens an inline session, and `hp add` connects MCP servers and skills.
 
 ## Why
 
@@ -27,6 +27,20 @@ make build
 
 Requires Go 1.27 or newer.
 
+## Install
+
+Static binaries for linux and macOS, amd64 and arm64, are attached to every release with a `checksums.txt`:
+
+```
+curl -fsSL https://raw.githubusercontent.com/HoneyPaptan/hp-harness/main/install.sh | sh
+```
+
+or run the script straight from a checkout. It downloads the latest release, verifies the sha256 checksum and puts the binary in `~/.local/bin` without sudo. Every tagged build runs tests and cross builds first, and the version matches the tag:
+
+```
+hp --version
+```
+
 ## Use
 
 ```
@@ -35,6 +49,7 @@ export OPENCODE_API_KEY=...
 ./hp run -m opencode/grok-4.6 "find the TODOs in this repo and fix the easy ones"
 ./hp runs
 ./hp resume <run-id>
+./hp recover
 ```
 
 `-m` takes `preset/model`. Presets:
@@ -60,6 +75,8 @@ export OPENCODE_API_KEY=...
 Any other OpenAI compatible server works with `--base-url` and `--key-env`. `HP_MODEL` sets a default model.
 
 Text streams to stdout, tool calls print one line each to stderr, and a summary line ends the run. Press Ctrl-C at any time: the run stays resumable. Journals live in `~/.local/state/hp/runs`.
+
+The model can paste files, edit code and run shell commands through the built-in tools. hp has no permission prompts yet: it runs the commands the model asks for, in the directory the run started from. Keep that in mind before pointing it at a prompt.
 
 Built-in tools: `read`, `write`, `edit`, `bash`, `grep`, plus `search` with `--jev`. Skills are folders with a `SKILL.md` in `.hp/skills`, `.claude/skills` or `~/.config/hp/skills`; the model sees their names and loads one with the `skill` tool when it needs it. MCP servers are added with `hp add`.
 
@@ -145,6 +162,8 @@ hp speaks the handshake versions of MCP, up to `2025-11-25`. Servers that only s
 | `hp run` start to first byte | 4.4 ms | 15 ms |
 | Peak RSS | 15.5 MB | 40 MB |
 
+`-d` on `run` or `resume` starts the run in its own session and returns. Output goes to `<run-id>.log` next to the journal. `hp attach` prints it and follows along; Ctrl-C detaches and leaves the run going. `hp runs` shows live runs as `running`, and a second `hp resume` on a live run is refused. A run ended by `hp stop` or interrupted is marked in its journal, so recovery knows the difference between that and a crash.
+
 ## Limits and background runs
 
 ```
@@ -156,6 +175,31 @@ hp speaks the handshake versions of MCP, up to `2025-11-25`. Servers that only s
 On a rate limit (429) or overload (503, 529) hp reads the reset time from `Retry-After` or the `x-ratelimit-reset-*` and `anthropic-ratelimit-*-reset` headers, prints when it will continue, waits and retries the same step. If the wait is longer than `--switch-after` (default 20s) and a `--fallback` model is free, it switches at once instead. `--max-wait` (default 6h) caps one wait; past it hp stops with exit code 4 and the run stays resumable. Waits and switches are journaled, so `hp resume` keeps the model the run was on.
 
 `-d` on `run` or `resume` starts the run in its own session and returns. Output goes to `<run-id>.log` next to the journal. `hp attach` prints it and follows along; Ctrl-C detaches and leaves the run going. `hp runs` shows live runs as `running`, and a second `hp resume` on a live run is refused.
+
+## Reboot survival
+
+```
+./hp run -d "refactor the parser"
+./hp recover            # resumes every detached run whose process is gone
+./hp recover --dry-run  # just list them
+```
+
+A run survives usage limits, closed terminals, lost SSH and reboots: `hp recover` scans the runs, and for each detached, unfinished run that was not stopped on purpose and has no live process, it starts a detached resume from the last completed step and prints `recovered <run-id>`. Keep `hp recover` in a login script or autostart it, and the run picks up where it died. Runs older than `--max-age` (default 7d) are skipped, and a run that crashed three recoveries in a row without writing a new journal record is left alone with a note, so a crash loop cannot burn credit. A run whose API key is not set is skipped with a note too; the others carry on. Locked with a lock file, so two `hp recover` at once start nothing twice.
+
+```
+./hp autostart on       # or off, or status
+```
+
+On linux this writes `~/.config/systemd/user/hp-recover.service`, a oneshot unit enabled with `systemctl --user enable`; combined with `loginctl enable-linger $USER` it also recovers runs at boot without login. On macOS it writes a launchd agent in `~/Library/LaunchAgents` with `RunAtLoad`.
+
+The unit holds no API keys. Recovery reads them from an environment file you create and guard yourself, `~/.config/hp/env`, mode 0600:
+
+```
+XAI_API_KEY=...
+GROQ_API_KEY=...
+```
+
+The linux unit picks it up with `EnvironmentFile=-%h/.config/hp/env`, and hp never writes keys there. On macOS the launchd agent gets no such file: give the keys to the login environment (for example with `launchctl setenv KEY value`) or run `hp recover` yourself.
 
 ## License
 
