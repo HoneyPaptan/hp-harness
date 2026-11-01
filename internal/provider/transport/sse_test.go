@@ -1,4 +1,4 @@
-package openai
+package transport
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 
 func collectSSE(input string) ([]string, error) {
 	var out []string
-	for payload, err := range sseData(strings.NewReader(input)) {
+	for payload, err := range SSEData(strings.NewReader(input)) {
 		if err != nil {
 			return out, err
 		}
@@ -34,7 +34,7 @@ func TestSSEData(t *testing.T) {
 }
 
 func TestSSEDataScannerError(t *testing.T) {
-	long := strings.Repeat("x", sseMaxLine+1)
+	long := strings.Repeat("x", MaxSSELine+1)
 	_, err := collectSSE("data: " + long + "\n")
 	if err == nil {
 		t.Fatal("expected scanner error")
@@ -43,7 +43,7 @@ func TestSSEDataScannerError(t *testing.T) {
 
 func TestSSEDataEarlyStop(t *testing.T) {
 	n := 0
-	for _, err := range sseData(strings.NewReader("data: a\n\ndata: b\n")) {
+	for _, err := range SSEData(strings.NewReader("data: a\n\ndata: b\n")) {
 		if err != nil {
 			t.Fatal(err)
 		}

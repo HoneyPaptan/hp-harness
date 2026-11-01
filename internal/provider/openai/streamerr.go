@@ -1,10 +1,7 @@
 package openai
 
 import (
-	"bufio"
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -82,26 +79,4 @@ func (e *wireStreamError) hasKind(kinds ...string) bool {
 		}
 	}
 	return false
-}
-
-func readFailure(ctx context.Context, err error) error {
-	if errors.Is(err, bufio.ErrTooLong) {
-		return err
-	}
-	return streamFailure(ctx, err)
-}
-
-func decodeFailure(ctx context.Context, data string, err error) error {
-	var syntax *json.SyntaxError
-	if errors.As(err, &syntax) && syntax.Offset >= int64(len(data)) {
-		return streamFailure(ctx, err)
-	}
-	return err
-}
-
-func streamFailure(ctx context.Context, err error) error {
-	if cause := ctx.Err(); cause != nil {
-		return cause
-	}
-	return &provider.TransientError{Err: err}
 }

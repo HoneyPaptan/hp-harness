@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
+	"github.com/HoneyPaptan/hp-harness/internal/provider/transport"
 )
 
 type Client struct {
@@ -37,7 +38,7 @@ func (c *Client) runStream(ctx context.Context, req provider.Request, yield func
 	}
 	resp, err := c.httpClient().Do(httpReq)
 	if err != nil {
-		yield(provider.Event{}, streamFailure(ctx, err))
+		yield(provider.Event{}, transport.Failure(ctx, err))
 		return
 	}
 	defer resp.Body.Close()
@@ -90,14 +91,14 @@ func (c *Client) readStream(ctx context.Context, body io.Reader) iter.Seq2[provi
 
 func chunkSeq(ctx context.Context, body io.Reader) iter.Seq2[wireStreamChunk, error] {
 	return func(yield func(wireStreamChunk, error) bool) {
-		for data, err := range sseData(body) {
+		for data, err := range transport.SSEData(body) {
 			if err != nil {
-				yield(wireStreamChunk{}, readFailure(ctx, err))
+				yield(wireStreamChunk{}, transport.ReadFailure(ctx, err))
 				return
 			}
 			chunk, err := decodeChunk(data)
 			if err != nil {
-				yield(wireStreamChunk{}, decodeFailure(ctx, data, err))
+				yield(wireStreamChunk{}, transport.DecodeFailure(ctx, data, err))
 				return
 			}
 			if chunk.Error != nil {
