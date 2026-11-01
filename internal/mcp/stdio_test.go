@@ -1,9 +1,13 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -54,7 +58,7 @@ func TestToolsPaginatesAcrossPages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 9 || got[0].Name != "echo" || got[8].Name != "first.crash" {
+	if len(got) != 10 || got[0].Name != "echo" || got[9].Name != "first.crash" {
 		t.Fatalf("tools %+v", got)
 	}
 	if !json.Valid(got[0].Schema) {
@@ -124,17 +128,144 @@ func TestOutputIsCapped(t *testing.T) {
 	}
 }
 
-func TestTimeoutKeepsTheServer(t *testing.T) {
+func TestHungServerIsKilledAndRestarted(t *testing.T) {
 	cfg, mark := fakeConfig(t)
 	cfg.Timeout = 300 * time.Millisecond
 	c := New(cfg)
 	defer c.Close()
-	_, err := c.Call(context.Background(), "hang", nil)
+	_, err := c.Call(context.Background(), mcptest.HangOnce, nil)
 	if err == nil || !strings.Contains(err.Error(), "timed out after 300ms") {
 		t.Fatalf("err %v", err)
 	}
-	if startCount(t, mark) != 1 {
-		t.Fatal("server should have started once")
+	data, _ := os.ReadFile(mark)
+	pid, _ := strconv.Atoi(strings.Fields(string(data))[1])
+	if syscall.Kill(pid, 0) == nil && !isZombie(pid) {
+		t.Fatalf("hung server %d survived", pid)
+	}
+	began := time.Now()
+	res, err := c.Call(context.Background(), mcptest.HangOnce, nil)
+	if err != nil || res.Text != "recovered" {
+		t.Fatalf("restart %+v %v", res, err)
+	}
+	if time.Since(began) >= cfg.Timeout {
+		t.Fatal("next call hung again")
+	}
+	if n := startCount(t, mark); n != 2 {
+		t.Fatalf("starts %d", n)
+	}
+}
+
+func TestTimeoutKillsTheGroup(t *testing.T) {
+	cfg, _ := fakeConfig(t)
+	cfg.Timeout = 2 * time.Second
+	c := New(cfg)
+	defer c.Close()
+	res, err := c.Call(context.Background(), "group", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, _ := strconv.Atoi(res.Text)
+	c.cfg.Timeout = 100 * time.Millisecond
+	if _, err := c.Call(context.Background(), "hang", nil); err == nil {
+		t.Fatal("want timeout")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for syscall.Kill(child, 0) == nil && !isZombie(child) {
+		if time.Now().After(deadline) {
+			t.Fatalf("child %d survived the timeout", child)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestRepeatedHangsStopBounded(t *testing.T) {
+	cfg, mark := fakeConfig(t)
+	cfg.Timeout = 100 * time.Millisecond
+	c := New(cfg)
+	defer c.Close()
+	for range maxHangs {
+		_, err := c.Call(context.Background(), "hang", nil)
+		if err == nil || !strings.Contains(err.Error(), "timed out") {
+			t.Fatalf("err %v", err)
+		}
+	}
+	for range 2 {
+		_, err := c.Call(context.Background(), "echo", nil)
+		if err == nil || !strings.Contains(err.Error(), "not restarted") {
+			t.Fatalf("err %v", err)
+		}
+	}
+	if n := startCount(t, mark); n != maxHangs {
+		t.Fatalf("starts %d", n)
+	}
+}
+
+func TestSuccessClearsTheHangStreak(t *testing.T) {
+	cfg, mark := fakeConfig(t)
+	cfg.Timeout = 200 * time.Millisecond
+	c := New(cfg)
+	defer c.Close()
+	for range 4 {
+		if _, err := c.Call(context.Background(), "hang", nil); err == nil {
+			t.Fatal("want timeout")
+		}
+		if _, err := c.Call(context.Background(), "echo", nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := startCount(t, mark); n != 5 {
+		t.Fatalf("starts %d", n)
+	}
+}
+
+func TestHangsCountAsOneCrash(t *testing.T) {
+	cfg, mark := fakeConfig(t)
+	cfg.Timeout = 200 * time.Millisecond
+	c := New(cfg)
+	defer c.Close()
+	for range 2 {
+		if _, err := c.Call(context.Background(), "hang", nil); err == nil {
+			t.Fatal("want timeout")
+		}
+	}
+	if _, err := c.Call(context.Background(), "crash", nil); err == nil {
+		t.Fatal("want crash")
+	}
+	_, err := c.Call(context.Background(), "echo", nil)
+	if err == nil || !strings.Contains(err.Error(), "not restarted") {
+		t.Fatalf("err %v", err)
+	}
+	if n := startCount(t, mark); n != 3 {
+		t.Fatalf("starts %d", n)
+	}
+}
+
+func TestHTTPTimeoutKeepsTheSession(t *testing.T) {
+	block := make(chan struct{})
+	f := &fakeHTTP{session: "s"}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		if bytes.Contains(body, []byte(`"hang"`)) {
+			<-block
+			return
+		}
+		f.ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+	defer close(block)
+	c := New(Config{Name: "web", URL: srv.URL, Timeout: 200 * time.Millisecond})
+	defer c.Close()
+	if _, err := c.Call(context.Background(), "hang", nil); err == nil {
+		t.Fatal("want timeout")
+	}
+	if _, err := c.Call(context.Background(), "echo", nil); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.inits != 1 {
+		t.Fatalf("inits %d", f.inits)
 	}
 }
 

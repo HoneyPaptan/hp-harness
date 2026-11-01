@@ -18,7 +18,12 @@ const (
 	EnvFail  = "HP_FAKE_FAIL"
 	EnvEcho  = "HP_FAKE_ECHO_ENV"
 	BigSize  = 100_000
+
+	HangOnce = "hang-once"
+	Counter  = "counter"
 )
+
+var counter int
 
 type message struct {
 	ID     json.RawMessage `json:"id"`
@@ -95,7 +100,7 @@ func respond(method string, params json.RawMessage, action Action) (any, error) 
 }
 
 func toolNames() []string {
-	names := []string{"echo", "crash", "hang", "big", "fail", "image", "group", "env", "first.crash"}
+	names := []string{"echo", "crash", "hang", "big", "fail", "image", "group", "env", Counter, "first.crash"}
 	n, _ := strconv.Atoi(os.Getenv(EnvTools))
 	if n > 0 {
 		names = names[:1]
@@ -173,12 +178,25 @@ func stdioAction(name string, _ json.RawMessage) (any, bool) {
 		time.Sleep(time.Hour)
 	case "first.crash":
 		return firstCrash(), true
+	case HangOnce:
+		return hangOnce(), true
+	case Counter:
+		counter++
+		return TextResult(strconv.Itoa(counter), false), true
 	case "group":
 		return spawnChild(), true
 	case "env":
 		return TextResult(os.Getenv(os.Getenv(EnvEcho)), false), true
 	}
 	return nil, false
+}
+
+func hangOnce() any {
+	data, _ := os.ReadFile(os.Getenv(EnvMark))
+	if strings.Count(string(data), "start") < 2 {
+		time.Sleep(time.Hour)
+	}
+	return TextResult("recovered", false)
 }
 
 func firstCrash() any {

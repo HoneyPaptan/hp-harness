@@ -243,6 +243,11 @@ func (c *stdioConn) tail() string {
 	return c.stderr.String()
 }
 
+func (c *stdioConn) abort() bool {
+	c.close()
+	return true
+}
+
 func (c *stdioConn) close() {
 	c.stdin.Close()
 	killProcessGroup(c.cmd)

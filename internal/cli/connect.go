@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/mcp"
 )
@@ -43,6 +44,13 @@ func clientConfig(env Env, name string, c connection) (mcp.Config, error) {
 	cfg := mcp.Config{
 		Name: name, Command: c.Command, Args: c.Args, Dir: c.Dir, URL: c.URL, Version: env.Version,
 	}
+	if c.Timeout != "" {
+		d, err := parseTimeout(c.Timeout)
+		if err != nil {
+			return mcp.Config{}, err
+		}
+		cfg.Timeout = d
+	}
 	if err := resolveHeaders(&cfg, c, env.Getenv); err != nil {
 		return mcp.Config{}, err
 	}
@@ -50,6 +58,14 @@ func clientConfig(env Env, name string, c connection) (mcp.Config, error) {
 		return mcp.Config{}, err
 	}
 	return cfg, nil
+}
+
+func parseTimeout(value string) (time.Duration, error) {
+	d, err := time.ParseDuration(value)
+	if err != nil || d <= 0 {
+		return 0, usagef("timeout %q must be a positive duration like 90s or 5m", value)
+	}
+	return d, nil
 }
 
 func resolveHeaders(cfg *mcp.Config, c connection, getenv func(string) string) error {

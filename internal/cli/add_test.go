@@ -94,7 +94,7 @@ func TestAddStdioCachesAndStops(t *testing.T) {
 	if code := e.run(e.serverArgs("fs")...); code != 0 {
 		t.Fatalf("code %d %s", code, e.stderr)
 	}
-	if got := e.stdout.String(); got != "added fs: 9 tools\n" {
+	if got := e.stdout.String(); got != "added fs: 10 tools\n" {
 		t.Fatalf("stdout %q", got)
 	}
 	if e.starts(t) != 1 {
@@ -102,7 +102,7 @@ func TestAddStdioCachesAndStops(t *testing.T) {
 	}
 	var cache schemaCache
 	readTestJSON(t, e.configFile(schemaCacheFile), &cache)
-	if len(cache.Servers["fs"]) != 9 || cache.Servers["fs"][0].Name != "fs__big" {
+	if len(cache.Servers["fs"]) != 10 || cache.Servers["fs"][0].Name != "fs__big" {
 		t.Fatalf("cache %+v", cache)
 	}
 	data, _ := os.ReadFile(e.mark)
@@ -224,6 +224,29 @@ func TestMissingReferenceFailsAdd(t *testing.T) {
 	}
 }
 
+func TestTimeoutIsStoredAndUsed(t *testing.T) {
+	fp := &fake.Provider{Turns: []fake.Turn{
+		fake.ToolTurn(provider.ToolCall{ID: "1", Name: "fs__hang", Args: json.RawMessage(`{}`)}),
+		fake.TextTurn("done"),
+	}}
+	e := newAddEnv(t, fp)
+	if code := e.run(e.serverArgs("fs", "--timeout", "300ms")...); code != 0 {
+		t.Fatalf("code %d %s", code, e.stderr)
+	}
+	var set connectionSet
+	readTestJSON(t, e.configFile(connectionsFile), &set)
+	if set.Servers["fs"].Timeout != "300ms" {
+		t.Fatalf("set %+v", set)
+	}
+	if code := e.run("run", "-m", "xai/grok", "go"); code != 0 {
+		t.Fatalf("code %d %s", code, e.stderr)
+	}
+	results := toolResults(fp.Requests[1])
+	if len(results) != 1 || !results[0].IsError || !strings.Contains(results[0].Text, "timed out after 300ms") {
+		t.Fatalf("results %+v", results)
+	}
+}
+
 func TestServerEnvIsNotInherited(t *testing.T) {
 	e := newAddEnv(t, nil)
 	cfg, err := clientConfig(e.Env, "fs", connection{Command: "x", Env: map[string]string{"A": "1"}})
@@ -259,6 +282,9 @@ func TestAddUsageErrors(t *testing.T) {
 		{name: "double underscore", args: []string{"add", "a__b", "--", "cmd"}, want: "invalid name"},
 		{name: "trailing underscore", args: []string{"add", "a_", "--", "cmd"}, want: "invalid name"},
 		{name: "long name", args: []string{"add", strings.Repeat("a", 33), "--", "cmd"}, want: "invalid name"},
+		{name: "bad timeout", args: []string{"add", "x", "--timeout", "soon", "--", "cmd"}, want: "positive duration"},
+		{name: "zero timeout", args: []string{"add", "x", "--timeout", "0s", "--", "cmd"}, want: "positive duration"},
+		{name: "timeout on a skill", args: []string{"add", "folder", "--timeout", "5s"}, want: "need a server"},
 		{name: "missing folder", args: []string{"add", "nope"}, want: "not a folder or git URL"},
 	}
 	for _, tt := range tests {
@@ -302,10 +328,10 @@ func TestListRemoveAndRefresh(t *testing.T) {
 	if code := e.run(e.serverArgs("fs")...); code != 0 {
 		t.Fatalf("code %d %s", code, e.stderr)
 	}
-	if code := e.run("list"); code != 0 || !strings.Contains(e.stdout.String(), "9 tools") {
+	if code := e.run("list"); code != 0 || !strings.Contains(e.stdout.String(), "10 tools") {
 		t.Fatalf("list %d %q", code, e.stdout)
 	}
-	if code := e.run("add", "--refresh", "fs"); code != 0 || e.stdout.String() != "refreshed fs: 9 tools\n" {
+	if code := e.run("add", "--refresh", "fs"); code != 0 || e.stdout.String() != "refreshed fs: 10 tools\n" {
 		t.Fatalf("refresh %d %q %s", code, e.stdout, e.stderr)
 	}
 	if code := e.run("add", "--refresh", "nope"); code != 1 {
@@ -345,7 +371,7 @@ func TestFailedRefreshKeepsTheCache(t *testing.T) {
 	}
 	var cache schemaCache
 	readTestJSON(t, e.configFile(schemaCacheFile), &cache)
-	if len(cache.Servers["fs"]) != 9 {
+	if len(cache.Servers["fs"]) != 10 {
 		t.Fatalf("cache %+v", cache)
 	}
 }

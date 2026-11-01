@@ -15,6 +15,7 @@ import (
 const (
 	DefaultTimeout = 60 * time.Second
 	maxAttempts    = 2
+	maxHangs       = 3
 	maxPages       = 1000
 	redacted       = "[redacted]"
 )
@@ -43,6 +44,8 @@ type Client struct {
 	gate     chan struct{}
 	sess     *session
 	attempts atomic.Int32
+	hangs    atomic.Int32
+	hung     atomic.Pointer[session]
 	last     error
 }
 
@@ -114,14 +117,25 @@ func (c *Client) request(ctx context.Context, method string, params any) (json.R
 		return nil, c.clean(c.callError(ctx, rctx, s, method, err))
 	}
 	c.attempts.Store(0)
+	c.hangs.Store(0)
 	return raw, nil
 }
 
 func (c *Client) callError(ctx, rctx context.Context, s *session, method string, err error) error {
 	if ctx.Err() == nil && errors.Is(rctx.Err(), context.DeadlineExceeded) {
-		return fmt.Errorf("%s timed out after %s", method, c.cfg.Timeout)
+		c.markHung(s)
+		return s.describe(fmt.Errorf("%s timed out after %s", method, c.cfg.Timeout))
 	}
 	return s.describe(fmt.Errorf("%s: %w", method, err))
+}
+
+func (c *Client) markHung(s *session) {
+	if !s.abort() {
+		return
+	}
+	if c.hung.Swap(s) != s {
+		c.hangs.Add(1)
+	}
 }
 
 func (c *Client) ready(ctx context.Context) (*session, error) {
@@ -132,12 +146,21 @@ func (c *Client) ready(ctx context.Context) (*session, error) {
 	if c.sess != nil && c.sess.alive() {
 		return c.sess, nil
 	}
+	free := c.freeRestart()
 	c.dropDead()
+	if free {
+		return c.start(ctx)
+	}
 	if int(c.attempts.Load()) >= maxAttempts {
 		return nil, fmt.Errorf("server stopped and was not restarted again: %w", c.last)
 	}
 	c.attempts.Add(1)
 	return c.start(ctx)
+}
+
+func (c *Client) freeRestart() bool {
+	n := c.hangs.Load()
+	return c.sess != nil && c.sess == c.hung.Load() && n > 1 && n < maxHangs
 }
 
 func (c *Client) dropDead() {
@@ -171,6 +194,8 @@ func (c *Client) Close() {
 		c.sess = nil
 	}
 	c.attempts.Store(0)
+	c.hangs.Store(0)
+	c.hung.Store(nil)
 	c.last = nil
 }
 

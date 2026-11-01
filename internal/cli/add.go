@@ -9,13 +9,14 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/mcp"
 )
 
-const addUsage = "usage: hp add <folder|git-url> | hp add <name> <https-url> [--header K=V] | hp add <name> [--env K=V] -- <command> [args] | hp add --refresh <name>"
+const addUsage = "usage: hp add <folder|git-url> | hp add <name> <https-url> [--header K=V] [--timeout 90s] | hp add <name> [--env K=V] [--timeout 90s] -- <command> [args] | hp add --refresh <name>"
 
 type addArgs struct {
 	refresh    string
 	positional []string
 	headers    map[string]string
 	env        map[string]string
+	timeout    string
 	command    []string
 	dashes     bool
 }
@@ -70,6 +71,10 @@ func (a *addArgs) flag(name, value string) error {
 		return setPair(a.headers, value)
 	case "--env":
 		return setPair(a.env, value)
+	case "--timeout":
+		_, err := parseTimeout(value)
+		a.timeout = value
+		return err
 	}
 	return usagef("unknown flag %s\n%s", name, addUsage)
 }
@@ -95,8 +100,8 @@ func runAdd(ctx context.Context, env Env, a addArgs) error {
 	}
 	switch len(a.positional) {
 	case 1:
-		if len(a.headers) > 0 {
-			return usagef("--header needs a server name and URL\n%s", addUsage)
+		if len(a.headers) > 0 || a.timeout != "" {
+			return usagef("--header and --timeout need a server\n%s", addUsage)
 		}
 		return addSkill(ctx, env, a.positional[0])
 	case 2:
@@ -110,7 +115,7 @@ func addStdio(ctx context.Context, env Env, a addArgs) error {
 		return usagef("%s", addUsage)
 	}
 	return addServer(ctx, env, a.positional[0], connection{
-		Command: a.command[0], Args: a.command[1:], Dir: env.Cwd, Env: nonEmpty(a.env),
+		Command: a.command[0], Args: a.command[1:], Dir: env.Cwd, Env: nonEmpty(a.env), Timeout: a.timeout,
 	})
 }
 
@@ -119,7 +124,7 @@ func addHTTP(ctx context.Context, env Env, a addArgs) error {
 	if err := checkServerURL(raw); err != nil {
 		return err
 	}
-	return addServer(ctx, env, a.positional[0], connection{URL: raw, Headers: nonEmpty(a.headers)})
+	return addServer(ctx, env, a.positional[0], connection{URL: raw, Headers: nonEmpty(a.headers), Timeout: a.timeout})
 }
 
 func nonEmpty(m map[string]string) map[string]string {
@@ -201,7 +206,7 @@ func storeTools(env Env, dir, name string, tools []cachedTool) error {
 }
 
 func refreshServer(ctx context.Context, env Env, a addArgs) error {
-	if len(a.positional) > 0 || a.dashes || len(a.headers) > 0 || len(a.env) > 0 {
+	if len(a.positional) > 0 || a.dashes || len(a.headers) > 0 || len(a.env) > 0 || a.timeout != "" {
 		return usagef("%s", addUsage)
 	}
 	dir, err := userConfigDir(env.Getenv)

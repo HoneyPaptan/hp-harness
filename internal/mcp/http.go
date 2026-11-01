@@ -159,6 +159,10 @@ func (c *httpConn) setVersion(version string) {
 	c.version = version
 }
 
+func (c *httpConn) abort() bool {
+	return false
+}
+
 func (c *httpConn) alive() bool {
 	return !c.gone.Load() && !c.closed.Load()
 }

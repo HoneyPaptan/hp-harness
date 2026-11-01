@@ -228,6 +228,10 @@ func (a *sessionAgent) Runs() ([]string, error) {
 
 func (a *sessionAgent) release() {
 	a.tools.close()
+	a.releaseRun()
+}
+
+func (a *sessionAgent) releaseRun() {
 	if a.id != "" {
 		removeRunPid(a.env, a.id)
 	}

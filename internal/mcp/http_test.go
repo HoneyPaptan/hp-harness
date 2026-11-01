@@ -112,7 +112,7 @@ func TestHTTPResponseShapes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := httpClient(t, &fakeHTTP{sse: tt.sse}, nil)
 			got, err := c.Tools(context.Background())
-			if err != nil || len(got) != 9 {
+			if err != nil || len(got) != 10 {
 				t.Fatalf("tools %d %v", len(got), err)
 			}
 			res, err := c.Call(context.Background(), "echo", json.RawMessage(`{"a":1}`))

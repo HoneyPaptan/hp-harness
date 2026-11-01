@@ -1,13 +1,18 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/core"
 	"github.com/HoneyPaptan/hp-harness/internal/host"
@@ -310,38 +315,222 @@ func TestSessionAgentSharesServersAcrossTurnsAndReleases(t *testing.T) {
 	}
 }
 
-func TestWebAgentStartsLazilyAndReleaseStopsTheServer(t *testing.T) {
-	fp := &fake.Provider{Turns: []fake.Turn{
-		fake.ToolTurn(connCall("1", "fs__echo", `{}`)),
-		fake.TextTurn("done"),
-	}}
+func webObserver() core.Observer {
+	return core.Observer{
+		OnTurnStart: func() {}, OnEvent: func(provider.Event) {},
+		OnToolStart: func(provider.ToolCall) {}, OnSwitch: func(string, string) {},
+	}
+}
+
+func counterTurn(id string) []fake.Turn {
+	return []fake.Turn{fake.ToolTurn(connCall(id, "fs__"+mcptest.Counter, `{}`)), fake.TextTurn("done")}
+}
+
+func newWebFixture(t *testing.T, idle time.Duration, turns int) (*addEnv, *webBackend, *fake.Provider) {
+	t.Helper()
+	fp := &fake.Provider{}
+	for i := range turns {
+		fp.Turns = append(fp.Turns, counterTurn(strconv.Itoa(i))...)
+	}
 	e := newAddEnv(t, fp)
 	addFake(t, e, "fs")
-	b := &webBackend{env: e.Env, opts: runOpts{model: "xai/grok"}, dir: e.home}
+	b := &webBackend{env: e.Env, opts: runOpts{model: "xai/grok"}, dir: e.home, pool: newToolPool(idle)}
+	t.Cleanup(b.pool.close)
+	return e, b, fp
+}
+
+func lastCount(t *testing.T, fp *fake.Provider) string {
+	t.Helper()
+	results := toolResults(fp.Requests[len(fp.Requests)-1])
+	return results[len(results)-1].Text
+}
+
+func webTurn(t *testing.T, b *webBackend, id string) string {
+	t.Helper()
+	a, err := b.Open(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Release()
+	if _, err := a.Send(context.Background(), "again", webObserver()); err != nil {
+		t.Fatal(err)
+	}
+	return a.ID()
+}
+
+func webFirstTurn(t *testing.T, b *webBackend) string {
+	t.Helper()
 	a, err := b.Start("", "go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer a.Release()
-	if n := e.starts(t); n != 0 {
-		t.Fatalf("starts before the turn %d", n)
-	}
-	obs := core.Observer{
-		OnTurnStart: func() {}, OnEvent: func(provider.Event) {},
-		OnToolStart: func(provider.ToolCall) {}, OnSwitch: func(string, string) {},
-	}
-	if _, err := a.Resume(context.Background(), obs); err != nil {
+	if _, err := a.Resume(context.Background(), webObserver()); err != nil {
 		t.Fatal(err)
+	}
+	return a.ID()
+}
+
+func serverGone(t *testing.T, e *addEnv) bool {
+	t.Helper()
+	data, err := os.ReadFile(e.mark)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := strings.Fields(string(data))
+	pid := fields[len(fields)-1]
+	_, err = os.Stat(filepath.Join("/proc", pid))
+	return err != nil || procIsZombieText(pid)
+}
+
+func waitServerGone(t *testing.T, e *addEnv) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for !serverGone(t, e) {
+		if time.Now().After(deadline) {
+			t.Fatal("server still running")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestWebServerStartsLazily(t *testing.T) {
+	e, b, _ := newWebFixture(t, time.Minute, 1)
+	a, err := b.Start("", "go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Release()
+	if n := e.starts(t); n != 0 {
+		t.Fatalf("starts %d", n)
+	}
+}
+
+func TestWebStatefulServerSurvivesBetweenTurns(t *testing.T) {
+	e, b, fp := newWebFixture(t, time.Minute, 3)
+	id := webFirstTurn(t, b)
+	if got := lastCount(t, fp); got != "1" {
+		t.Fatalf("count %s", got)
+	}
+	for _, want := range []string{"2", "3"} {
+		webTurn(t, b, id)
+		if got := lastCount(t, fp); got != want {
+			t.Fatalf("count %s want %s", got, want)
+		}
 	}
 	if n := e.starts(t); n != 1 {
 		t.Fatalf("starts %d", n)
 	}
-	data, _ := os.ReadFile(e.mark)
-	pid := strings.Fields(string(data))[1]
-	a.Release()
-	if _, err := os.Stat(filepath.Join("/proc", pid)); err == nil && !procIsZombieText(pid) {
-		t.Fatal("server outlived release")
+	if serverGone(t, e) {
+		t.Fatal("server should wait for the next turn")
 	}
+}
+
+func TestWebRunsKeepSeparateServers(t *testing.T) {
+	e, b, fp := newWebFixture(t, time.Minute, 2)
+	e.Rand = bytes.NewReader([]byte{1, 2, 3, 4})
+	b.env = e.Env
+	webFirstTurn(t, b)
+	webFirstTurn(t, b)
+	if got := lastCount(t, fp); got != "1" {
+		t.Fatalf("count %s", got)
+	}
+	if n := e.starts(t); n != 2 {
+		t.Fatalf("starts %d", n)
+	}
+}
+
+func TestWebIdleRunClosesItsServers(t *testing.T) {
+	e, b, fp := newWebFixture(t, 50*time.Millisecond, 2)
+	id := webFirstTurn(t, b)
+	waitServerGone(t, e)
+	webTurn(t, b, id)
+	if got := lastCount(t, fp); got != "1" {
+		t.Fatalf("count %s", got)
+	}
+	if n := e.starts(t); n != 2 {
+		t.Fatalf("starts %d", n)
+	}
+}
+
+func TestWebActiveTurnIsNotIdle(t *testing.T) {
+	e, b, _ := newWebFixture(t, 50*time.Millisecond, 2)
+	id := webFirstTurn(t, b)
+	a, err := b.Open(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Release()
+	time.Sleep(150 * time.Millisecond)
+	if serverGone(t, e) {
+		t.Fatal("server closed during a turn")
+	}
+}
+
+func TestWebShutdownClosesParkedServers(t *testing.T) {
+	e, b, _ := newWebFixture(t, time.Hour, 1)
+	webFirstTurn(t, b)
+	if serverGone(t, e) {
+		t.Fatal("server should be parked")
+	}
+	b.pool.close()
+	waitServerGone(t, e)
+}
+
+func TestReleaseAfterShutdownClosesTheServer(t *testing.T) {
+	e, b, _ := newWebFixture(t, time.Hour, 1)
+	a, err := b.Start("", "go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Resume(context.Background(), webObserver()); err != nil {
+		t.Fatal(err)
+	}
+	b.pool.close()
+	a.Release()
+	waitServerGone(t, e)
+}
+
+func TestStoppingHpWebClosesServers(t *testing.T) {
+	fp := &fake.Provider{Turns: counterTurn("1")}
+	e := newAddEnv(t, fp)
+	addFake(t, e, "fs")
+	stderr := &syncBuffer{}
+	env := e.Env
+	env.Stderr = stderr
+	env.Rand = rand.Reader
+	s := startWeb(t, env, stderr, "-m", "xai/grok")
+	s.start("go")
+	deadline := time.Now().Add(5 * time.Second)
+	for e.starts(t) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("server never started")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	s.cancel()
+	<-s.code
+	waitServerGone(t, e)
+}
+
+func TestToolPoolRace(t *testing.T) {
+	p := newToolPool(time.Microsecond)
+	defer p.close()
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 200 {
+				if got := p.take("r"); got != nil {
+					p.park("r", got)
+					continue
+				}
+				p.park("r", &toolset{})
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 type readSpy struct {

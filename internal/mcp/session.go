@@ -18,6 +18,7 @@ type conn interface {
 	call(ctx context.Context, id int64, payload []byte) (json.RawMessage, error)
 	send(ctx context.Context, payload []byte) error
 	setVersion(version string)
+	abort() bool
 	alive() bool
 	tail() string
 	close()
@@ -105,6 +106,10 @@ func (s *session) notify(ctx context.Context, method string, params any) error {
 		return err
 	}
 	return s.conn.send(ctx, payload)
+}
+
+func (s *session) abort() bool {
+	return s.conn.abort()
 }
 
 func (s *session) alive() bool {

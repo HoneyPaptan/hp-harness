@@ -100,7 +100,7 @@ The setting is journaled, so a run stays resumable with Jev on: `hp resume` read
 ```
 ./hp add fs -- npx -y @modelcontextprotocol/server-filesystem /home/me/notes
 ./hp add docs https://example.com/mcp --header 'Authorization=Bearer $DOCS_TOKEN'
-./hp add gh --env 'GITHUB_TOKEN=$GITHUB_TOKEN' -- github-mcp-server stdio
+./hp add gh --env 'GITHUB_TOKEN=$GITHUB_TOKEN' --timeout 5m -- github-mcp-server stdio
 ./hp add ./my-skill
 ./hp add https://github.com/someone/some-skill.git
 ./hp list
@@ -114,7 +114,9 @@ Connections live in `~/.config/hp/connections.json` with the tool schemas cached
 
 A stdio server runs in the folder you added it from. It gets `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `TERM`, `LANG`, `LC_ALL`, `TMPDIR` and your `--env` values, and not the rest of your environment, so model API keys stay with hp. HTTP servers need `https`, or `http` on a loopback address, and redirects are not followed.
 
-Connections add nothing to start time. A server starts when one of its tools is first called, and stops when the run ends; in a session it stops when you quit or use `/new`, and in `hp web` after each turn. A tool that fails, or a server that will not start, gives the model an error and the run carries on. A server that crashes is restarted once on the next call. Calls time out after 60 seconds.
+Connections add nothing to start time. A server starts when one of its tools is first called, and stops when the run ends; in a session it stops when you quit or use `/new`, and in `hp web` it stays up between a run's turns until the run has been idle for 10 minutes or the server shuts down. A tool that fails, or a server that will not start, gives the model an error and the run carries on. A server that crashes is restarted once on the next call.
+
+Calls time out after 60 seconds, or the `--timeout` you gave `hp add`. A stdio server that times out is killed with its process group and restarted on the next call; after 3 timeouts in a row with no successful call, hp stops restarting it for that run. An HTTP server stays connected.
 
 A server's tools appear as `<server>__<tool>`. When a run would have more than 8 tools, its server tools stay out of the request and the model gets a `tools` tool to search them by name or description; up to 5 matches join the request from the next turn, and stay loaded after `hp resume`. With `--jev` every tool goes to the chooser instead. If you remove a connection, runs that used it still resume; a new call to its tools returns an error.
 

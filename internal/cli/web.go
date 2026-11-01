@@ -90,8 +90,10 @@ func serveWeb(ctx context.Context, env Env, ln net.Listener, o webOpts, dir stri
 		return exitErr(env, "", "", err)
 	}
 	host, port := webHostPort(ln, o.listen)
+	pool := newToolPool(webIdleTimeout)
+	defer pool.close()
 	srv, err := web.New(web.Options{
-		Backend: &webBackend{env: env, opts: o.run, dir: dir}, Token: token,
+		Backend: &webBackend{env: env, opts: o.run, dir: dir, pool: pool}, Token: token,
 		Hosts: webHosts(ln.Addr().String(), host, port),
 	})
 	if err != nil {
