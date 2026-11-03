@@ -17,10 +17,10 @@ import (
 )
 
 func testReviewer(fp *fake.Provider) reviewer {
-	reviewEnv = Env{NewProvider: func(Endpoint) provider.Provider { return fp }}
-	reviewEp = func() Endpoint { return Endpoint{Model: "m"} }
-	b := reviewBind{}
-	return reviewer{provider: b.provider, model: b.model}
+	return reviewer{
+		provider: func() provider.Provider { return fp },
+		model:    func() string { return "m" },
+	}
 }
 
 func TestReviewCleanAllowed(t *testing.T) {
@@ -119,10 +119,10 @@ func TestReviewTimeoutHeld(t *testing.T) {
 	reviewTimeout = 50 * time.Millisecond
 	t.Cleanup(func() { reviewTimeout = old })
 	start := time.Now()
-	reviewEnv = Env{NewProvider: func(Endpoint) provider.Provider { return slowProvider{} }}
-	reviewEp = func() Endpoint { return Endpoint{Model: "m"} }
-	b := reviewBind{}
-	rv := reviewer{provider: b.provider, model: b.model}
+	rv := reviewer{
+		provider: func() provider.Provider { return slowProvider{} },
+		model:    func() string { return "m" },
+	}
 	v := rv.review(context.Background(), permit.Action{Tool: "bash", Target: "x"}, nil)
 	elapsed := time.Since(start)
 	if v.Allow || !strings.HasPrefix(v.Reason, "review failed:") {
