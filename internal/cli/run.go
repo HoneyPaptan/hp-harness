@@ -112,15 +112,15 @@ type runPerm struct {
 }
 
 func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, dir, id, jpath string, o runOpts, prompt string) (core.Outcome, *printer, error) {
+	pr := newPrinter(env, id, client)
 	skills, err := discoverSkills(env, dir)
 	if err != nil {
-		return core.Outcome{}, nil, err
+		return core.Outcome{}, pr, err
 	}
 	mode, rules, grants, _, st, err := effectivePermission(env, o.fullAccess, "")
 	if err != nil {
-		return core.Outcome{}, nil, err
+		return core.Outcome{}, pr, err
 	}
-	pr := newPrinter(env, id, client)
 	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env, modeString(mode), st)
 	tools := openToolset(env, dir, skills, client, st, nil)
 	defer tools.close()

@@ -380,3 +380,19 @@ func userRunText(msgs []provider.Message) string {
 	}
 	return ""
 }
+
+func TestRunBadSettingsReportsFile(t *testing.T) {
+	for _, body := range []string{`{"auto_compact_percent":90}`, `{"permission_mode":"nope"}`} {
+		home := t.TempDir()
+		writeSettingsFile(t, home, body)
+		fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("hi")}}
+		env, _, stderr := testEnv(t, host.NewMemory(), fp, map[string]string{"HOME": home})
+		env.Args = []string{"run", "-m", "xai/grok", "say hi"}
+		if code := Main(context.Background(), env); code != 1 {
+			t.Fatalf("%s: code %d", body, code)
+		}
+		if !strings.Contains(stderr.String(), "settings.json") {
+			t.Fatalf("%s: %s", body, stderr.String())
+		}
+	}
+}
