@@ -35,7 +35,7 @@ Static binaries for linux and macOS, amd64 and arm64, are attached to every rele
 curl -fsSL https://raw.githubusercontent.com/HoneyPaptan/hp-harness/main/install.sh | sh
 ```
 
-or run the script straight from a checkout. It downloads the latest release, verifies the sha256 checksum and puts the binary in `~/.local/bin` without sudo. Every tagged build runs tests and cross builds first, and the version matches the tag:
+or run the script straight from a checkout. It downloads the latest release, verifies the sha256 checksum and puts the binary in `~/.local/bin` without sudo. Set `HP_VERSION=v0.1.0` to pin a release. The checksum guards against a broken download, not a tampered release. Every tagged build runs tests and cross builds first, and the version matches the tag:
 
 ```
 hp --version
