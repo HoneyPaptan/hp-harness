@@ -92,15 +92,12 @@ func doFetch(ctx context.Context, c *http.Client, u *url.URL) (tool.Result, erro
 	req.Header.Set("User-Agent", userAgent)
 	resp, err := c.Do(req)
 	if err != nil {
-		if strings.Contains(err.Error(), refusedPrivate) {
-			return toolErr("%s", err.Error()), nil
-		}
-		return tool.Result{}, err
+		return networkErr(ctx, err)
 	}
 	defer resp.Body.Close()
 	body, err := readLimited(resp.Body, maxReadBody)
 	if err != nil {
-		return tool.Result{}, err
+		return networkErr(ctx, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return httpStatusErr(resp.StatusCode, body), nil
@@ -174,4 +171,11 @@ func formatFetchOutput(finalURL, title, text string) string {
 
 func toolErr(format string, a ...any) tool.Result {
 	return tool.Result{Text: fmt.Sprintf(format, a...), IsError: true}
+}
+
+func networkErr(ctx context.Context, err error) (tool.Result, error) {
+	if ctx.Err() != nil {
+		return tool.Result{}, ctx.Err()
+	}
+	return toolErr("fetch failed: %v", err), nil
 }

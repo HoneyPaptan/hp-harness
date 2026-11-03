@@ -59,59 +59,11 @@ func limitRedirects(req *http.Request, via []*http.Request) error {
 }
 
 func blockedIP(ip net.IP) bool {
-	if ip4 := ip.To4(); ip4 != nil {
-		return blockedIPv4(ip4)
-	}
-	return blockedIPv6(ip)
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+		ip.IsMulticast() || ip.IsUnspecified() || carrierNAT(ip)
 }
 
-func blockedIPv4(ip net.IP) bool {
-	if len(ip) < net.IPv4len {
-		return false
-	}
-	switch {
-	case ip[0] == 127:
-		return true
-	case ip[0] == 10:
-		return true
-	case ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31:
-		return true
-	case ip[0] == 192 && ip[1] == 168:
-		return true
-	case ip[0] == 169 && ip[1] == 254:
-		return true
-	case ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127:
-		return true
-	case ip[0] >= 224 && ip[0] < 240:
-		return true
-	case ip[0]|ip[1]|ip[2]|ip[3] == 0:
-		return true
-	default:
-		return false
-	}
-}
-
-func blockedIPv6(ip net.IP) bool {
-	if len(ip) < net.IPv6len {
-		return false
-	}
-	if ip[0]|ip[1]|ip[2]|ip[3]|ip[4]|ip[5]|ip[6]|ip[7]|ip[8]|ip[9]|ip[10]|ip[11]|ip[12]|ip[13]|ip[14]|ip[15] == 0 {
-		return true
-	}
-	if ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0 &&
-		ip[4] == 0 && ip[5] == 0 && ip[6] == 0 && ip[7] == 0 &&
-		ip[8] == 0 && ip[9] == 0 && ip[10] == 0 && ip[11] == 0 &&
-		ip[12] == 0 && ip[13] == 0 && ip[14] == 0 && ip[15] == 1 {
-		return true
-	}
-	if ip[0] == 0xfe && ip[1]&0xc0 == 0x80 {
-		return true
-	}
-	if ip[0] == 0xfc || ip[0] == 0xfd {
-		return true
-	}
-	if ip[0] == 0xff {
-		return true
-	}
-	return false
+func carrierNAT(ip net.IP) bool {
+	ip4 := ip.To4()
+	return ip4 != nil && ip4[0] == 100 && ip4[1]&0xc0 == 64
 }

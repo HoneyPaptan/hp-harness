@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -201,4 +202,39 @@ func mustArgs(t *testing.T, url string) json.RawMessage {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+func TestFetchConnectFailureIsToolError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	addr := srv.URL
+	srv.Close()
+	res, err := FetchTool(NewClient(true)).Run(context.Background(), tool.Env{}, mustArgs(t, addr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.IsError || !strings.Contains(res.Text, "fetch failed") {
+		t.Fatalf("got %+v", res)
+	}
+}
+
+func TestFetchCanceledIsGoError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := FetchTool(NewClient(true)).Run(ctx, tool.Env{}, mustArgs(t, "http://127.0.0.1:1"))
+	if err == nil {
+		t.Fatal("want error")
+	}
+}
+
+func TestBlockedIPRanges(t *testing.T) {
+	for _, s := range []string{"127.0.0.1", "10.1.2.3", "172.20.0.1", "192.168.1.5", "169.254.1.1", "100.101.14.98", "0.0.0.0", "224.0.0.1", "::1", "::", "fe80::1", "fd00::1", "ff02::1", "::ffff:127.0.0.1"} {
+		if !blockedIP(net.ParseIP(s)) {
+			t.Errorf("%s not blocked", s)
+		}
+	}
+	for _, s := range []string{"8.8.8.8", "100.128.0.1", "2606:4700::1111"} {
+		if blockedIP(net.ParseIP(s)) {
+			t.Errorf("%s blocked", s)
+		}
+	}
 }
