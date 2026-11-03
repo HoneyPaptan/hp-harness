@@ -24,14 +24,16 @@ type ToolChooser interface {
 }
 
 type Deps struct {
-	Host        host.Host
-	Provider    provider.Provider
-	Providers   func(spec string) (provider.Provider, string, error)
-	Tools       *tool.Registry
-	ToolChooser ToolChooser
-	Observer    Observer
-	Gate        func(ctx context.Context, call provider.ToolCall, msgs []provider.Message) Verdict
-	ExecEnv     func() []string
+	Host           host.Host
+	Provider       provider.Provider
+	Providers      func(spec string) (provider.Provider, string, error)
+	Tools          *tool.Registry
+	ToolChooser    ToolChooser
+	Observer       Observer
+	Gate           func(ctx context.Context, call provider.ToolCall, msgs []provider.Message) Verdict
+	ExecEnv        func() []string
+	ContextWindow  func(model string) int
+	CompactPercent int
 }
 
 type Config struct {

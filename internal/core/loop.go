@@ -10,17 +10,20 @@ import (
 )
 
 type runner struct {
-	deps     Deps
-	w        *journal.Writer
-	cfg      Config
-	msgs     []provider.Message
-	steps    int
-	limit    int
-	usage    provider.Usage
-	spec     string
-	reqModel string
-	prov     provider.Provider
-	limited  map[string]time.Time
+	deps            Deps
+	w               *journal.Writer
+	cfg             Config
+	msgs            []provider.Message
+	steps           int
+	limit           int
+	usage           provider.Usage
+	spec            string
+	reqModel        string
+	prov            provider.Provider
+	limited         map[string]time.Time
+	lastTurnTokens  int
+	overflowCompact bool
+	fromHandoff     bool
 }
 
 func newRunner(d Deps, w *journal.Writer, c Config, msgs []provider.Message, limit int) (*runner, error) {
@@ -62,6 +65,12 @@ func (r *runner) turn(ctx context.Context) (Outcome, bool, error) {
 }
 
 func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
+	r.overflowCompact = false
+	if r.compactOn() && r.overThreshold() {
+		if _, err := r.compact(ctx, false); err != nil {
+			return provider.Message{}, err
+		}
+	}
 	limitN, failures := 0, 0
 	tools := r.turnTools(ctx)
 	for {
@@ -69,6 +78,7 @@ func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
 		if err == nil {
 			r.usage.InputTokens += u.InputTokens
 			r.usage.OutputTokens += u.OutputTokens
+			r.lastTurnTokens = u.InputTokens + u.OutputTokens
 			return msg, nil
 		}
 		if err := r.recoverTurn(ctx, err, &limitN, &failures); err != nil {
@@ -86,7 +96,22 @@ func (r *runner) recoverTurn(ctx context.Context, err error, limitN, failures *i
 	if errors.As(err, &te) {
 		return r.retryStream(ctx, err, failures)
 	}
+	if errors.Is(err, provider.ErrContextOverflow) {
+		return r.recoverOverflow(ctx, err)
+	}
 	return err
+}
+
+func (r *runner) recoverOverflow(ctx context.Context, err error) error {
+	if r.overflowCompact {
+		return err
+	}
+	r.overflowCompact = true
+	ok, cerr := r.compact(ctx, true)
+	if cerr != nil || !ok {
+		return err
+	}
+	return nil
 }
 
 func (r *runner) streamTurn(ctx context.Context, tools []provider.ToolDef) (provider.Message, provider.Usage, error) {

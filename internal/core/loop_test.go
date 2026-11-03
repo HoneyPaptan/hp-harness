@@ -144,6 +144,7 @@ func TestObserverNilSafe(t *testing.T) {
 	o.emitWait("x", 0, hNow())
 	o.emitSwitch("a", "b")
 	o.emitRetry(0, 1, 5)
+	o.emitCompact(1)
 }
 
 func hNow() time.Time {

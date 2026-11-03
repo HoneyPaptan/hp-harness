@@ -15,6 +15,7 @@ type Observer struct {
 	OnWait       func(spec string, d time.Duration, until time.Time)
 	OnSwitch     func(from, to string)
 	OnRetry      func(d time.Duration, attempt, max int)
+	OnCompact    func(keptMessages int)
 }
 
 func (o Observer) emitTurnStart() {
@@ -56,6 +57,12 @@ func (o Observer) emitSwitch(from, to string) {
 func (o Observer) emitRetry(d time.Duration, attempt, max int) {
 	if o.OnRetry != nil {
 		o.OnRetry(d, attempt, max)
+	}
+}
+
+func (o Observer) emitCompact(kept int) {
+	if o.OnCompact != nil {
+		o.OnCompact(kept)
 	}
 }
 
