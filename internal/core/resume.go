@@ -67,7 +67,6 @@ func newResumeRunner(d Deps, w *journal.Writer, path string, st journal.State) (
 	if err := r.bindSpec(d, spec); err != nil {
 		return nil, err
 	}
-	r.markFromHandoff()
 	return r, nil
 }
 

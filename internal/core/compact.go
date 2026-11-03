@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"strings"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
@@ -26,7 +27,7 @@ func Compact(ctx context.Context, d Deps, journalPath string) (bool, error) {
 	if !r.compactOn() {
 		return false, nil
 	}
-	return r.compact(ctx, false)
+	return r.compact(ctx)
 }
 
 func (r *runner) compactOn() bool {
@@ -59,50 +60,46 @@ func (r *runner) overThreshold() bool {
 	return tok >= r.compactThreshold()
 }
 
-func (r *runner) compact(ctx context.Context, overflow bool) (bool, error) {
+func (r *runner) compact(ctx context.Context) (bool, error) {
 	if !r.compactOn() {
-		if overflow {
-			return false, provider.ErrContextOverflow
-		}
 		return false, nil
 	}
 	keep := splitKeep(r.msgs, r.usableWindow())
 	if keep <= 0 || keep >= len(r.msgs) {
-		if overflow {
-			return false, provider.ErrContextOverflow
-		}
 		return false, nil
 	}
 	old := r.msgs[:len(r.msgs)-keep]
 	win := r.deps.ContextWindow(r.reqModel)
 	prompts := fitUserPrompts(old, win/5)
-	body := renderOldPlain(old)
-	max := win / 10
+	max := r.deps.ContextWindow(r.reqModel) / 10
 	if max > summaryTokenCap {
 		max = summaryTokenCap
 	}
+	capBytes := (r.usableWindow() - max) * 3
+	if capBytes < 0 {
+		capBytes = 0
+	}
+	body := renderOldPlain(old, capBytes)
 	msg, u, err := provider.Collect(r.prov.Stream(ctx, provider.Request{
 		Model: r.reqModel, System: summarySystemPrompt, MaxTokens: max,
 		Messages: []provider.Message{{Role: provider.RoleUser, Text: body}},
 	}))
 	if err != nil || msg.Text == "" {
-		if overflow {
-			return false, provider.ErrContextOverflow
-		}
 		return false, nil
 	}
 	r.usage.InputTokens += u.InputTokens
 	r.usage.OutputTokens += u.OutputTokens
-	handoff := handoffPrefix + prompts + "\n\nSummary:\n" + msg.Text
-	if err := r.w.Compact(handoff, keep); err != nil {
-		if overflow {
-			return false, provider.ErrContextOverflow
-		}
+	var handoff strings.Builder
+	handoff.WriteString(handoffPrefix)
+	handoff.WriteString(prompts)
+	handoff.WriteString("\n\nSummary:\n")
+	handoff.WriteString(msg.Text)
+	text := handoff.String()
+	if err := r.w.Compact(text, keep); err != nil {
 		return false, err
 	}
 	tail := append([]provider.Message(nil), r.msgs[len(r.msgs)-keep:]...)
-	r.msgs = append([]provider.Message{{Role: provider.RoleUser, Text: handoff}}, tail...)
-	r.fromHandoff = true
+	r.msgs = append([]provider.Message{{Role: provider.RoleUser, Text: text}}, tail...)
 	r.lastTurnTokens = 0
 	r.deps.Observer.emitCompact(keep)
 	return true, nil
@@ -126,17 +123,8 @@ func splitKeep(msgs []provider.Message, usable int) int {
 		keep++
 	}
 	at := n - keep
-	for at > 0 {
-		m := msgs[at]
-		if m.Role == provider.RoleUser && m.Text == "" && len(m.ToolResults) > 0 {
-			at--
-			continue
-		}
-		if at > 0 && len(msgs[at-1].ToolCalls) > 0 {
-			at--
-			continue
-		}
-		break
+	for at > 0 && msgs[at].Role == provider.RoleUser && msgs[at].Text == "" && len(msgs[at].ToolResults) > 0 {
+		at--
 	}
 	if at <= 0 {
 		return 0
@@ -160,44 +148,47 @@ func hasHandoffPrefix(s string) bool {
 }
 
 func fitUserPrompts(msgs []provider.Message, budget int) string {
-	used, out := 0, ""
+	var b strings.Builder
+	used := 0
 	for _, m := range msgs {
 		if m.Role != provider.RoleUser || m.Text == "" || hasHandoffPrefix(m.Text) {
 			continue
 		}
 		need := len(m.Text)
-		if out != "" {
+		if b.Len() > 0 {
 			need++
 		}
 		if used+need > budget {
 			break
 		}
-		if out != "" {
-			out += "\n"
+		if b.Len() > 0 {
+			b.WriteByte('\n')
 		}
-		out += m.Text
+		b.WriteString(m.Text)
 		used += need
 	}
-	return out
+	return b.String()
 }
 
-func renderOldPlain(msgs []provider.Message) string {
-	out := ""
+func renderOldPlain(msgs []provider.Message, capBytes int) string {
+	var b strings.Builder
 	for _, m := range msgs {
 		if m.Text != "" {
-			out += m.Text + "\n"
+			b.WriteString(m.Text)
+			b.WriteByte('\n')
 		}
 		for _, tr := range m.ToolResults {
 			t := tr.Text
 			if len(t) > summaryToolResultCap {
 				t = t[:summaryToolResultCap]
 			}
-			out += t + "\n"
+			b.WriteString(t)
+			b.WriteByte('\n')
 		}
 	}
-	return out
-}
-
-func (r *runner) markFromHandoff() {
-	r.fromHandoff = len(r.msgs) > 0 && r.msgs[0].Role == provider.RoleUser && hasHandoffPrefix(r.msgs[0].Text)
+	s := b.String()
+	if capBytes > 0 && len(s) > capBytes {
+		s = s[len(s)-capBytes:]
+	}
+	return s
 }

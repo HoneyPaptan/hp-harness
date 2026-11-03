@@ -23,7 +23,6 @@ type runner struct {
 	limited         map[string]time.Time
 	lastTurnTokens  int
 	overflowCompact bool
-	fromHandoff     bool
 }
 
 func newRunner(d Deps, w *journal.Writer, c Config, msgs []provider.Message, limit int) (*runner, error) {
@@ -67,7 +66,7 @@ func (r *runner) turn(ctx context.Context) (Outcome, bool, error) {
 func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
 	r.overflowCompact = false
 	if r.compactOn() && r.overThreshold() {
-		if _, err := r.compact(ctx, false); err != nil {
+		if _, err := r.compact(ctx); err != nil {
 			return provider.Message{}, err
 		}
 	}
@@ -107,8 +106,11 @@ func (r *runner) recoverOverflow(ctx context.Context, err error) error {
 		return err
 	}
 	r.overflowCompact = true
-	ok, cerr := r.compact(ctx, true)
-	if cerr != nil || !ok {
+	ok, compErr := r.compact(ctx)
+	if compErr != nil {
+		return compErr
+	}
+	if !ok {
 		return err
 	}
 	return nil

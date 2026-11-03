@@ -313,3 +313,21 @@ func TestUserPromptsVerbatim(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func TestRenderOldPlainCap(t *testing.T) {
+	msgs := []provider.Message{
+		{Role: provider.RoleUser, Text: strings.Repeat("a", 200)},
+		{Role: provider.RoleUser, Text: strings.Repeat("z", 80)},
+	}
+	const cap = 90
+	got := renderOldPlain(msgs, cap)
+	if len(got) != cap {
+		t.Fatalf("len %d want %d", len(got), cap)
+	}
+	if strings.HasPrefix(got, strings.Repeat("a", 100)) {
+		t.Fatal("oldest part should be dropped")
+	}
+	if !strings.Contains(got, strings.Repeat("z", 20)) {
+		t.Fatal("newest part should be kept")
+	}
+}
