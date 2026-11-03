@@ -37,9 +37,14 @@ type Agent interface {
 	Jev() bool
 	SetModel(spec string) error
 	SetJev(on bool) error
+	SaveKey(name, value string) error
 	Reset() error
 	Runs() ([]string, error)
 }
+
+type KeyMissingError struct{ Hint string }
+
+func (e KeyMissingError) Error() string { return e.Hint }
 
 type Preconnector interface {
 	Preconnect(ctx context.Context)

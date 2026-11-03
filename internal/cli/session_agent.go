@@ -233,7 +233,7 @@ func (a *sessionAgent) SetJev(on bool) error {
 	client, err := openJev(a.env, on)
 	if err != nil {
 		if errors.Is(err, jev.ErrNoKey) {
-			return errors.New(jevKeyHint)
+			return tui.KeyMissingError{Hint: jevKeyHint}
 		}
 		return err
 	}
@@ -241,6 +241,24 @@ func (a *sessionAgent) SetJev(on bool) error {
 		return err
 	}
 	a.applyJev(client, on)
+	return nil
+}
+
+func (a *sessionAgent) SaveKey(name, value string) error {
+	if err := checkKeyName(name); err != nil {
+		return err
+	}
+	if err := checkKeyValue(value); err != nil {
+		return err
+	}
+	file, err := keyFilePath(rawGetenv(a.env))
+	if err != nil {
+		return err
+	}
+	if err := keySet(file, name, value); err != nil {
+		return err
+	}
+	a.env = reloadKeyFile(a.env)
 	return nil
 }
 

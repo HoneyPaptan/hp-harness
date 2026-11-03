@@ -33,9 +33,11 @@ func (c *screen) String() string {
 type fakeAgent struct {
 	mu        sync.Mutex
 	prompts   []string
+	keys      []string
 	model     string
 	providers []string
 	modelErr  error
+	saveErr   error
 	jevOn     bool
 	jevErr    error
 	resets    int
@@ -98,6 +100,16 @@ func (a *fakeAgent) SetJev(on bool) error {
 		return a.jevErr
 	}
 	a.jevOn = on
+	return nil
+}
+
+func (a *fakeAgent) SaveKey(name, value string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.saveErr != nil {
+		return a.saveErr
+	}
+	a.keys = append(a.keys, name+"="+value)
 	return nil
 }
 
@@ -689,4 +701,43 @@ func TestSessionPanicInTurnReachesCaller(t *testing.T) {
 	case <-time.After(waitLimit):
 		t.Fatal("panic did not reach Run")
 	}
+}
+
+func TestSessionKeyEntry(t *testing.T) {
+	tests := []struct {
+		name    string
+		saveErr error
+		keys    string
+		note    string
+		saved   string
+	}{
+		{"saves masked value", nil, "/key FOO_KEY\rs3cr3t\r", "saved FOO_KEY\r\n", "FOO_KEY=s3cr3t"},
+		{"esc cancels", nil, "/key FOO_KEY\rs3cr3t\x1b", keyNotSaved + "\r\n", ""},
+		{"empty enter cancels", nil, "/key FOO_KEY\r\r", keyNotSaved + "\r\n", ""},
+		{"no name", nil, "/key\r", keyUsage + "\r\n", ""},
+		{"save error shown", errors.New("invalid key name \"foo\""), "/key foo\rs3cr3t\r", "error: invalid key name \"foo\"\r\n", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newFakeAgent()
+			a.saveErr = tc.saveErr
+			h := startSession(t, a, false, false)
+			h.play([]step{{keys: tc.keys}, {wait: tc.note}, {keys: "\x1b[A"}, {keys: "\x15\x04"}})
+			h.waitExit()
+			if got := strings.Join(a.keys, ","); got != tc.saved {
+				t.Fatalf("saved %q want %q", got, tc.saved)
+			}
+			if strings.Contains(h.out.String(), "s3cr3t") {
+				t.Fatalf("secret reached the terminal: %q", h.out.String())
+			}
+		})
+	}
+}
+
+func TestSessionJevMissingKeyOffersKeyCommand(t *testing.T) {
+	a := newFakeAgent()
+	a.jevErr = KeyMissingError{Hint: "jev needs a key: hp key set TYPESAFE_API_KEY"}
+	h := startSession(t, a, false, false)
+	h.play([]step{{keys: "/jev on\r"}, {wait: keyAddHint}, {keys: "\x04"}})
+	h.waitExit()
 }

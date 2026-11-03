@@ -48,7 +48,9 @@ type Session struct {
 	flush    <-chan time.Time
 	cancel   context.CancelFunc
 	lastKey  time.Time
+	keyName  string
 	stopping bool
+	masking  bool
 	armed    bool
 	drawn    bool
 	dirty    bool
@@ -294,12 +296,19 @@ func (s *Session) redraw() {
 		_ = s.renderer.DrawList(pickerTitle, s.picker.items, s.picker.selected, footerLine(s.cfg.Agent))
 		return
 	}
+	if s.masking {
+		_ = s.renderer.DrawMasked(s.prompt(), s.editor.Runes(), s.editor.Cursor(), footerLine(s.cfg.Agent))
+		return
+	}
 	_ = s.renderer.Draw(s.prompt(), s.editor.Runes(), s.editor.Cursor(), footerLine(s.cfg.Agent))
 }
 
 func (s *Session) prompt() string {
 	if s.picker != nil {
 		return "model for " + s.picker.provider + ": "
+	}
+	if s.masking {
+		return "key " + s.keyName + ": "
 	}
 	return promptGlyph
 }

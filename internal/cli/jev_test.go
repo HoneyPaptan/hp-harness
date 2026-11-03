@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -487,5 +489,28 @@ func TestSetJevSeesKeyAddedDuringSession(t *testing.T) {
 	}
 	if !a.Jev() {
 		t.Fatal("jev still off")
+	}
+}
+
+func TestSaveKeyThenJevOn(t *testing.T) {
+	env, _, _, home := keyTestEnv(t, nil, nil)
+	env = applyKeyFile(env)
+	env.NewJev = func(getenv func(string) string) (*jev.Client, error) {
+		c, err := jev.FromEnv(getenv)
+		return &c, err
+	}
+	a := &sessionAgent{env: env, tools: openToolset(env, nil, nil)}
+	if err := a.SaveKey("TYPESAFE_API_KEY", "k"); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path.Join(home, ".config", "hp", "env"))
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode %v err %v", info, err)
+	}
+	if err := a.SetJev(true); err != nil || !a.Jev() {
+		t.Fatalf("jev %v err %v", a.Jev(), err)
+	}
+	if err := a.SaveKey("bad name", "k"); err == nil {
+		t.Fatal("bad name saved")
 	}
 }

@@ -16,6 +16,7 @@ const (
 	tabCells     = "    "
 	pickerMark   = "› "
 	pickerPad    = "  "
+	maskRune     = '•'
 )
 
 func EnableBracketedPaste(w io.Writer) error {
@@ -55,6 +56,17 @@ func (r *Renderer) SetColor(color bool) {
 }
 
 func (r *Renderer) Draw(prompt string, buf []rune, cursor int, footer string) error {
+	return r.draw(prompt, buf, cursor, footer, false)
+}
+
+func (r *Renderer) DrawMasked(prompt string, buf []rune, cursor int, footer string) error {
+	return r.draw(prompt, buf, cursor, footer, true)
+}
+
+func (r *Renderer) draw(prompt string, buf []rune, cursor int, footer string, mask bool) error {
+	if mask {
+		buf = maskedRunes(buf)
+	}
 	head := []rune(prompt)
 	view := layOut(slices.Concat(head, buf), len(head)+cursor, r.width)
 	frame := view.rows
@@ -73,6 +85,14 @@ func (r *Renderer) Draw(prompt string, buf []rune, cursor int, footer string) er
 	r.cursorRow, r.promptRow, r.lastRow = view.row, len(view.rows)-1, len(frame)-1
 	_, err := io.WriteString(r.w, out.String())
 	return err
+}
+
+func maskedRunes(buf []rune) []rune {
+	out := make([]rune, len(buf))
+	for i := range out {
+		out[i] = maskRune
+	}
+	return out
 }
 
 func (r *Renderer) DrawList(title string, items []string, selected int, footer string) error {

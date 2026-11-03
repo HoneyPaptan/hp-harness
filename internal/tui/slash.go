@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -11,6 +12,9 @@ const (
 	quitHint      = "press Ctrl-C again or Ctrl-D to quit"
 	literalPrefix = "//"
 	jevUsage      = "usage: /jev on|off"
+	keyUsage      = "usage: /key NAME"
+	keyNotSaved   = "key not saved"
+	keyAddHint    = "add it with /key TYPESAFE_API_KEY"
 )
 
 var helpLines = []string{
@@ -19,6 +23,7 @@ var helpLines = []string{
 	"/model p/name  switch the model for following turns",
 	"/jev           show the jev state",
 	"/jev on|off    switch jev for following turns",
+	"/key NAME      store an API key",
 	"/new           start a fresh run",
 	"/runs          list recent runs",
 	"/quit          leave, also Ctrl-D",
@@ -53,6 +58,8 @@ func (s *Session) runSlash(name, arg string) {
 		s.switchModel(arg)
 	case "/jev":
 		s.switchJev(arg)
+	case "/key":
+		s.startKey(arg)
 	case "/new":
 		s.newRun()
 	case "/runs":
@@ -104,9 +111,28 @@ func (s *Session) switchJev(arg string) {
 func (s *Session) setJev(on bool) {
 	if err := s.cfg.Agent.SetJev(on); err != nil {
 		s.fail(err)
+		if isKeyMissing(err) {
+			s.note(keyAddHint)
+		}
 		return
 	}
 	s.note(jevLine(on))
+}
+
+func isKeyMissing(err error) bool {
+	var missing KeyMissingError
+	return errors.As(err, &missing)
+}
+
+func (s *Session) startKey(name string) {
+	if name == "" {
+		s.note(keyUsage)
+		return
+	}
+	s.keyName = name
+	s.masking = true
+	s.editor.Clear()
+	s.dirty = true
 }
 
 func jevLine(on bool) string {

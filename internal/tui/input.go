@@ -23,6 +23,10 @@ func (s *Session) handleKey(ctx context.Context, k Key) {
 		s.pickerKey(k)
 		return
 	}
+	if s.masking {
+		s.secretKey(k)
+		return
+	}
 	if k.Type != KeyCtrlC {
 		s.armed = false
 	}
@@ -98,6 +102,46 @@ func (s *Session) turnKey(k Key) {
 	default:
 		s.editor.Handle(k)
 	}
+}
+
+func (s *Session) secretKey(k Key) {
+	switch k.Type {
+	case KeyEnter:
+		s.saveKey()
+	case KeyEsc, KeyCtrlC:
+		s.cancelKey()
+	case KeyUp, KeyDown:
+	default:
+		s.editor.Handle(k)
+		s.dirty = true
+	}
+}
+
+func (s *Session) saveKey() {
+	name, value := s.keyName, s.editor.Text()
+	s.endKey()
+	if value == "" {
+		s.note(keyNotSaved)
+		return
+	}
+	if err := s.cfg.Agent.SaveKey(name, value); err != nil {
+		s.fail(err)
+		return
+	}
+	s.note("saved " + name)
+}
+
+func (s *Session) cancelKey() {
+	s.endKey()
+	s.note(keyNotSaved)
+}
+
+func (s *Session) endKey() {
+	s.keyName = ""
+	s.masking = false
+	s.editor.Clear()
+	s.clearDrawn()
+	s.dirty = true
 }
 
 func (s *Session) promptKey(ctx context.Context, k Key) {
