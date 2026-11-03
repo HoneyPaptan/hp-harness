@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -74,13 +76,11 @@ func (rv reviewer) ask(ctx context.Context, ctxText string) (reviewReply, error)
 	if s == "" {
 		return reviewReply{}, errors.New("no JSON in reply")
 	}
-	if strings.Count(strings.ToLower(s), `"hold"`) != 1 {
-		return reviewReply{}, errors.New("reply must name hold once")
+	if err := checkVerdictKeys(s); err != nil {
+		return reviewReply{}, err
 	}
 	var r reviewReply
-	dec := json.NewDecoder(strings.NewReader(s))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&r); err != nil {
+	if err := json.Unmarshal([]byte(s), &r); err != nil {
 		return reviewReply{}, err
 	}
 	return r, nil
@@ -145,4 +145,39 @@ func jsonObject(text string) string {
 		return ""
 	}
 	return text[start : end+1]
+}
+
+var verdictKeys = []string{"hold", "quote", "reason"}
+
+func checkVerdictKeys(s string) error {
+	dec := json.NewDecoder(strings.NewReader(s))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		return errors.New("reply is not one JSON object")
+	}
+	seen := map[string]bool{}
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		key, _ := tok.(string)
+		if !slices.Contains(verdictKeys, key) || seen[key] {
+			return errors.New("unexpected or repeated key in reply")
+		}
+		seen[key] = true
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return err
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return err
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return errors.New("extra content after reply")
+	}
+	if !seen["hold"] {
+		return errors.New("reply has no hold")
+	}
+	return nil
 }

@@ -214,6 +214,9 @@ func TestReviewSmuggledVerdictHeld(t *testing.T) {
 		`{"hold": true, "quote": "x", "reason": "r", "HOLD": false}`,
 		`{"hold": true, "quote": "x", "reason": "r", "hold": false}`,
 		`{"hold": false, "quote": "", "reason": "", "extra": 1}`,
+		`{"hold": true, "quote": "x", "reason": "r", "\u0068old": false}`,
+		`{"hold": false, "quote": "", "reason": ""} {"hold": true}`,
+		`{"quote": "", "reason": ""}`,
 	}
 	for _, reply := range replies {
 		fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn(reply)}}
