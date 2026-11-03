@@ -93,6 +93,50 @@ func TestDrawFooter(t *testing.T) {
 	}
 }
 
+func TestDrawList(t *testing.T) {
+	tests := []struct {
+		name     string
+		selected int
+		want     string
+	}{
+		{
+			"first row selected",
+			0,
+			"  pick a provider (↑ ↓ Enter, Esc cance…\r\n› groq\r\n  openrouter\r\n  ollama\r\n\r\ngroq/openai/gpt-oss-120b · jev off",
+		},
+		{
+			"middle row selected",
+			1,
+			"  pick a provider (↑ ↓ Enter, Esc cance…\r\n  groq\r\n› openrouter\r\n  ollama\r\n\r\ngroq/openai/gpt-oss-120b · jev off",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var out strings.Builder
+			r := NewRenderer(&out, 40)
+			if err := r.DrawList(pickerTitle, []string{"groq", "openrouter", "ollama"}, tc.selected, "groq/openai/gpt-oss-120b · jev off"); err != nil {
+				t.Fatal(err)
+			}
+			if got, want := out.String(), "\r\x1b[J"+tc.want; got != want {
+				t.Fatalf("got  %q\nwant %q", got, want)
+			}
+		})
+	}
+}
+
+func TestDrawListClearErasesEverything(t *testing.T) {
+	var out strings.Builder
+	r := NewRenderer(&out, 40)
+	r.DrawList(pickerTitle, []string{"groq", "openrouter", "ollama"}, 0, "groq/openai/gpt-oss-120b · jev off")
+	out.Reset()
+	if err := r.Clear(); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := out.String(), "\x1b[5A\r\x1b[J"; got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
 func TestDrawFooterIsDim(t *testing.T) {
 	var out strings.Builder
 	r := NewRenderer(&out, 80)

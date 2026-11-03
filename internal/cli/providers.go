@@ -129,6 +129,21 @@ func presetWidths(names []string) (int, int) {
 	return nameWidth, urlWidth
 }
 
+func currentFirst(names []string, current string) []string {
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		if name == current {
+			out = append(out, name)
+		}
+	}
+	for _, name := range names {
+		if name != current {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 func keyStatus(keyEnv string, getenv func(string) string) string {
 	switch {
 	case keyEnv == "":

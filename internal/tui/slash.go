@@ -15,7 +15,7 @@ const (
 
 var helpLines = []string{
 	"/help          this list",
-	"/model         show the model",
+	"/model         pick a provider and model",
 	"/model p/name  switch the model for following turns",
 	"/jev           show the jev state",
 	"/jev on|off    switch jev for following turns",
@@ -46,6 +46,10 @@ func (s *Session) runSlash(name, arg string) {
 	case "/help":
 		s.showHelp()
 	case "/model":
+		if arg == "" {
+			s.startPicker()
+			return
+		}
 		s.switchModel(arg)
 	case "/jev":
 		s.switchJev(arg)
@@ -64,6 +68,16 @@ func (s *Session) showHelp() {
 	for _, line := range helpLines {
 		s.note(line)
 	}
+}
+
+func (s *Session) startPicker() {
+	items := s.cfg.Agent.Providers()
+	if len(items) == 0 {
+		s.note(pickerEmpty)
+		return
+	}
+	s.picker = newPicker(items)
+	s.dirty = true
 }
 
 func (s *Session) switchModel(spec string) {

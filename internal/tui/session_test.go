@@ -31,20 +31,27 @@ func (c *screen) String() string {
 }
 
 type fakeAgent struct {
-	mu      sync.Mutex
-	prompts []string
-	model   string
-	jevOn   bool
-	jevErr  error
-	resets  int
-	resumed int
-	runs    []string
-	script  []func(context.Context, func(Event)) (Outcome, error)
-	started chan struct{}
+	mu        sync.Mutex
+	prompts   []string
+	model     string
+	providers []string
+	modelErr  error
+	jevOn     bool
+	jevErr    error
+	resets    int
+	resumed   int
+	runs      []string
+	script    []func(context.Context, func(Event)) (Outcome, error)
+	started   chan struct{}
 }
 
 func newFakeAgent(script ...func(context.Context, func(Event)) (Outcome, error)) *fakeAgent {
-	return &fakeAgent{model: "xai/grok", script: script, started: make(chan struct{}, 8)}
+	return &fakeAgent{
+		model:     "xai/grok",
+		providers: []string{"groq", "openrouter", "ollama"},
+		script:    script,
+		started:   make(chan struct{}, 8),
+	}
 }
 
 func (a *fakeAgent) Send(ctx context.Context, prompt string, emit func(Event)) (Outcome, error) {
@@ -71,9 +78,14 @@ func (a *fakeAgent) Resume(ctx context.Context, emit func(Event)) (Outcome, erro
 
 func (a *fakeAgent) Model() string { return a.model }
 
+func (a *fakeAgent) Providers() []string { return a.providers }
+
 func (a *fakeAgent) Jev() bool { return a.jevOn }
 
 func (a *fakeAgent) SetModel(spec string) error {
+	if a.modelErr != nil {
+		return a.modelErr
+	}
 	if !strings.Contains(spec, "/") {
 		return errors.New("bad model")
 	}
@@ -278,12 +290,8 @@ func TestSessionScripts(t *testing.T) {
 			want:  []string{"/model", "/jev on|off", "/new", "/runs", "//text"},
 		},
 		{
-			name:  "model shows the current model",
-			steps: []step{{keys: "/model\r"}, {wait: "model xai/grok"}, {keys: "/quit\r"}},
-		},
-		{
 			name:  "model switches",
-			steps: []step{{keys: "/model groq/fast\r"}, {wait: "model groq/fast"}, {keys: "/model\r"}, {keys: "/quit\r"}},
+			steps: []step{{keys: "/model groq/fast\r"}, {wait: "model groq/fast"}, {keys: "/quit\r"}},
 		},
 		{
 			name:  "model error stays in session",
@@ -351,6 +359,79 @@ func TestSessionScripts(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSessionModelPicker(t *testing.T) {
+	a := newFakeAgent()
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "/model\r"},
+		{wait: pickerTitle},
+		{keys: "\x1b[B\r"},
+		{wait: "model for openrouter: "},
+		{keys: "m2\r"},
+		{wait: "model openrouter/m2"},
+		{keys: "\x04"},
+	})
+	h.waitExit()
+	if got := a.Model(); got != "openrouter/m2" {
+		t.Fatalf("model %q", got)
+	}
+	if !strings.Contains(h.out.String(), "openrouter/m2 · jev off") {
+		t.Fatalf("footer missing: %q", h.out.String())
+	}
+}
+
+func TestSessionModelPickerCancel(t *testing.T) {
+	tests := []struct {
+		name  string
+		steps []step
+	}{
+		{"esc on the provider", []step{{keys: "/model\r"}, {wait: pickerTitle}, {keys: "\x1b"}}},
+		{"esc on the model", []step{{keys: "/model\r"}, {wait: pickerTitle}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\x1b"}}},
+		{"empty model", []step{{keys: "/model\r"}, {wait: pickerTitle}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\r"}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newFakeAgent()
+			h := startSession(t, a, false, false)
+			h.play(append(tc.steps, step{wait: pickerNote}, step{keys: "\x04"}))
+			h.waitExit()
+			if got := a.Model(); got != "xai/grok" {
+				t.Fatalf("model %q", got)
+			}
+		})
+	}
+}
+
+func TestSessionModelPickerError(t *testing.T) {
+	a := newFakeAgent()
+	a.modelErr = errors.New("no such model")
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "/model\r"},
+		{wait: pickerTitle},
+		{keys: "\r"},
+		{wait: "model for groq: "},
+		{keys: "m2\r"},
+		{wait: "error: no such model"},
+		{keys: "\x04"},
+	})
+	h.waitExit()
+	if got := a.Model(); got != "xai/grok" {
+		t.Fatalf("model %q", got)
+	}
+}
+
+func TestSessionModelPickerWithoutProviders(t *testing.T) {
+	a := newFakeAgent()
+	a.providers = nil
+	h := startSession(t, a, false, false)
+	h.play([]step{{keys: "/model\r"}, {wait: pickerEmpty}, {keys: "\x04"}})
+	h.waitExit()
+	if strings.Contains(h.out.String(), pickerTitle) {
+		t.Fatalf("picker opened: %q", h.out.String())
 	}
 }
 

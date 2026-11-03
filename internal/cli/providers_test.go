@@ -102,6 +102,29 @@ func TestConfiguredPresetsListsTheNewProviders(t *testing.T) {
 	}
 }
 
+func TestSessionAgentProviders(t *testing.T) {
+	cases := []struct {
+		name    string
+		vars    map[string]string
+		current string
+		want    []string
+	}{
+		{"current first", map[string]string{"GROQ_API_KEY": "g", "OPENAI_API_KEY": "o"}, "groq", []string{"groq", "ollama", "openai"}},
+		{"free preset only", nil, "xai", []string{"ollama"}},
+		{"current without a key is left out", nil, "openai", []string{"ollama"}},
+		{"free preset first", map[string]string{"GROQ_API_KEY": "g"}, "ollama", []string{"ollama", "groq"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &sessionAgent{env: Env{Getenv: getenvMap(tc.vars)}, ep: Endpoint{Preset: tc.current}}
+			got := a.Providers()
+			if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Fatalf("got %v want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestSharedProvidersBuildsOncePerEndpoint(t *testing.T) {
 	builds := 0
 	shared := SharedProviders(func(Endpoint) provider.Provider {

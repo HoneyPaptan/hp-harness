@@ -37,6 +37,7 @@ type turnFunc func(context.Context, func(Event)) (Outcome, error)
 type Session struct {
 	cfg      Config
 	editor   Editor
+	picker   *picker
 	decoder  Decoder
 	renderer *Renderer
 	out      output
@@ -289,7 +290,18 @@ func (s *Session) redraw() {
 	s.dirty = false
 	s.drawn = true
 	s.renderer.SetWidth(s.cfg.Width())
-	_ = s.renderer.Draw(promptGlyph, s.editor.Runes(), s.editor.Cursor(), footerLine(s.cfg.Agent))
+	if s.picker != nil && s.picker.stage == pickProvider {
+		_ = s.renderer.DrawList(pickerTitle, s.picker.items, s.picker.selected, footerLine(s.cfg.Agent))
+		return
+	}
+	_ = s.renderer.Draw(s.prompt(), s.editor.Runes(), s.editor.Cursor(), footerLine(s.cfg.Agent))
+}
+
+func (s *Session) prompt() string {
+	if s.picker != nil {
+		return "model for " + s.picker.provider + ": "
+	}
+	return promptGlyph
 }
 
 func footerLine(a Agent) string {
@@ -301,9 +313,21 @@ func footerLine(a Agent) string {
 }
 
 func (s *Session) endPrompt() {
+	if s.picker != nil {
+		s.clearDrawn()
+		return
+	}
 	if !s.drawn {
 		return
 	}
 	s.drawn = false
 	_ = s.renderer.Finish()
+}
+
+func (s *Session) clearDrawn() {
+	if !s.drawn {
+		return
+	}
+	s.drawn = false
+	_ = s.renderer.Clear()
 }

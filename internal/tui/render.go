@@ -14,6 +14,8 @@ const (
 	pasteOff     = "\x1b[?2004l"
 	rowSeparator = "\r\n"
 	tabCells     = "    "
+	pickerMark   = "› "
+	pickerPad    = "  "
 )
 
 func EnableBracketedPaste(w io.Writer) error {
@@ -71,6 +73,37 @@ func (r *Renderer) Draw(prompt string, buf []rune, cursor int, footer string) er
 	r.cursorRow, r.promptRow, r.lastRow = view.row, len(view.rows)-1, len(frame)-1
 	_, err := io.WriteString(r.w, out.String())
 	return err
+}
+
+func (r *Renderer) DrawList(title string, items []string, selected int, footer string) error {
+	frame := make([]string, 0, len(items)+3)
+	frame = append(frame, r.dimRow(title))
+	for i, item := range items {
+		frame = append(frame, r.listRow(i == selected, item))
+	}
+	frame = append(frame, "")
+	if footer != "" {
+		frame = append(frame, r.footerRow(footer))
+	}
+	var out strings.Builder
+	moveUp(&out, r.cursorRow)
+	out.WriteString("\r" + eraseBelow)
+	out.WriteString(strings.Join(frame, rowSeparator))
+	r.cursorRow, r.promptRow, r.lastRow = len(frame)-1, len(frame)-1, len(frame)-1
+	_, err := io.WriteString(r.w, out.String())
+	return err
+}
+
+func (r *Renderer) dimRow(text string) string {
+	return paint(r.color, sgrDim, fitRow(text, r.width))
+}
+
+func (r *Renderer) listRow(selected bool, text string) string {
+	mark := pickerPad
+	if selected {
+		mark = pickerMark
+	}
+	return fitRow(mark+text, r.width)
 }
 
 func (r *Renderer) footerRow(text string) string {

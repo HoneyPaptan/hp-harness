@@ -19,10 +19,75 @@ func (s *Session) handleKey(ctx context.Context, k Key) {
 		s.turnKey(k)
 		return
 	}
+	if s.picker != nil {
+		s.pickerKey(k)
+		return
+	}
 	if k.Type != KeyCtrlC {
 		s.armed = false
 	}
 	s.promptKey(ctx, k)
+}
+
+func (s *Session) pickerKey(k Key) {
+	if s.picker.stage == pickProvider {
+		s.providerKey(k)
+		return
+	}
+	s.modelKey(k)
+}
+
+func (s *Session) providerKey(k Key) {
+	switch k.Type {
+	case KeyUp:
+		s.picker.move(-1)
+		s.dirty = true
+	case KeyDown:
+		s.picker.move(1)
+		s.dirty = true
+	case KeyEnter:
+		s.picker.pick()
+		s.editor.Clear()
+		s.dirty = true
+	case KeyEsc, KeyCtrlC:
+		s.cancelPicker()
+	}
+}
+
+func (s *Session) modelKey(k Key) {
+	switch k.Type {
+	case KeyEnter:
+		s.submitModel()
+	case KeyEsc, KeyCtrlC:
+		s.cancelPicker()
+	default:
+		s.editor.Handle(k)
+		s.dirty = true
+	}
+}
+
+func (s *Session) submitModel() {
+	model := strings.TrimSpace(s.editor.Text())
+	if model == "" {
+		s.cancelPicker()
+		return
+	}
+	spec := s.picker.provider + "/" + model
+	s.closePicker()
+	s.switchModel(spec)
+	s.dirty = true
+}
+
+func (s *Session) cancelPicker() {
+	s.closePicker()
+	s.note(pickerNote)
+	s.dirty = true
+}
+
+func (s *Session) closePicker() {
+	s.picker = nil
+	s.editor.Clear()
+	s.clearDrawn()
 }
 
 func (s *Session) turnKey(k Key) {
@@ -60,8 +125,7 @@ func (s *Session) promptInterrupt() {
 		return
 	}
 	s.armed = true
-	s.drawn = false
-	_ = s.renderer.Clear()
+	s.clearDrawn()
 	s.note(quitHint)
 }
 
