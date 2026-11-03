@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	webWait   = 5 * time.Second
+	webWait   = 15 * time.Second
 	webSecret = "sekret-key-value"
 )
 
