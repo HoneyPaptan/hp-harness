@@ -38,3 +38,7 @@ func (stdTerminal) Width() int {
 func (stdTerminal) Signals(ctx context.Context) (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(ctx, syscall.SIGHUP)
 }
+
+func (stdTerminal) ReadSecret() (string, error) {
+	return term.ReadSecret(int(os.Stdin.Fd()))
+}

@@ -3,6 +3,7 @@
 package term
 
 import (
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -43,6 +44,46 @@ func Size(fd int) (int, int, error) {
 		return 0, 0, err
 	}
 	return int(size.cols), int(size.rows), nil
+}
+
+func ReadSecret(fd int) (string, error) {
+	var saved syscall.Termios
+	if err := ioctl(fd, getTermios, unsafe.Pointer(&saved)); err != nil {
+		return "", err
+	}
+	quiet := saved
+	quiet.Lflag &^= syscall.ECHO
+	if err := ioctl(fd, setTermios, unsafe.Pointer(&quiet)); err != nil {
+		return "", err
+	}
+	line, readErr := readSecretLine(fd)
+	if err := ioctl(fd, setTermios, unsafe.Pointer(&saved)); err != nil && readErr == nil {
+		return "", err
+	}
+	if readErr != nil {
+		return "", readErr
+	}
+	return strings.TrimSuffix(line, "\r"), nil
+}
+
+func readSecretLine(fd int) (string, error) {
+	var line []byte
+	buf := make([]byte, 1)
+	for {
+		n, err := syscall.Read(fd, buf)
+		if n > 0 {
+			if buf[0] == '\n' {
+				return string(line), nil
+			}
+			line = append(line, buf[0])
+		}
+		if err != nil {
+			return string(line), err
+		}
+		if n == 0 {
+			return string(line), nil
+		}
+	}
 }
 
 func rawState(state syscall.Termios) syscall.Termios {

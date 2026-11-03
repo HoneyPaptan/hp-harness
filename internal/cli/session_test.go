@@ -24,11 +24,14 @@ const sessionWait = 5 * time.Second
 type fakeTerm struct {
 	in       *io.PipeReader
 	keys     *io.PipeWriter
+	input    io.Reader
 	mu       sync.Mutex
 	out      bytes.Buffer
 	raw      int
 	restored int
 	failRaw  bool
+	piped    bool
+	secret   string
 }
 
 func newFakeTerm(t *testing.T) *fakeTerm {
@@ -38,7 +41,12 @@ func newFakeTerm(t *testing.T) *fakeTerm {
 	return &fakeTerm{in: r, keys: w}
 }
 
-func (f *fakeTerm) Read(p []byte) (int, error) { return f.in.Read(p) }
+func (f *fakeTerm) Read(p []byte) (int, error) {
+	if f.input != nil {
+		return f.input.Read(p)
+	}
+	return f.in.Read(p)
+}
 
 func (f *fakeTerm) Write(p []byte) (int, error) {
 	f.mu.Lock()
@@ -46,7 +54,7 @@ func (f *fakeTerm) Write(p []byte) (int, error) {
 	return f.out.Write(p)
 }
 
-func (f *fakeTerm) Interactive() bool { return true }
+func (f *fakeTerm) Interactive() bool { return !f.piped }
 
 func (f *fakeTerm) MakeRaw() (func() error, error) {
 	if f.failRaw {
@@ -67,6 +75,12 @@ func (f *fakeTerm) Width() int { return 80 }
 
 func (f *fakeTerm) Signals(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithCancel(ctx)
+}
+
+func (f *fakeTerm) ReadSecret() (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.secret, nil
 }
 
 func (f *fakeTerm) text() string {

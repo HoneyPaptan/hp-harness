@@ -8,6 +8,7 @@ import (
 )
 
 func Main(ctx context.Context, env Env) int {
+	env = applyKeyFile(env)
 	args := env.Args
 	if len(args) == 0 {
 		return cmdSession(ctx, env, args)
@@ -56,6 +57,8 @@ func dispatch(ctx context.Context, env Env, args []string) int {
 		return cmdList(env, args[1:])
 	case "remove":
 		return cmdRemove(env, args[1:])
+	case "key":
+		return cmdKey(env, args[1:])
 	case "version":
 		return cmdVersion(env, args[1:])
 	case "help", "-h", "--help":
@@ -83,5 +86,5 @@ func printVersion(env Env) {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|recover|autostart|providers|web|add|list|remove|version> ...")
+	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|recover|autostart|providers|web|add|list|remove|key|version> ...")
 }

@@ -4,6 +4,7 @@ package term
 
 import (
 	"errors"
+	"os"
 	"syscall"
 	"testing"
 	"unsafe"
@@ -13,6 +14,7 @@ type fakeTTY struct {
 	state    syscall.Termios
 	size     winsize
 	sets     int
+	setState []syscall.Termios
 	failGet  bool
 	failSets map[int]bool
 }
@@ -32,6 +34,7 @@ func (f *fakeTTY) ioctl(fd int, req uintptr, arg unsafe.Pointer) error {
 			return errFake
 		}
 		f.state = *(*syscall.Termios)(arg)
+		f.setState = append(f.setState, f.state)
 	case syscall.TIOCGWINSZ:
 		if f.failGet {
 			return errFake
@@ -148,6 +151,83 @@ func TestSize(t *testing.T) {
 			cols, rows, err := Size(0)
 			if (err != nil) != tc.wantErr || cols != tc.cols || rows != tc.rows {
 				t.Fatalf("got %d %d %v", cols, rows, err)
+			}
+		})
+	}
+}
+
+func TestReadSecret(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"strips newline", "s3cret\n", "s3cret"},
+		{"strips carriage return", "s3cret\r\n", "s3cret"},
+		{"keeps spaces", " a b \n", " a b "},
+		{"empty line", "\n", ""},
+		{"eof without newline", "tail", "tail"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer r.Close()
+			if _, err := w.WriteString(tc.input); err != nil {
+				t.Fatal(err)
+			}
+			w.Close()
+			f := &fakeTTY{state: cookedState()}
+			useFake(t, f)
+			got, err := ReadSecret(int(r.Fd()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+			if len(f.setState) != 2 {
+				t.Fatalf("sets %d", len(f.setState))
+			}
+			quiet := f.setState[0]
+			if quiet.Lflag&syscall.ECHO != 0 {
+				t.Fatal("ECHO not cleared")
+			}
+			if quiet.Lflag&syscall.ICANON == 0 || quiet.Lflag&syscall.ISIG == 0 {
+				t.Fatalf("unrelated Lflag cleared: %#x", quiet.Lflag)
+			}
+			if quiet.Iflag != cookedState().Iflag || quiet.Oflag != cookedState().Oflag {
+				t.Fatal("input or output flags changed")
+			}
+			if f.state != cookedState() {
+				t.Fatal("state not restored")
+			}
+		})
+	}
+}
+
+func TestReadSecretErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		tty  fakeTTY
+	}{
+		{"get fails", fakeTTY{failGet: true}},
+		{"set fails", fakeTTY{failSets: map[int]bool{1: true}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer r.Close()
+			w.Close()
+			useFake(t, &tc.tty)
+			got, err := ReadSecret(int(r.Fd()))
+			if !errors.Is(err, errFake) || got != "" {
+				t.Fatalf("got %q %v", got, err)
 			}
 		})
 	}

@@ -15,3 +15,7 @@ func MakeRaw(fd int) (func() error, error) {
 func Size(fd int) (int, int, error) {
 	return 0, 0, errors.ErrUnsupported
 }
+
+func ReadSecret(fd int) (string, error) {
+	return "", errors.ErrUnsupported
+}

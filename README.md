@@ -80,6 +80,14 @@ The model can paste files, edit code and run shell commands through the built-in
 
 Built-in tools: `read`, `write`, `edit`, `bash`, `grep`, plus `search` with `--jev`. Skills are folders with a `SKILL.md` in `.hp/skills`, `.claude/skills` or `~/.config/hp/skills`; the model sees their names and loads one with the `skill` tool when it needs it. MCP servers are added with `hp add`.
 
+## Keys
+
+`hp key set OPENAI_API_KEY` reads the key without echo when stdin is a terminal, or one line from stdin otherwise, and writes `NAME=value` to `~/.config/hp/env` with mode 0600. Every hp command reads that file at start, so a key is stored once. A key that is already set in the real environment wins over the file.
+
+`hp key list` prints each known name with its source, `file` or `env`, and never prints a value. `hp key rm NAME` removes one line.
+
+The file uses the same syntax as a systemd `EnvironmentFile`, so `hp autostart` recovery reads the same keys. Names use upper case letters, digits and underscores.
+
 ## Session
 
 Bare `hp` on a terminal opens a session. The conversation prints inline into normal scrollback, with one dim status line after each turn. Every follow-up continues the same journaled run, so a session survives like any other run.
@@ -192,14 +200,14 @@ A run survives usage limits, closed terminals, lost SSH and reboots: `hp recover
 
 On linux this writes `~/.config/systemd/user/hp-recover.service`, a oneshot unit enabled with `systemctl --user enable`; combined with `loginctl enable-linger $USER` it also recovers runs at boot without login. On macOS it writes a launchd agent in `~/Library/LaunchAgents` with `RunAtLoad`.
 
-The unit holds no API keys. Recovery reads them from an environment file you create and guard yourself, `~/.config/hp/env`, mode 0600:
+The unit holds no API keys. Recovery reads them from `~/.config/hp/env`, mode 0600, the same file `hp key set` writes:
 
 ```
 XAI_API_KEY=...
 GROQ_API_KEY=...
 ```
 
-The linux unit picks it up with `EnvironmentFile=-%h/.config/hp/env`, and hp never writes keys there. On macOS the launchd agent gets no such file: give the keys to the login environment (for example with `launchctl setenv KEY value`) or run `hp recover` yourself.
+The linux unit picks it up with `EnvironmentFile=-%h/.config/hp/env`. On macOS the launchd agent gets no such file: give the keys to the login environment (for example with `launchctl setenv KEY value`) or run `hp recover` yourself.
 
 ## License
 

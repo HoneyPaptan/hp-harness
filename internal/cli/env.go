@@ -30,6 +30,7 @@ type Env struct {
 	Pid         int
 	Term        Terminal
 	RunCtl      func(argv []string) error
+	realGetenv  func(string) string
 }
 
 type Terminal interface {
@@ -39,4 +40,5 @@ type Terminal interface {
 	MakeRaw() (func() error, error)
 	Width() int
 	Signals(ctx context.Context) (context.Context, context.CancelFunc)
+	ReadSecret() (string, error)
 }

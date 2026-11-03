@@ -90,7 +90,7 @@ func printKeyNote(env Env, p autostartPaths) {
 		return
 	}
 	fmt.Fprintln(env.Stdout, "recovery reads keys from %h/.config/hp/env via EnvironmentFile")
-	fmt.Fprintln(env.Stdout, "create that file yourself, mode 0600; hp never writes keys into it")
+	fmt.Fprintln(env.Stdout, "store keys there with hp key set NAME, mode 0600")
 }
 
 func autostartOff(env Env, p autostartPaths) int {
