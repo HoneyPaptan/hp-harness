@@ -118,3 +118,15 @@ func TestGateWriteNewFileRoutine(t *testing.T) {
 		t.Fatalf("verdict %+v", v)
 	}
 }
+
+func TestGateWriteDotDotThroughLinkReviewed(t *testing.T) {
+	h := host.NewMemory()
+	h.Link("/w/link", "/else/deep")
+	mode := permit.ModeAuto
+	gate := newGate(h, func() permit.Mode { return mode }, nil, &permit.Grants{}, "/w", "/home/u", nil, nil)
+	call := provider.ToolCall{ID: "1", Name: "write", Args: json.RawMessage(`{"path":"link/../x.go"}`)}
+	v := gate(context.Background(), call)
+	if v.Allow {
+		t.Fatalf("verdict %+v", v)
+	}
+}

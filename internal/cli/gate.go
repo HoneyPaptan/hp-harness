@@ -2,6 +2,10 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
+	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/HoneyPaptan/hp-harness/internal/core"
 	"github.com/HoneyPaptan/hp-harness/internal/host"
@@ -31,10 +35,8 @@ func newGate(h host.Host, mode func() permit.Mode, rules []permit.Rule, grants *
 	}
 	return func(ctx context.Context, call provider.ToolCall) core.Verdict {
 		a := permit.Describe(call, dir)
-		if a.Kind == permit.KindWrite {
-			if pathHasSymlink(h, dir, a.Target) {
-				a.Linked = true
-			}
+		if a.Kind == permit.KindWrite && writeEscapes(h, dir, call) {
+			a.Linked = true
 		}
 		v, reason := permit.Decide(mode(), rules, grants, a, dir, home)
 		switch v {
@@ -63,4 +65,25 @@ func newGate(h host.Host, mode func() permit.Mode, rules []permit.Rule, grants *
 			return core.Verdict{Allow: false, Reason: reason}
 		}
 	}
+}
+
+func writeEscapes(h host.Host, dir string, call provider.ToolCall) bool {
+	var args struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(call.Args, &args); err != nil {
+		return true
+	}
+	rel := args.Path
+	if filepath.IsAbs(rel) {
+		r, err := filepath.Rel(dir, rel)
+		if err != nil {
+			return true
+		}
+		rel = r
+	}
+	if slices.Contains(strings.Split(filepath.ToSlash(rel), "/"), "..") {
+		return true
+	}
+	return pathHasSymlink(h, dir, rel)
 }

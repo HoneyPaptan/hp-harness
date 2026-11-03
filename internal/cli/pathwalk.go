@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"errors"
+	"io/fs"
 	"path"
 	"path/filepath"
 
@@ -10,14 +12,17 @@ import (
 func pathHasSymlink(h host.Host, dir, rel string) bool {
 	parts, ok := relPathParts(rel)
 	if !ok {
-		return false
+		return true
 	}
 	cur := dir
 	for _, p := range parts {
 		cur = filepath.Join(cur, p)
 		ent, err := h.Lstat(cur)
-		if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
 			return false
+		}
+		if err != nil {
+			return true
 		}
 		if ent.IsLink {
 			return true

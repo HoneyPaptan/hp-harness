@@ -1,6 +1,9 @@
 package permit
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestBashRoutine(t *testing.T) {
 	dir := "/w"
@@ -42,6 +45,9 @@ func TestBashNotRoutine(t *testing.T) {
 	cmds := []string{
 		"go test ./... && rm -rf ~",
 		"ls | sh",
+		`git diff "--ext-diff"`,
+		"git diff --ex''t-diff",
+		`rg --p\re=sh x`,
 		"cat x > y",
 		"echo $(id)",
 		"echo `id`",
@@ -116,5 +122,27 @@ func TestMCPNotRoutine(t *testing.T) {
 	a := Action{Tool: "mcp", Target: "x__y", Kind: KindExternal}
 	if Routine(a, "/w", "/home/u") {
 		t.Fatal("mcp should not be routine")
+	}
+}
+
+func TestShellWords(t *testing.T) {
+	tests := []struct {
+		in   string
+		want []string
+		ok   bool
+	}{
+		{"git log --oneline", []string{"git", "log", "--oneline"}, true},
+		{`find . -name '*.go'`, []string{"find", ".", "-name", "*.go"}, true},
+		{`git diff "--ext-diff"`, []string{"git", "diff", "--ext-diff"}, true},
+		{"git diff --ex''t-diff", []string{"git", "diff", "--ext-diff"}, true},
+		{`a "b c"`, []string{"a", "b c"}, true},
+		{`a "b`, nil, false},
+		{"", nil, true},
+	}
+	for _, tc := range tests {
+		got, ok := shellWords(tc.in)
+		if ok != tc.ok || strings.Join(got, "|") != strings.Join(tc.want, "|") {
+			t.Fatalf("%q: got %q %v", tc.in, got, ok)
+		}
 	}
 }

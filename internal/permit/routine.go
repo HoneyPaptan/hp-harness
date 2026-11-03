@@ -87,7 +87,11 @@ func bashRoutine(command string) bool {
 	if shellMeta(command) {
 		return false
 	}
-	command = strings.TrimSpace(command)
+	words, ok := shellWords(command)
+	if !ok {
+		return false
+	}
+	command = strings.Join(words, " ")
 	if makeRoutine(command) {
 		return true
 	}
@@ -191,7 +195,7 @@ func commandMatchesPrefix(command, prefix string) bool {
 }
 
 func shellMeta(command string) bool {
-	if strings.ContainsAny(command, ";\n|&><`") {
+	if strings.ContainsAny(command, ";\n|&><`\\") {
 		return true
 	}
 	return strings.Contains(command, "&&") || strings.Contains(command, "||") || strings.Contains(command, "$(")
