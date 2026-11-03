@@ -2,6 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+BUILD_TAGS=nethttpomithttp2
+
 fail() {
 	printf 'check: %s\n' "$*" >&2
 	exit 1
@@ -23,7 +25,7 @@ core_boundary() {
 size_budget() {
 	local out size budget
 	out=$(mktemp)
-	go build -trimpath -ldflags='-s -w' -o "$out" ./cmd/hp
+	go build -tags "$BUILD_TAGS" -trimpath -ldflags='-s -w' -o "$out" ./cmd/hp
 	size=$(wc -c <"$out")
 	rm -f "$out"
 	budget=$(cat .size-budget)

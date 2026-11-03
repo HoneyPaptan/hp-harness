@@ -29,13 +29,14 @@ jobs:
       - name: Cross build
         run: |
           set -eu
+          build_tags=nethttpomithttp2
           version="${GITHUB_REF_NAME}"
           mkdir -p dist
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os=${target%/*}
             arch=${target#*/}
             CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
-              go build -trimpath -ldflags "-s -w -X main.version=$version" \
+              go build -tags "$build_tags" -trimpath -ldflags "-s -w -X main.version=$version" \
               -o "dist/hp-$os-$arch/hp" ./cmd/hp
             tar -czf "dist/hp-$os-$arch.tar.gz" -C "dist/hp-$os-$arch" hp
           done

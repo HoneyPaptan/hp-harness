@@ -25,7 +25,7 @@ Coding agents stop when you hit a usage limit, close the laptop or lose SSH. hp 
 make build
 ```
 
-Requires Go 1.27 or newer.
+Requires Go 1.27 or newer. Release builds omit HTTP/2 from `net/http` to keep the binary small; provider traffic uses HTTP/1.1.
 
 ## Install
 

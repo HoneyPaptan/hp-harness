@@ -1,8 +1,9 @@
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
+TAGS := nethttpomithttp2
 
 build:
-	go build -trimpath -ldflags '$(LDFLAGS)' -o hp ./cmd/hp
+	go build -tags $(TAGS) -trimpath -ldflags '$(LDFLAGS)' -o hp ./cmd/hp
 
 test:
 	go test ./...
