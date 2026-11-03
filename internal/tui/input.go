@@ -131,7 +131,7 @@ func (s *Session) pickModelFirst(text string) {
 		return
 	}
 	if text != "" {
-		s.pending = promptText(text)
+		s.pending = text
 		s.editor.Clear()
 	}
 	s.dirty = true
