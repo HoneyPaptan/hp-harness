@@ -98,7 +98,7 @@ func TestBash(t *testing.T) {
 				}
 				return host.ExecResult{ExitCode: 0}, nil
 			},
-			raw:   `{"command":"true"}`,
+			raw:    `{"command":"true"}`,
 			execIn: []string{"TOOL=1"},
 		},
 		{

@@ -90,7 +90,7 @@ The file uses the same syntax as a systemd `EnvironmentFile`, so `hp autostart` 
 
 ## Session
 
-Bare `hp` on a terminal opens a session. A header line shows the version, the conversation prints inline into normal scrollback with one dim status line after each turn, and a footer under the prompt shows the permission mode, the model and whether Jev is on, for example `auto · groq/openai/gpt-oss-120b · jev off`. Every follow-up continues the same journaled run, so a session survives like any other run.
+Bare `hp` on a terminal opens a session. Tool shells inherit your login shell environment once at startup; set `HP_LOGIN_ENV=0` to use hp's process environment instead. A header line shows the version, the conversation prints inline into normal scrollback with one dim status line after each turn, and a footer under the prompt shows the permission mode, the model and whether Jev is on, for example `auto · groq/openai/gpt-oss-120b · jev off`. Every follow-up continues the same journaled run, so a session survives like any other run.
 
 With no `-m` and no `HP_MODEL`, the session opens with the footer `auto · no model · /model` and the model picker already up. A prompt sent before a model is picked stays in the editor until one is.
 

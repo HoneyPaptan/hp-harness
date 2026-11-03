@@ -29,6 +29,7 @@ func cmdWeb(ctx context.Context, env Env, args []string) int {
 	if err != nil {
 		return exitErr(env, "", "", err)
 	}
+	kickExecEnv(env, dir)
 	ln, err := webListener(env, o)
 	if err != nil {
 		return exitErr(env, "", "", err)
