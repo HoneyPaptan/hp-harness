@@ -52,7 +52,7 @@ export OPENCODE_API_KEY=...
 ./hp recover
 ```
 
-`-m` takes `preset/model`. Presets:
+`-m` takes `preset/model`, for example `hp -m groq/openai/gpt-oss-120b`. A preset with no model name (`groq` or `groq/`) is refused. Presets:
 
 | Preset | Endpoint | Key |
 | --- | --- | --- |
@@ -92,6 +92,8 @@ The file uses the same syntax as a systemd `EnvironmentFile`, so `hp autostart` 
 
 Bare `hp` on a terminal opens a session. A header line shows the version, the conversation prints inline into normal scrollback with one dim status line after each turn, and a footer under the prompt shows the model and whether Jev is on, for example `groq/openai/gpt-oss-120b · jev off`. Every follow-up continues the same journaled run, so a session survives like any other run.
 
+With no `-m` and no `HP_MODEL`, the session opens with the footer `no model · /model` and the model picker already up. A prompt sent before a model is picked stays in the editor until one is.
+
 ```
 ./hp -m opencode/grok-4.6
 ./hp -c
@@ -101,7 +103,9 @@ Bare `hp` on a terminal opens a session. A header line shows the version, the co
 
 Ctrl-C or Esc stops a turn and returns to the prompt; keys typed during a turn wait there as the next draft. At the prompt, Ctrl-C clears the text, twice on an empty prompt quits, and so does Ctrl-D.
 
-Commands stay local and send nothing to the model: `/help`; `/model` opens a picker of providers that have a key, then asks for the model name; `/model preset/name` switches directly; `/jev on` and `/jev off` switch Jev for following turns and are kept on resume; `/key NAME` stores an API key with masked input, the same way as `hp key set`; `/new` starts a fresh run; `/runs`; `/quit`. `//text` sends a literal `/text`.
+Commands stay local and send nothing to the model: `/help`; `/model` opens a picker of providers that have a key, then lists that provider's models from its `/models` endpoint (type to filter, arrows and Enter to pick; if the list cannot be fetched, type the name); `/model groq` opens the picker at groq's list; `/model preset/name` switches directly; `/jev on` and `/jev off` switch Jev for following turns and are kept on resume; `/key NAME` stores an API key with masked input, the same way as `hp key set`; `/new` starts a fresh run; `/runs`; `/quit`. `//text` sends a literal `/text`.
+
+Typing `/` lists the commands, filtered as you type; Tab or Enter completes. Typing `@` lists files under the working folder (hidden folders, `node_modules`, `vendor`, links and simple top level `.gitignore` patterns skipped, at most 200). Each `@path` in a sent prompt attaches that file to the message: up to 64 KB per file and 256 KB per message, binary files skipped, and paths outside the working folder or through a symlink left as plain text. The transcript shows what you typed; the journal keeps what the model saw.
 
 A session opens its connection to the provider at start, and again on the first key after 60 seconds idle, so the first turn skips the TCP and TLS handshake. `hp web` does the same at page load. The probe is an unauthenticated `HEAD` on the base URL; if it fails, nothing shows and the turn connects as usual. On models that stream reasoning the activity line reads `thinking…`, time to first token stops there, and reasoning is neither printed nor journaled.
 
