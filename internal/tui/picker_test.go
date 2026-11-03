@@ -14,7 +14,7 @@ func modelPickerHarness(t *testing.T, a *fakeAgent) *harness {
 
 func openGroqModelStage(h *harness) {
 	h.play([]step{
-		{keys: "/model\r"},
+		{keys: "/model \r"},
 		{wait: providerPrompt},
 		{keys: "\r"},
 		{wait: "model for groq: "},

@@ -42,6 +42,7 @@ type Agent interface {
 	SaveKey(name, value string) error
 	Reset() error
 	Runs() ([]string, error)
+	Files() ([]string, error)
 }
 
 type KeyMissingError struct{ Hint string }

@@ -27,6 +27,7 @@ const (
 	KeyCtrlU
 	KeyCtrlW
 	KeyEsc
+	KeyTab
 	KeyPasteStart
 	KeyPasteEnd
 )
@@ -46,6 +47,7 @@ var controlKeys = map[byte]KeyType{
 	0x04: KeyCtrlD,
 	0x05: KeyCtrlE,
 	0x08: KeyBackspace,
+	0x09: KeyTab,
 	0x0a: KeyEnter,
 	0x0b: KeyCtrlK,
 	0x0c: KeyCtrlL,

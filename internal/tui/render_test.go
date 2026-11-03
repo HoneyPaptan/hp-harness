@@ -199,6 +199,19 @@ func TestDrawModelMenuFrames(t *testing.T) {
 	}
 }
 
+func TestDrawSlashCompletionMenu(t *testing.T) {
+	var out strings.Builder
+	r := NewRenderer(&out, 40)
+	footer := "xai/grok · jev off"
+	if err := r.DrawMenu(promptGlyph, []rune("/mo"), 3, []string{"model"}, 0, "", "", footer); err != nil {
+		t.Fatal(err)
+	}
+	want := "\r\x1b[J› /mo\r\n› model\r\n\r\nxai/grok · jev off\x1b[3A\r\x1b[5C"
+	if got := out.String(); got != want {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+}
+
 func TestDrawMenuClearErasesEverything(t *testing.T) {
 	var out strings.Builder
 	r := NewRenderer(&out, 40)

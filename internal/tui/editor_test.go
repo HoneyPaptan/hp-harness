@@ -147,6 +147,18 @@ func TestEditorHistory(t *testing.T) {
 	}
 }
 
+func TestEditorReplace(t *testing.T) {
+	var e Editor
+	e.SetText("/mo")
+	if e.Cursor() != 3 {
+		t.Fatalf("cursor %d", e.Cursor())
+	}
+	e.Replace(0, 3, "/model ")
+	if e.Text() != "/model " || e.Cursor() != len("/model ") {
+		t.Fatalf("got %q at %d", e.Text(), e.Cursor())
+	}
+}
+
 func TestEditorTake(t *testing.T) {
 	var e Editor
 	feed(&e, "hello")

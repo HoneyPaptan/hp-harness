@@ -36,28 +36,30 @@ type turnResult struct {
 type turnFunc func(context.Context, func(Event)) (Outcome, error)
 
 type Session struct {
-	cfg      Config
-	editor   Editor
-	picker   *picker
-	decoder  Decoder
-	renderer *Renderer
-	out      output
-	input    chan []byte
-	events   chan Event
-	done     chan turnResult
-	models   chan modelsResult
-	stopped  chan struct{}
-	flush    <-chan time.Time
-	cancel   context.CancelFunc
-	lastKey  time.Time
-	keyName  string
-	stopping bool
-	masking  bool
-	armed    bool
-	drawn    bool
-	dirty    bool
-	quit     bool
-	pending  string
+	cfg       Config
+	editor    Editor
+	picker    *picker
+	decoder   Decoder
+	renderer  *Renderer
+	out       output
+	input     chan []byte
+	events    chan Event
+	done      chan turnResult
+	models    chan modelsResult
+	stopped   chan struct{}
+	flush     <-chan time.Time
+	cancel    context.CancelFunc
+	lastKey   time.Time
+	keyName   string
+	stopping  bool
+	masking   bool
+	armed     bool
+	drawn     bool
+	dirty     bool
+	quit      bool
+	pending   string
+	complete  *completion
+	fileCache []string
 }
 
 func NewSession(cfg Config) *Session {
@@ -317,6 +319,11 @@ func (s *Session) redraw() {
 	}
 	if s.masking {
 		_ = s.renderer.DrawMasked(s.prompt(), s.editor.Runes(), s.editor.Cursor(), footerLine(s.cfg.Agent))
+		return
+	}
+	if s.complete != nil && s.complete.visible() {
+		rows, sel := s.complete.menu.window()
+		_ = s.renderer.DrawMenu(promptGlyph, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", completionMore(s.complete.menu), footerLine(s.cfg.Agent))
 		return
 	}
 	_ = s.renderer.Draw(s.prompt(), s.editor.Runes(), s.editor.Cursor(), footerLine(s.cfg.Agent))

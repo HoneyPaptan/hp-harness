@@ -18,18 +18,49 @@ const (
 	keyAddHint    = "add it with /key TYPESAFE_API_KEY"
 )
 
+type slashCommand struct {
+	name string
+	args string
+	help string
+}
+
+var slashCommands = []slashCommand{
+	{"/help", "", "this list"},
+	{"/model", "", "pick a provider and model"},
+	{"/model", " p/name", "switch the model for following turns"},
+	{"/jev", "", "show the jev state"},
+	{"/jev", " on|off", "switch jev for following turns"},
+	{"/key", " NAME", "store an API key"},
+	{"/new", "", "start a fresh run"},
+	{"/runs", "", "list recent runs"},
+	{"/quit", "", "leave, also Ctrl-D"},
+}
+
 var helpLines = []string{
-	"/help          this list",
-	"/model         pick a provider and model",
-	"/model p/name  switch the model for following turns",
-	"/jev           show the jev state",
-	"/jev on|off    switch jev for following turns",
-	"/key NAME      store an API key",
-	"/new           start a fresh run",
-	"/runs          list recent runs",
-	"/quit          leave, also Ctrl-D",
+	slashHelpLine(slashCommands[0]),
+	slashHelpLine(slashCommands[1]),
+	slashHelpLine(slashCommands[2]),
+	slashHelpLine(slashCommands[3]),
+	slashHelpLine(slashCommands[4]),
+	slashHelpLine(slashCommands[5]),
+	slashHelpLine(slashCommands[6]),
+	slashHelpLine(slashCommands[7]),
+	slashHelpLine(slashCommands[8]),
 	"//text         send /text to the model",
 	"Ctrl-C or Esc stops a turn",
+}
+
+func slashHelpLine(c slashCommand) string {
+	line := c.name
+	if c.args != "" {
+		line += c.args
+	}
+	if len(line) < 15 {
+		line += strings.Repeat(" ", 15-len(line))
+	} else {
+		line += " "
+	}
+	return line + c.help
 }
 
 func splitSlash(text string) (string, string, bool) {

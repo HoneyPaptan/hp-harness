@@ -323,6 +323,10 @@ func (a *sessionAgent) Runs() ([]string, error) {
 	return runLines(a.env)
 }
 
+func (a *sessionAgent) Files() ([]string, error) {
+	return nil, nil
+}
+
 func (a *sessionAgent) release() {
 	a.tools.close()
 	a.releaseRun()

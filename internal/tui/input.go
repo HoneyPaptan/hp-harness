@@ -188,7 +188,11 @@ func (s *Session) endKey() {
 }
 
 func (s *Session) promptKey(ctx context.Context, k Key) {
-	switch s.editor.Handle(k) {
+	if s.completionKey(k) {
+		return
+	}
+	action := s.editor.Handle(k)
+	switch action {
 	case ActionSubmit:
 		s.submit(ctx)
 	case ActionInterrupt:
@@ -198,12 +202,14 @@ func (s *Session) promptKey(ctx context.Context, k Key) {
 	default:
 		s.dirty = true
 	}
+	s.updateCompletion()
 }
 
 func (s *Session) promptInterrupt() {
 	s.dirty = true
 	if s.editor.Text() != "" {
 		s.editor.Clear()
+		s.clearPromptCompletion()
 		s.armed = false
 		return
 	}
@@ -219,12 +225,14 @@ func (s *Session) promptInterrupt() {
 func (s *Session) submit(ctx context.Context) {
 	if strings.TrimSpace(s.editor.Text()) == "" {
 		s.editor.Clear()
+		s.clearPromptCompletion()
 		s.dirty = true
 		return
 	}
 	s.dirty = true
 	s.redraw()
 	text := s.editor.Take()
+	s.clearPromptCompletion()
 	s.endPrompt()
 	if name, arg, ok := splitSlash(text); ok {
 		s.runSlash(name, arg)

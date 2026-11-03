@@ -46,6 +46,9 @@ type fakeAgent struct {
 	resets     int
 	resumed    int
 	runs       []string
+	files      []string
+	filesErr   error
+	filesCalls int
 	script     []func(context.Context, func(Event)) (Outcome, error)
 	started    chan struct{}
 }
@@ -139,6 +142,16 @@ func (a *fakeAgent) Reset() error {
 }
 
 func (a *fakeAgent) Runs() ([]string, error) { return a.runs, nil }
+
+func (a *fakeAgent) Files() ([]string, error) {
+	a.mu.Lock()
+	a.filesCalls++
+	a.mu.Unlock()
+	if a.filesErr != nil {
+		return nil, a.filesErr
+	}
+	return append([]string(nil), a.files...), nil
+}
 
 func (a *fakeAgent) sent() []string {
 	a.mu.Lock()
@@ -318,32 +331,32 @@ func TestSessionScripts(t *testing.T) {
 		},
 		{
 			name:  "help is local",
-			steps: []step{{keys: "/help\r"}, {wait: "/quit"}, {keys: "/quit\r"}},
+			steps: []step{{keys: "/help \r"}, {wait: "/quit"}, {keys: "/quit \r"}},
 			want:  []string{"/model", "/jev on|off", "/new", "/runs", "//text"},
 		},
 		{
 			name:  "model switches",
-			steps: []step{{keys: "/model groq/fast\r"}, {wait: "model groq/fast"}, {keys: "/quit\r"}},
+			steps: []step{{keys: "/model groq/fast\r"}, {wait: "model groq/fast"}, {keys: "/quit \r"}},
 		},
 		{
 			name:  "model error stays in session",
-			steps: []step{{keys: "/model nope\r"}, {wait: "error: bad model"}, {keys: "/quit\r"}},
+			steps: []step{{keys: "/model nope\r"}, {wait: "error: bad model"}, {keys: "/quit \r"}},
 		},
 		{
 			name:  "new resets the run",
-			steps: []step{{keys: "/new\r"}, {wait: "new run"}, {keys: "/quit\r"}},
+			steps: []step{{keys: "/new \r"}, {wait: "new run"}, {keys: "/quit \r"}},
 		},
 		{
 			name:  "runs lists runs",
-			steps: []step{{keys: "/runs\r"}, {wait: "run-1  final"}, {keys: "/quit\r"}},
+			steps: []step{{keys: "/runs \r"}, {wait: "run-1  final"}, {keys: "/quit \r"}},
 		},
 		{
 			name:  "unknown slash hints",
-			steps: []step{{keys: "/nope\r"}, {wait: "unknown command /nope"}, {keys: "/quit\r"}},
+			steps: []step{{keys: "/nope\r"}, {wait: "unknown command /nope"}, {keys: "/quit \r"}},
 		},
 		{
 			name:    "double slash sends literal",
-			steps:   []step{{keys: "//text more\r"}, {turn: true}, {wait: status}, {keys: "/quit\r"}},
+			steps:   []step{{keys: "//text more\r"}, {turn: true}, {wait: status}, {keys: "/quit \r"}},
 			prompts: []string{"/text more"},
 		},
 		{
@@ -399,7 +412,7 @@ func TestSessionModelPickerFilter(t *testing.T) {
 	a.providers = []string{"openai", "groq", "xai"}
 	h := startSession(t, a, false, false)
 	h.play([]step{
-		{keys: "/model\r"},
+		{keys: "/model \r"},
 		{wait: providerPrompt},
 		{keys: "gr\r"},
 		{wait: "model for groq: "},
@@ -415,7 +428,7 @@ func TestSessionModelPickerFilter(t *testing.T) {
 	a2.providers = []string{"openai", "groq", "xai"}
 	h2 := startSession(t, a2, false, false)
 	h2.play([]step{
-		{keys: "/model\r"},
+		{keys: "/model \r"},
 		{wait: providerPrompt},
 		{keys: "zz\r\x1b"},
 		{wait: pickerNote},
@@ -429,7 +442,7 @@ func TestSessionModelPickerFilter(t *testing.T) {
 	a3.providers = []string{"openai", "groq", "xai"}
 	h3 := startSession(t, a3, false, false)
 	h3.play([]step{
-		{keys: "/model\r"},
+		{keys: "/model \r"},
 		{wait: providerPrompt},
 		{keys: "gr\x1b"},
 		{wait: pickerNote},
@@ -445,7 +458,7 @@ func TestSessionModelPicker(t *testing.T) {
 	a := newFakeAgent()
 	h := startSession(t, a, false, false)
 	h.play([]step{
-		{keys: "/model\r"},
+		{keys: "/model \r"},
 		{wait: providerPrompt},
 		{keys: "\x1b[B\r"},
 		{wait: "model for openrouter: "},
@@ -467,9 +480,9 @@ func TestSessionModelPickerCancel(t *testing.T) {
 		name  string
 		steps []step
 	}{
-		{"esc on the provider", []step{{keys: "/model\r"}, {wait: providerPrompt}, {keys: "\x1b"}}},
-		{"esc on the model", []step{{keys: "/model\r"}, {wait: providerPrompt}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\x1b"}}},
-		{"empty model", []step{{keys: "/model\r"}, {wait: providerPrompt}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\r"}}},
+		{"esc on the provider", []step{{keys: "/model \r"}, {wait: providerPrompt}, {keys: "\x1b"}}},
+		{"esc on the model", []step{{keys: "/model \r"}, {wait: providerPrompt}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\x1b"}}},
+		{"empty model", []step{{keys: "/model \r"}, {wait: providerPrompt}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\r"}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -489,7 +502,7 @@ func TestSessionModelPickerError(t *testing.T) {
 	a.modelErr = errors.New("no such model")
 	h := startSession(t, a, false, false)
 	h.play([]step{
-		{keys: "/model\r"},
+		{keys: "/model \r"},
 		{wait: providerPrompt},
 		{keys: "\r"},
 		{wait: "model for groq: "},
@@ -507,7 +520,7 @@ func TestSessionModelPickerWithoutProviders(t *testing.T) {
 	a := newFakeAgent()
 	a.providers = nil
 	h := startSession(t, a, false, false)
-	h.play([]step{{keys: "/model\r"}, {wait: pickerEmpty}, {keys: "\x04"}})
+	h.play([]step{{keys: "/model \r"}, {wait: pickerEmpty}, {keys: "\x04"}})
 	h.waitExit()
 	if strings.Contains(h.out.String(), providerPrompt) {
 		t.Fatalf("picker opened: %q", h.out.String())
@@ -606,8 +619,8 @@ func TestSessionJevSwitch(t *testing.T) {
 		{"on switches", false, nil, "/jev on\r", "jev on\r\n", true, onFooter, 1},
 		{"on without a key stays off", false, errors.New("jev needs a key: hp key set TYPESAFE_API_KEY"), "/jev on\r", "error: jev needs a key: hp key set TYPESAFE_API_KEY\r\n", false, offFooter, 2},
 		{"off switches", true, nil, "/jev off\r", "jev off\r\n", false, offFooter, 1},
-		{"status off", false, nil, "/jev\r", "jev off\r\n", false, offFooter, 2},
-		{"status on", true, nil, "/jev\r", "jev on\r\n", true, onFooter, 2},
+		{"status off", false, nil, "/jev \r", "jev off\r\n", false, offFooter, 2},
+		{"status on", true, nil, "/jev \r", "jev on\r\n", true, onFooter, 2},
 		{"bad argument", false, nil, "/jev maybe\r", jevUsage + "\r\n", false, offFooter, 2},
 	}
 	for _, tc := range tests {
@@ -679,7 +692,7 @@ func TestSessionNoColor(t *testing.T) {
 		return replyTurn("ok")(context.Background(), emit)
 	})
 	h := startSession(t, a, false, false)
-	h.play([]step{{keys: "go\r"}, {wait: "ttft"}, {keys: "/help\r"}, {wait: "/quit"}, {keys: "/quit\r"}})
+	h.play([]step{{keys: "go\r"}, {wait: "ttft"}, {keys: "/help \r"}, {wait: "/quit"}, {keys: "/quit \r"}})
 	h.waitExit()
 	for _, sgr := range []string{sgrDim, sgrRed, sgrReset} {
 		if strings.Contains(h.out.String(), sgr) {
@@ -781,7 +794,7 @@ func TestSessionKeyEntry(t *testing.T) {
 		{"saves masked value", nil, "/key FOO_KEY\rs3cr3t\r", "saved FOO_KEY\r\n", "FOO_KEY=s3cr3t"},
 		{"esc cancels", nil, "/key FOO_KEY\rs3cr3t\x1b", keyNotSaved + "\r\n", ""},
 		{"empty enter cancels", nil, "/key FOO_KEY\r\r", keyNotSaved + "\r\n", ""},
-		{"no name", nil, "/key\r", keyUsage + "\r\n", ""},
+		{"no name", nil, "/key \r", keyUsage + "\r\n", ""},
 		{"save error shown", errors.New("invalid key name \"foo\""), "/key foo\rs3cr3t\r", "error: invalid key name \"foo\"\r\n", ""},
 	}
 	for _, tc := range tests {
@@ -860,9 +873,9 @@ func TestSessionSlashWorksWithoutModel(t *testing.T) {
 	a.model = ""
 	h := startSessionWith(t, a, Config{})
 	h.play([]step{
-		{keys: "/help\r"},
+		{keys: "/help \r"},
 		{wait: "/model         pick a provider and model"},
-		{keys: "/quit\r"},
+		{keys: "/quit \r"},
 	})
 	h.waitExit()
 }
@@ -876,7 +889,7 @@ func TestSessionKeyWithoutModel(t *testing.T) {
 		{wait: "key GROQ_API_KEY: "},
 		{keys: "secret\r"},
 		{wait: "saved GROQ_API_KEY"},
-		{keys: "/quit\r"},
+		{keys: "/quit \r"},
 	})
 	h.waitExit()
 	if got := strings.Join(a.keys, ","); got != "GROQ_API_KEY=secret" {
@@ -894,7 +907,7 @@ func TestSessionPromptKeptWhenNoProviders(t *testing.T) {
 		{wait: "pick a model first"},
 		{wait: pickerEmpty},
 		{wait: "› hello"},
-		{keys: "\x15/quit\r"},
+		{keys: "\x15/quit \r"},
 	})
 	h.waitExit()
 }

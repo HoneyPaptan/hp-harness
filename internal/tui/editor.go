@@ -47,6 +47,14 @@ func (e *Editor) SetText(text string) {
 	e.cursor = len(e.buf)
 }
 
+func (e *Editor) Replace(start, end int, text string) {
+	start = max(start, 0)
+	end = min(end, len(e.buf))
+	insert := []rune(text)
+	e.buf = slices.Concat(slices.Clone(e.buf[:start]), insert, e.buf[end:])
+	e.cursor = start + len(insert)
+}
+
 func (e *Editor) Take() string {
 	text := e.Text()
 	if text != "" && (len(e.history) == 0 || e.history[len(e.history)-1] != text) {
