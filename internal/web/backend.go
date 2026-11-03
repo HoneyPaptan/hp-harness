@@ -25,6 +25,7 @@ type State struct {
 	Presets []string `json:"presets"`
 	Jev     bool     `json:"jev"`
 	Dir     string   `json:"dir"`
+	Version string   `json:"version"`
 }
 
 type Run struct {

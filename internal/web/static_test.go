@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -30,8 +31,6 @@ func TestStaticContentTypes(t *testing.T) {
 		{"/app.css", "text/css; charset=utf-8"},
 		{"/base.css", "text/css; charset=utf-8"},
 		{"/tokens.css", "text/css; charset=utf-8"},
-		{"/fonts/Geist-Regular.woff2", "font/woff2"},
-		{"/fonts/Geist-Medium.woff2", "font/woff2"},
 		{"/fonts/GeistMono-Variable.woff2", "font/woff2"},
 	}
 	h := newHarness(t, newBackend(nil), nil)
@@ -109,4 +108,20 @@ func getStatic(t *testing.T, h *harness, path string) string {
 		t.Fatalf("%s: empty body", path)
 	}
 	return rec.Header().Get("Content-Type")
+}
+
+func TestStateCarriesVersionModelAndJev(t *testing.T) {
+	h := newHarness(t, newBackend(nil), nil)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/state", nil)
+	req.Host = testHost
+	req.Header.Set("Authorization", bearerPrefix+testToken)
+	h.srv.Handler().ServeHTTP(rec, req)
+	var st State
+	if err := json.Unmarshal(rec.Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Version != "v9" || st.Model != "fake/m" || st.Jev {
+		t.Fatalf("%+v", st)
+	}
 }

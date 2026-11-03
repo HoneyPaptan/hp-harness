@@ -27,7 +27,7 @@ type webAgent struct {
 }
 
 func (b *webBackend) State() web.State {
-	st := web.State{Presets: configuredPresets(b.env.Getenv), Jev: b.opts.jev, Dir: b.dir}
+	st := web.State{Presets: configuredPresets(b.env.Getenv), Jev: b.opts.jev, Dir: b.dir, Version: b.env.Version}
 	if ep, _, err := resolveRunSpecs(b.opts, b.env.Getenv); err == nil {
 		st.Model = endpointSpec(ep)
 	}

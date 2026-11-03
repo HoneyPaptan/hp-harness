@@ -16,7 +16,6 @@ const $ = (id) => document.getElementById(id);
 const app = $("app");
 const thread = $("thread");
 const prompt = $("prompt");
-const model = $("model");
 const send = $("send");
 const dock = $("dock");
 const rail = new Rail($("runs"), $("runs-empty"), $("hover-mark"));
@@ -34,6 +33,8 @@ let resumed = false;
 let following = true;
 let sending = false;
 let defaultModel = "";
+let pendingModel = "";
+let jevOn = false;
 
 async function call(path, body) {
   const init = body === undefined ? undefined : {
@@ -57,8 +58,9 @@ function failure(res) {
   return `${reason}. Your text is still here.`;
 }
 
-function showNotice(text) {
+function showNotice(text, tone = "error") {
   const notice = $("notice");
+  notice.dataset.tone = tone;
   notice.textContent = text;
   notice.hidden = text === "";
   if (text) announce(text);
@@ -90,22 +92,27 @@ function followTail() {
 }
 
 function setEmpty(empty) {
-  const was = app.dataset.empty === "true";
-  if (was === empty) return;
-  const before = dock.getBoundingClientRect().top;
   app.dataset.empty = String(empty);
-  const moved = before - dock.getBoundingClientRect().top;
-  if (empty || !moved) return;
-  dock.style.transition = "none";
-  dock.style.translate = `0 ${moved}px`;
-  dock.getBoundingClientRect();
-  dock.style.transition = "";
-  dock.style.translate = "";
+}
+
+function shownModel() {
+  const run = rail.runs.find((r) => r.id === currentId);
+  if (run) return run.model;
+  return pendingModel || defaultModel;
+}
+
+function renderFooter() {
+  const footer = $("footer");
+  const jev = document.createElement("span");
+  jev.textContent = jevOn ? "jev" : "jev off";
+  if (jevOn) jev.className = "footer-on";
+  footer.replaceChildren(document.createTextNode(`${shownModel()} · `), jev);
 }
 
 function syncSend() {
   const stopping = running;
   send.dataset.mode = stopping ? "stop" : "send";
+  send.textContent = stopping ? "stop" : "send";
   send.setAttribute("aria-label", stopping ? "Stop turn" : "Send message");
   send.disabled = !stopping && (sending || prompt.value.trim() === "");
 }
@@ -114,7 +121,6 @@ function setRunning(on) {
   running = on;
   syncSend();
   transcript.setWorking(on);
-  model.disabled = on;
 }
 
 function statusChanged(status) {
@@ -122,7 +128,6 @@ function statusChanged(status) {
   if (on !== running) announce(on ? "Turn running" : status === "finished" ? "Turn finished" : "Turn stopped");
   running = on;
   syncSend();
-  model.disabled = on;
   refreshRuns();
 }
 
@@ -215,14 +220,9 @@ function openRun(id) {
   setEmpty(id === null);
   rail.select(id);
   if (id) connect(id);
-  else model.value = defaultModel;
-  syncModel();
+  else pendingModel = "";
+  renderFooter();
   prompt.focus();
-}
-
-function syncModel() {
-  const run = rail.runs.find((r) => r.id === currentId);
-  if (run && document.activeElement !== model) model.value = run.model;
 }
 
 function hashRun() {
@@ -240,22 +240,8 @@ async function refreshRuns() {
   const res = await call("/api/runs");
   if (!res.ok) return;
   rail.render(res.data, currentId);
-  fillModels();
-  syncModel();
+  renderFooter();
 }
-
-function fillModels() {
-  const specs = new Set(defaultModel ? [defaultModel] : []);
-  for (const run of rail.runs) specs.add(run.model);
-  for (const preset of presets) specs.add(`${preset}/`);
-  $("models").replaceChildren(...[...specs].map((spec) => {
-    const option = document.createElement("option");
-    option.value = spec;
-    return option;
-  }));
-}
-
-let presets = [];
 
 async function loadState() {
   const res = await call("/api/state");
@@ -264,21 +250,43 @@ async function loadState() {
     return;
   }
   defaultModel = res.data.model || "";
-  presets = res.data.presets || [];
+  jevOn = Boolean(res.data.jev);
+  $("version").textContent = res.data.version || "";
   $("dir").textContent = res.data.dir || "";
   $("dir").title = res.data.dir || "";
-  if (!currentId) model.value = defaultModel;
-  fillModels();
+  renderFooter();
 }
 
 function chosenModel() {
-  const spec = model.value.trim();
-  return spec === defaultModel ? "" : spec;
+  return pendingModel === defaultModel ? "" : pendingModel;
+}
+
+function clearPrompt() {
+  prompt.value = "";
+  fitPrompt();
+  syncSend();
+}
+
+const HELP = "/model preset/name switches the model, /new starts a run, /runs lists runs, Esc stops a turn";
+
+function command(text) {
+  const [name, ...rest] = text.trim().split(/\s+/);
+  const arg = rest.join(" ");
+  if (name === "/model") {
+    if (arg) changeModel(arg);
+    else showNotice(`model ${shownModel()}`, "info");
+  } else if (name === "/new") goHome();
+  else if (name === "/runs") openRail();
+  else if (name === "/help") showNotice(HELP, "info");
+  else return false;
+  clearPrompt();
+  return true;
 }
 
 async function submit() {
   const text = prompt.value;
   if (text.trim() === "" || sending) return;
+  if (text.startsWith("/") && !text.startsWith("//") && command(text)) return;
   sending = true;
   syncSend();
   showNotice("");
@@ -291,9 +299,7 @@ async function submit() {
     showNotice(failure(res));
     return;
   }
-  prompt.value = "";
-  fitPrompt();
-  syncSend();
+  clearPrompt();
   setFollowing(true);
   if (!currentId) {
     openRun(res.data.id);
@@ -309,20 +315,24 @@ async function stop() {
   if (!res.ok) showNotice(failure(res));
 }
 
-async function changeModel() {
-  const spec = model.value.trim();
-  if (!currentId || !spec) return;
-  const run = rail.runs.find((r) => r.id === currentId);
-  if (run && run.model === spec) return;
+async function changeModel(spec) {
+  if (!currentId) {
+    pendingModel = spec;
+    showNotice("");
+    renderFooter();
+    return;
+  }
+  if (running) {
+    showNotice(MSG_BUSY);
+    return;
+  }
   const res = await call(`/api/runs/${currentId}/model`, { model: spec });
   if (!res.ok) {
     showNotice(failure(res));
-    if (run) model.value = run.model;
     return;
   }
   showNotice("");
-  model.value = res.data.model;
-  refreshRuns();
+  await refreshRuns();
 }
 
 function fitPrompt() {
@@ -351,12 +361,6 @@ function onPromptKey(event) {
   submit();
 }
 
-function onModelKey(event) {
-  if (event.key !== "Enter") return;
-  event.preventDefault();
-  prompt.focus();
-}
-
 function onEscape(event) {
   if (event.key !== "Escape") return;
   if (closeRail()) {
@@ -377,8 +381,6 @@ function wire() {
     fitPrompt();
     syncSend();
   });
-  model.addEventListener("change", changeModel);
-  model.addEventListener("keydown", onModelKey);
   thread.addEventListener("scroll", () => setFollowing(atBottom()), { passive: true });
   $("jump").addEventListener("click", () => {
     setFollowing(true);
@@ -387,7 +389,11 @@ function wire() {
   });
   $("new-run").addEventListener("click", goHome);
   $("new-run-bar").addEventListener("click", goHome);
-  $("menu").addEventListener("click", openRail);
+  $("menu").addEventListener("click", () => (app.dataset.rail === "open" ? closeRail() : openRail()));
+  $("home").addEventListener("click", (event) => {
+    event.preventDefault();
+    goHome();
+  });
   $("scrim").addEventListener("click", closeRail);
   $("runs").addEventListener("click", closeRail);
   NARROW.addEventListener("change", closeRail);
