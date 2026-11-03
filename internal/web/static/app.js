@@ -35,6 +35,7 @@ let sending = false;
 let defaultModel = "";
 let pendingModel = "";
 let jevOn = false;
+let permissionMode = "auto";
 
 async function call(path, body) {
   const init = body === undefined ? undefined : {
@@ -103,10 +104,14 @@ function shownModel() {
 
 function renderFooter() {
   const footer = $("footer");
+  const model = shownModel() || "no model · /model";
   const jev = document.createElement("span");
   jev.textContent = jevOn ? "jev" : "jev off";
   if (jevOn) jev.className = "footer-on";
-  footer.replaceChildren(document.createTextNode(`${shownModel()} · `), jev);
+  footer.replaceChildren(
+    document.createTextNode(`${permissionMode} · ${model} · `),
+    jev,
+  );
 }
 
 function syncSend() {
@@ -250,6 +255,7 @@ async function loadState() {
     return;
   }
   defaultModel = res.data.model || "";
+  permissionMode = res.data.permission || "auto";
   jevOn = Boolean(res.data.jev);
   $("version").textContent = res.data.version || "";
   $("dir").textContent = res.data.dir || "";

@@ -21,11 +21,12 @@ var (
 )
 
 type State struct {
-	Model   string   `json:"model"`
-	Presets []string `json:"presets"`
-	Jev     bool     `json:"jev"`
-	Dir     string   `json:"dir"`
-	Version string   `json:"version"`
+	Model      string   `json:"model"`
+	Presets    []string `json:"presets"`
+	Permission string   `json:"permission"`
+	Jev        bool     `json:"jev"`
+	Dir        string   `json:"dir"`
+	Version    string   `json:"version"`
 }
 
 type Run struct {

@@ -31,6 +31,9 @@ func (b *webBackend) State() web.State {
 	if ep, _, err := resolveRunSpecs(b.opts, b.env.Getenv); err == nil {
 		st.Model = endpointSpec(ep)
 	}
+	if mode, _, _, _, err := effectivePermission(b.env, b.opts.fullAccess, ""); err == nil {
+		st.Permission = modeString(mode)
+	}
 	return st
 }
 

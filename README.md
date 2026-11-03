@@ -90,9 +90,9 @@ The file uses the same syntax as a systemd `EnvironmentFile`, so `hp autostart` 
 
 ## Session
 
-Bare `hp` on a terminal opens a session. A header line shows the version, the conversation prints inline into normal scrollback with one dim status line after each turn, and a footer under the prompt shows the model and whether Jev is on, for example `groq/openai/gpt-oss-120b · jev off`. Every follow-up continues the same journaled run, so a session survives like any other run.
+Bare `hp` on a terminal opens a session. A header line shows the version, the conversation prints inline into normal scrollback with one dim status line after each turn, and a footer under the prompt shows the permission mode, the model and whether Jev is on, for example `auto · groq/openai/gpt-oss-120b · jev off`. Every follow-up continues the same journaled run, so a session survives like any other run.
 
-With no `-m` and no `HP_MODEL`, the session opens with the footer `no model · /model` and the model picker already up. A prompt sent before a model is picked stays in the editor until one is.
+With no `-m` and no `HP_MODEL`, the session opens with the footer `auto · no model · /model` and the model picker already up. A prompt sent before a model is picked stays in the editor until one is.
 
 ```
 ./hp -m opencode/grok-4.6
@@ -103,13 +103,40 @@ With no `-m` and no `HP_MODEL`, the session opens with the footer `no model · /
 
 Ctrl-C or Esc stops a turn and returns to the prompt; keys typed during a turn wait there as the next draft. At the prompt, Ctrl-C clears the text, twice on an empty prompt quits, and so does Ctrl-D.
 
-Commands stay local and send nothing to the model: `/help`; `/model` opens a picker of providers that have a key, then lists that provider's models from its `/models` endpoint (type to filter, arrows and Enter to pick; if the list cannot be fetched, type the name); `/model groq` opens the picker at groq's list; `/model preset/name` switches directly; `/jev on` and `/jev off` switch Jev for following turns and are kept on resume; `/key NAME` stores an API key with masked input, the same way as `hp key set`; `/new` starts a fresh run; `/runs`; `/quit`. `//text` sends a literal `/text`.
+Commands stay local and send nothing to the model: `/help`; `/model` opens a picker of providers that have a key, then lists that provider's models from its `/models` endpoint (type to filter, arrows and Enter to pick; if the list cannot be fetched, type the name); `/model groq` opens the picker at groq's list; `/model preset/name` switches directly; `/jev on` and `/jev off` switch Jev for following turns and are kept on resume; `/permissions` shows or sets the permission mode; `/key NAME` stores an API key with masked input, the same way as `hp key set`; `/new` starts a fresh run; `/runs`; `/quit`. `//text` sends a literal `/text`.
 
 Typing `/` lists the commands, filtered as you type; Tab or Enter completes. Typing `@` lists files under the working folder (hidden folders, `node_modules`, `vendor`, links and simple top level `.gitignore` patterns skipped, at most 200). Each `@path` in a sent prompt attaches that file to the message: up to 64 KB per file and 256 KB per message, binary files skipped, and paths outside the working folder or through a symlink left as plain text. The transcript shows what you typed; the journal keeps what the model saw.
 
 A session opens its connection to the provider at start, and again on the first key after 60 seconds idle, so the first turn skips the TCP and TLS handshake. `hp web` does the same at page load. The probe is an unauthenticated `HEAD` on the base URL; if it fails, nothing shows and the turn connects as usual. On models that stream reasoning the activity line reads `thinking…`, time to first token stops there, and reasoning is neither printed nor journaled.
 
 `NO_COLOR` or `TERM=dumb` turns colour off.
+
+## Permissions
+
+Every tool call passes through a permission gate before it runs. The footer shows the active mode: `auto`, `ask`, or `full-access`. `auto` is the default when nothing else is set.
+
+In `auto`, reads, searches and similar lookups run without asking. Edits and writes inside the working folder are allowed when the path is not sensitive (for example `.env`, anything under `.git`, `~/.ssh`, `~/.config/hp`, `~/.gnupg`, or your shell rc files). Simple, known shell commands run without asking, including `git status`, `git diff`, `go test ./...`, `make test`, and `npm run build`. Chained, piped or redirected commands, quoted flags, globs, paths outside the working folder, and writes through symlinks are not treated as routine.
+
+Anything else in `auto` goes to review. The session's model reads the exact action plus recent user messages and tool output, and must reply with JSON that either clears the action or holds it with a quoted proof from that context. The check runs twice when the first reply holds; any parse error or failed check holds the action. The agent sees `held: <reason>`.
+
+In `ask`, every non routine action needs your approval at the prompt: Yes, Yes and don't ask again for this, or No. Keys are `y`, `a`, `n`, and Esc for No. `hp run`, detached runs and the web UI cannot answer; those runs hold with an ask verdict instead.
+
+Rules live in `~/.config/hp/settings.json`. Example:
+
+```
+{"permission_mode": "auto", "permission": {"*": "ask", "bash": {"git *": "allow", "git push *": "deny"}}}
+```
+
+Patterns use `*` wildcards. The last matching rule wins. Rules are checked before session grants and before routine or review.
+
+```
+/permissions
+/permissions ask|auto|full-access|reset
+```
+
+Shift+Tab cycles `auto`, `ask`, and `full-access`. `/permissions reset` clears session grants and sets `ask`. `HP_PERMISSION_MODE` sets the starting mode for a new run. `hp run --full-access` skips all checks for that run. `hp permissions --json` prints the resolved mode, its source, the settings path, and parsed rules. A mode chosen in a session is journaled and kept on resume.
+
+Routine command matching looks at the command text before hp runs it through `bash -c`, so it is a filter, not a sandbox. Use `ask` or rules when you need tighter control.
 
 ## Web
 

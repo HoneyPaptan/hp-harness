@@ -104,7 +104,7 @@ func newBackend(prov provider.Provider, tools ...tool.Tool) *testBackend {
 func journalFile(id string) string { return "/runs/" + id + ".jsonl" }
 
 func (b *testBackend) State() State {
-	return State{Model: "fake/m", Presets: []string{"fake"}, Dir: "/w", Version: "v9"}
+	return State{Model: "fake/m", Presets: []string{"fake"}, Permission: "auto", Dir: "/w", Version: "v9"}
 }
 
 func (b *testBackend) Preconnect() {
