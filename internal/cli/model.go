@@ -6,7 +6,10 @@ type Endpoint struct {
 	Preset, Model, BaseURL, KeyEnv, APIKey string
 }
 
-const customPreset = "custom"
+const (
+	customPreset = "custom"
+	modelExample = "hp -m groq/openai/gpt-oss-120b"
+)
 
 type presetDef struct {
 	baseURL string
@@ -67,11 +70,11 @@ func rejectEmptyModel(preset, model string) error {
 	if strings.TrimSpace(model) != "" {
 		return nil
 	}
-	return usagef(`model name missing after %q: use e.g. hp -m groq/openai/gpt-oss-120b`, preset+"/")
+	return usagef(`model name missing after %q: use e.g. %s`, preset+"/", modelExample)
 }
 
 func modelExampleUsage(format string) error {
-	return usagef(format, "hp -m groq/openai/gpt-oss-120b")
+	return usagef(format, modelExample)
 }
 
 func splitFirstSlash(s string) (string, string) {
