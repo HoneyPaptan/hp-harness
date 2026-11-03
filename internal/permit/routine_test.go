@@ -15,7 +15,10 @@ func TestBashRoutine(t *testing.T) {
 		"go test ./...",
 		"git status -sb",
 		"make check",
+		"make build",
 		"npm run test",
+		"npm run build",
+		"pnpm run check",
 		"find . -name '*.go'",
 	}
 	for _, cmd := range extra {
@@ -37,7 +40,13 @@ func TestBashNotRoutine(t *testing.T) {
 		"echo `id`",
 		"find . -delete",
 		"find . -exec rm {} \\;",
+		"find . -fprint out",
+		"find . -okdir rm",
 		"git push",
+		"make deploy",
+		"make install",
+		"make test x",
+		"npm run release",
 	}
 	for _, cmd := range cmds {
 		a := Action{Tool: "bash", Target: cmd, Kind: KindExec}
