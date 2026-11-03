@@ -2,6 +2,8 @@ package permit
 
 import "strings"
 
+const expandChars = "{}*?["
+
 func shellWords(command string) ([]string, bool) {
 	var words []string
 	var cur strings.Builder
@@ -16,6 +18,8 @@ func shellWords(command string) ([]string, bool) {
 		case r == '\'' || r == '"':
 			quote = r
 			inWord = true
+		case strings.ContainsRune(expandChars, r):
+			return nil, false
 		case r == ' ' || r == '\t':
 			if inWord {
 				words = append(words, cur.String())

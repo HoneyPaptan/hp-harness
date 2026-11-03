@@ -137,6 +137,11 @@ func TestShellWords(t *testing.T) {
 		{"git diff --ex''t-diff", []string{"git", "diff", "--ext-diff"}, true},
 		{`a "b c"`, []string{"a", "b c"}, true},
 		{`a "b`, nil, false},
+		{"git diff --{ext-diff,x}", nil, false},
+		{"rg --pr* x", nil, false},
+		{"ls [a]", nil, false},
+		{"ls a?", nil, false},
+		{`find . -name "*.go"`, []string{"find", ".", "-name", "*.go"}, true},
 		{"", nil, true},
 	}
 	for _, tc := range tests {
