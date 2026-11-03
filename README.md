@@ -111,6 +111,16 @@ A session opens its connection to the provider at start, and again on the first 
 
 `NO_COLOR` or `TERM=dumb` turns colour off.
 
+## Project instructions
+
+hp reads `AGENTS.md` into the system prompt, like fx: your personal `~/.config/hp/AGENTS.md` first, then the file in each parent folder below your home folder, then the one in the working folder. Closer files come later and win on conflicts; your own messages win over all of them. Each file is cut at 32 KB and all of them together at 64 KB.
+
+A nested `AGENTS.md`, such as `apps/web/AGENTS.md`, loads the first time the agent reads, edits or writes a file under that folder, attached to that tool result once per run. A resumed run keeps the instructions it started with.
+
+Set `"context": false` in `~/.config/hp/settings.json` to turn all of this off.
+
+The bash tool runs commands with `bash -c`, using the environment of your login shell (`$SHELL -l -c 'env -0'`, read once per process, 3 second limit), so PATH entries and tools from your fish, zsh or bash config are there. Every command also gets `AI_AGENT=hp`. `HP_LOGIN_ENV=0` keeps hp's own environment instead.
+
 ## Permissions
 
 Every tool call passes through a permission gate before it runs. The footer shows the active mode: `auto`, `ask`, or `full-access`. `auto` is the default when nothing else is set.
