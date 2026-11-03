@@ -16,6 +16,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
+	"github.com/HoneyPaptan/hp-harness/internal/permit"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/fake"
 	"github.com/HoneyPaptan/hp-harness/internal/tool"
@@ -512,5 +513,13 @@ func TestSaveKeyThenJevOn(t *testing.T) {
 	}
 	if err := a.SaveKey("bad name", "k"); err == nil {
 		t.Fatal("bad name saved")
+	}
+}
+
+func emptyRunPerm(dir string) runPerm {
+	m := permit.ModeAuto
+	return runPerm{
+		mode:   func() permit.Mode { return m },
+		grants: &permit.Grants{}, dir: dir,
 	}
 }

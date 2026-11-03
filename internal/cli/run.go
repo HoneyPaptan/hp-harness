@@ -140,14 +140,6 @@ func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Regis
 	return d
 }
 
-func emptyRunPerm(dir string) runPerm {
-	m := permit.ModeAuto
-	return runPerm{
-		mode:   func() permit.Mode { return m },
-		grants: &permit.Grants{}, dir: dir,
-	}
-}
-
 func runConfig(id string, ep Endpoint, dir, jpath string, o runOpts, prompt string, skills []skill.Skill, env Env, perm string) core.Config {
 	return core.Config{
 		RunID: id, Model: ep.Model, System: buildSystem(env, dir, skills),
