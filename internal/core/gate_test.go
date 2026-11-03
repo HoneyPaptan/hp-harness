@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"sync/atomic"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/HoneyPaptan/hp-harness/internal/host"
