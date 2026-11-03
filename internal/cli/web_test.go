@@ -555,7 +555,6 @@ func TestWebListenWarnings(t *testing.T) {
 		warn         bool
 	}{
 		{name: "loopback", listen: "127.0.0.1:0"},
-		{name: "wildcard", listen: "0.0.0.0:0", warn: true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -588,5 +587,18 @@ func TestNewRunIDMatchesWebShape(t *testing.T) {
 	}
 	if !web.ValidRunID(id) {
 		t.Fatalf("%q", id)
+	}
+}
+
+func TestWebRefusesWildcardListen(t *testing.T) {
+	for _, listen := range []string{"0.0.0.0:0", "[::]:0", ":0"} {
+		env, stderr := webTestEnv(t, host.NewMemory(), &fake.Provider{}, nil)
+		env.Args = []string{"web", "--listen", listen}
+		if code := Main(context.Background(), env); code == 0 {
+			t.Fatalf("%s: exit 0", listen)
+		}
+		if !strings.Contains(stderr.String(), "refusing to listen on every interface") {
+			t.Fatalf("%s: %q", listen, stderr.String())
+		}
 	}
 }

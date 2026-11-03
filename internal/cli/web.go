@@ -68,6 +68,13 @@ func checkWebStart(env Env, o runOpts) error {
 
 func webListener(env Env, o webOpts) (net.Listener, error) {
 	if o.listen != "" {
+		host, _, err := net.SplitHostPort(o.listen)
+		if err != nil {
+			return nil, err
+		}
+		if isWildcard(host) {
+			return nil, fmt.Errorf("refusing to listen on every interface (%s), use a loopback or tailnet address", o.listen)
+		}
 		return net.Listen("tcp", o.listen)
 	}
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(o.port))
@@ -128,9 +135,6 @@ func warnListen(env Env, listen, host string) {
 		return
 	}
 	fmt.Fprintln(env.Stderr, "warning: not a loopback address, the token is sent without TLS")
-	if isWildcard(host) {
-		fmt.Fprintln(env.Stderr, "note: requests are accepted only for 127.0.0.1 and localhost, use a concrete --listen host for others")
-	}
 }
 
 func isLoopback(host string) bool {
