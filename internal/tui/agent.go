@@ -33,6 +33,7 @@ type Agent interface {
 	Send(ctx context.Context, prompt string, emit func(Event)) (Outcome, error)
 	Resume(ctx context.Context, emit func(Event)) (Outcome, error)
 	Model() string
+	Models(ctx context.Context, preset string) ([]string, error)
 	Providers() []string
 	Jev() bool
 	SetModel(spec string) error

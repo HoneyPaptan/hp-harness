@@ -37,6 +37,8 @@ type fakeAgent struct {
 	model     string
 	providers []string
 	modelErr  error
+	models    []string
+	modelsErr error
 	saveErr   error
 	jevOn     bool
 	jevErr    error
@@ -79,6 +81,13 @@ func (a *fakeAgent) Resume(ctx context.Context, emit func(Event)) (Outcome, erro
 }
 
 func (a *fakeAgent) Model() string { return a.model }
+
+func (a *fakeAgent) Models(ctx context.Context, preset string) ([]string, error) {
+	if a.modelsErr != nil {
+		return nil, a.modelsErr
+	}
+	return a.models, nil
+}
 
 func (a *fakeAgent) Providers() []string { return a.providers }
 

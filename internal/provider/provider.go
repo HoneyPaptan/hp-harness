@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"iter"
 )
 
@@ -81,4 +82,17 @@ func Preconnect(ctx context.Context, p Provider) {
 	if c, ok := p.(Preconnector); ok {
 		c.Preconnect(ctx)
 	}
+}
+
+type ModelLister interface {
+	ListModels(ctx context.Context) ([]string, error)
+}
+
+var ErrNoModelList = errors.New("this provider cannot list models")
+
+func ListModels(ctx context.Context, p Provider) ([]string, error) {
+	if l, ok := p.(ModelLister); ok {
+		return l.ListModels(ctx)
+	}
+	return nil, ErrNoModelList
 }

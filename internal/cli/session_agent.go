@@ -15,6 +15,8 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/tui"
 )
 
+var modelListTimeout = 5 * time.Second
+
 type sessionAgent struct {
 	env      Env
 	opts     runOpts
@@ -196,6 +198,17 @@ func (a *sessionAgent) Preconnect(ctx context.Context) {
 
 func (a *sessionAgent) Model() string {
 	return endpointSpec(a.ep)
+}
+
+func (a *sessionAgent) Models(ctx context.Context, preset string) ([]string, error) {
+	ep, err := presetEndpoint(a.ep, preset, a.env.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	p := a.env.NewProvider(ep)
+	listCtx, cancel := context.WithTimeout(ctx, modelListTimeout)
+	defer cancel()
+	return provider.ListModels(listCtx, p)
 }
 
 func (a *sessionAgent) Providers() []string {

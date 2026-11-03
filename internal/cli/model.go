@@ -127,3 +127,16 @@ func applyKey(ep Endpoint, getenv func(string) string) (Endpoint, error) {
 	ep.APIKey = v
 	return ep, nil
 }
+
+func presetEndpoint(cur Endpoint, preset string, getenv func(string) string) (Endpoint, error) {
+	def, ok := presets[preset]
+	if !ok {
+		return Endpoint{}, unknownPreset(preset)
+	}
+	ep := Endpoint{Preset: preset, BaseURL: def.baseURL, KeyEnv: def.keyEnv}
+	if preset == cur.Preset {
+		ep.BaseURL = cur.BaseURL
+		ep.KeyEnv = cur.KeyEnv
+	}
+	return applyKey(ep, getenv)
+}
