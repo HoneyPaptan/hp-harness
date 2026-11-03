@@ -119,7 +119,7 @@ In `auto`, reads, searches and similar lookups run without asking. Edits and wri
 
 Anything else in `auto` goes to review. The session's model reads the exact action plus recent user messages and tool output, and must reply with JSON that either clears the action or holds it with a quoted proof from that context. The check runs twice when the first reply holds; any parse error or failed check holds the action. The agent sees `held: <reason>`.
 
-In `ask`, every non routine action needs your approval at the prompt: Yes, Yes and don't ask again for this, or No. Keys are `y`, `a`, `n`, and Esc for No. `hp run`, detached runs and the web UI cannot answer; those runs hold with an ask verdict instead.
+In `ask`, every write, edit, command and MCP call needs your approval at the prompt (reads and searches still run): Yes, Yes and don't ask again for this, or No. Keys are `y`, `a`, `n`, and Esc for No. `hp run`, detached runs and the web UI cannot answer; those runs hold with an ask verdict instead.
 
 Rules live in `~/.config/hp/settings.json`. Example:
 
