@@ -33,6 +33,7 @@ type Host interface {
 	Remove(path string) error
 	Append(path string, line []byte) error
 	Stat(path string) (Entry, error)
+	Lstat(path string) (Entry, error)
 	ReadDir(path string) ([]Entry, error)
 	Lock(path string) (func(), error)
 	Exec(ctx context.Context, req ExecRequest) (ExecResult, error)

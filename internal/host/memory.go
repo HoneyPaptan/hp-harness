@@ -18,6 +18,7 @@ type Memory struct {
 	mu       sync.Mutex
 	files    map[string][]byte
 	dirs     map[string]struct{}
+	links    map[string]string
 	locked   map[string]struct{}
 	ExecFunc func(ctx context.Context, req ExecRequest) (ExecResult, error)
 	Clock    time.Time
@@ -104,9 +105,23 @@ func (m *Memory) putLocked(p string, data []byte, appendData bool) error {
 }
 
 func (m *Memory) Stat(p string) (Entry, error) {
+	return m.lstat(p, false)
+}
+
+func (m *Memory) Lstat(p string) (Entry, error) {
+	return m.lstat(p, true)
+}
+
+func (m *Memory) lstat(p string, link bool) (Entry, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	p = cleanAbs(p)
+	if target, ok := m.links[p]; ok {
+		if link {
+			return Entry{Name: path.Base(p), IsLink: true, Size: int64(len(target))}, nil
+		}
+		p = cleanAbs(target)
+	}
 	if data, ok := m.files[p]; ok {
 		return Entry{Name: path.Base(p), Size: int64(len(data))}, nil
 	}
@@ -162,6 +177,15 @@ func (m *Memory) Sleep(ctx context.Context, d time.Duration) error {
 	m.Slept += d
 	m.mu.Unlock()
 	return nil
+}
+
+func (m *Memory) Link(link, target string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.links == nil {
+		m.links = make(map[string]string)
+	}
+	m.links[cleanAbs(link)] = cleanAbs(target)
 }
 func pathErr(op, p string, err error) error { return &fs.PathError{Op: op, Path: p, Err: err} }
 

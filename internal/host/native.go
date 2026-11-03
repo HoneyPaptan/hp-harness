@@ -54,6 +54,16 @@ func (Native) Stat(path string) (Entry, error) {
 	return entryFromFileInfo(filepath.Base(path), info), nil
 }
 
+func (Native) Lstat(path string) (Entry, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return Entry{}, err
+	}
+	ent := entryFromFileInfo(filepath.Base(path), info)
+	ent.IsLink = info.Mode()&fs.ModeSymlink != 0
+	return ent, nil
+}
+
 func (Native) ReadDir(path string) ([]Entry, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {

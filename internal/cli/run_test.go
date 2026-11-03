@@ -349,3 +349,33 @@ func TestRunToolFirstHasNoBlankLine(t *testing.T) {
 		t.Fatalf("stdout %q", stdout.String())
 	}
 }
+
+func TestRunMentionAttach(t *testing.T) {
+	h := host.NewMemory()
+	body := "package cli\n"
+	if err := h.WriteFile("/proj/foo.go", []byte(body)); err != nil {
+		t.Fatal(err)
+	}
+	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("ok")}}
+	env, _, stderr := testEnv(t, h, fp, nil)
+	env.Args = []string{"run", "-m", "xai/grok", "explain @foo.go"}
+	if code := Main(context.Background(), env); code != 0 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	if len(fp.Requests) == 0 {
+		t.Fatal("no requests")
+	}
+	text := userRunText(fp.Requests[0].Messages)
+	if !strings.Contains(text, body) || !strings.Contains(text, `<file path="foo.go">`) {
+		t.Fatalf("prompt %q", text)
+	}
+}
+
+func userRunText(msgs []provider.Message) string {
+	for _, m := range msgs {
+		if m.Role == provider.RoleUser && m.Text != "" {
+			return m.Text
+		}
+	}
+	return ""
+}

@@ -89,6 +89,7 @@ func runAgent(ctx context.Context, env Env, o runOpts, prompt string) int {
 	if err != nil {
 		return exitErr(env, "", "", err)
 	}
+	prompt = expandMentions(env.Host, dir, prompt)
 	id, err := newRunID(env.Host.Now(), env.Rand)
 	if err != nil {
 		return exitErr(env, "", "", err)

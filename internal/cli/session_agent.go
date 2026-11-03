@@ -66,6 +66,7 @@ func (a *sessionAgent) Send(ctx context.Context, prompt string, emit func(tui.Ev
 	if a.ep.Preset == "" {
 		return tui.Outcome{}, tui.NoModelError{}
 	}
+	prompt = expandMentions(a.env.Host, a.dir, prompt)
 	deps := a.begin(a.observer(emit))
 	return a.finish(a.dispatch(ctx, deps, prompt))
 }
