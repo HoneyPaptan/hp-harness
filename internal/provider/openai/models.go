@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"slices"
 	"strings"
 
+	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/transport"
 )
 
@@ -36,10 +36,10 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, errorFromResponse(resp)
 	}
-	return decodeModelIDs(resp.Body, true)
+	return decodeModelIDs(resp.Body)
 }
 
-func decodeModelIDs(r io.Reader, stripModelsPrefix bool) ([]string, error) {
+func decodeModelIDs(r io.Reader) ([]string, error) {
 	body, err := io.ReadAll(io.LimitReader(r, maxModelsListBody))
 	if err != nil {
 		return nil, err
@@ -48,29 +48,9 @@ func decodeModelIDs(r io.Reader, stripModelsPrefix bool) ([]string, error) {
 	if err := json.Unmarshal(body, &list); err != nil {
 		return nil, err
 	}
-	return normalizeModelIDs(list.Data, stripModelsPrefix), nil
-}
-
-func normalizeModelIDs(entries []wireModelEntry, stripModelsPrefix bool) []string {
-	seen := make(map[string]struct{})
-	var ids []string
-	for _, e := range entries {
-		id := strings.TrimSpace(e.ID)
-		if id == "" {
-			continue
-		}
-		if stripModelsPrefix {
-			id = strings.TrimPrefix(id, "models/")
-		}
-		if id == "" {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		ids = append(ids, id)
+	raw := make([]string, 0, len(list.Data))
+	for _, e := range list.Data {
+		raw = append(raw, strings.TrimPrefix(strings.TrimSpace(e.ID), "models/"))
 	}
-	slices.Sort(ids)
-	return ids
+	return provider.CleanModelIDs(raw), nil
 }

@@ -6,9 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 
+	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/transport"
 )
 
@@ -42,7 +42,11 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 		}
 		afterID = pageList.LastID
 	}
-	return normalizeModelIDs(entries), nil
+	raw := make([]string, 0, len(entries))
+	for _, e := range entries {
+		raw = append(raw, e.ID)
+	}
+	return provider.CleanModelIDs(raw), nil
 }
 
 func (c *Client) fetchModelsPage(ctx context.Context, afterID string) (wireModelsList, error) {
@@ -91,22 +95,4 @@ func decodeModelsPage(r io.Reader) (wireModelsList, error) {
 		return wireModelsList{}, err
 	}
 	return list, nil
-}
-
-func normalizeModelIDs(entries []wireModelEntry) []string {
-	seen := make(map[string]struct{})
-	var ids []string
-	for _, e := range entries {
-		id := strings.TrimSpace(e.ID)
-		if id == "" {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	return ids
 }
