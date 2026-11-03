@@ -30,6 +30,7 @@ type Deps struct {
 	Tools       *tool.Registry
 	ToolChooser ToolChooser
 	Observer    Observer
+	Gate        func(ctx context.Context, call provider.ToolCall) Verdict
 }
 
 type Config struct {

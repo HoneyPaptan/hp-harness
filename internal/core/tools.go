@@ -55,6 +55,11 @@ func (r *runner) invoke(ctx context.Context, env tool.Env, call provider.ToolCal
 		text := fmt.Sprintf("unknown tool: %s", call.Name)
 		return provider.ToolResult{CallID: call.ID, Text: text, IsError: true}, nil
 	}
+	if tr, allow, err := r.gateCall(ctx, call); err != nil {
+		return provider.ToolResult{}, err
+	} else if !allow {
+		return tr, nil
+	}
 	res, err := t.Run(ctx, env, call.Args)
 	if err != nil {
 		return provider.ToolResult{}, err
