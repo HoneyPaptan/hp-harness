@@ -31,22 +31,23 @@ func (c *screen) String() string {
 }
 
 type fakeAgent struct {
-	mu        sync.Mutex
-	prompts   []string
-	keys      []string
-	model     string
-	providers []string
-	modelErr  error
-	models    []string
-	modelsErr error
-	saveErr   error
-	jevOn     bool
-	jevErr    error
-	resets    int
-	resumed   int
-	runs      []string
-	script    []func(context.Context, func(Event)) (Outcome, error)
-	started   chan struct{}
+	mu         sync.Mutex
+	prompts    []string
+	keys       []string
+	model      string
+	providers  []string
+	modelErr   error
+	models     []string
+	modelsErr  error
+	modelsWait chan struct{}
+	saveErr    error
+	jevOn      bool
+	jevErr     error
+	resets     int
+	resumed    int
+	runs       []string
+	script     []func(context.Context, func(Event)) (Outcome, error)
+	started    chan struct{}
 }
 
 func newFakeAgent(script ...func(context.Context, func(Event)) (Outcome, error)) *fakeAgent {
@@ -83,6 +84,13 @@ func (a *fakeAgent) Resume(ctx context.Context, emit func(Event)) (Outcome, erro
 func (a *fakeAgent) Model() string { return a.model }
 
 func (a *fakeAgent) Models(ctx context.Context, preset string) ([]string, error) {
+	if a.modelsWait != nil {
+		select {
+		case <-a.modelsWait:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	if a.modelsErr != nil {
 		return nil, a.modelsErr
 	}

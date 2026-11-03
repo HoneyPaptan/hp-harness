@@ -95,12 +95,15 @@ func maskedRunes(buf []rune) []rune {
 	return out
 }
 
-func (r *Renderer) DrawMenu(prompt string, buf []rune, cursor int, rows []string, selected int, more string, footer string) error {
+func (r *Renderer) DrawMenu(prompt string, buf []rune, cursor int, rows []string, selected int, note, more string, footer string) error {
 	head := []rune(prompt)
 	view := layOut(slices.Concat(head, buf), len(head)+cursor, r.width)
 	frame := slices.Clone(view.rows)
 	for i, row := range rows {
 		frame = append(frame, r.listRow(i == selected, row))
+	}
+	if note != "" {
+		frame = append(frame, r.dimRow(note))
 	}
 	if more != "" {
 		frame = append(frame, r.dimRow(more))

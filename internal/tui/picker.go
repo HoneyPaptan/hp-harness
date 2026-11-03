@@ -1,6 +1,9 @@
 package tui
 
-import "strconv"
+import (
+	"context"
+	"strconv"
+)
 
 const (
 	providerPrompt = "provider: "
@@ -17,9 +20,12 @@ const (
 )
 
 type picker struct {
-	menu     *menu
-	stage    pickStage
-	provider string
+	menu       *menu
+	stage      pickStage
+	provider   string
+	loading    bool
+	modelsNote string
+	loadCancel context.CancelFunc
 }
 
 func newPicker(items []string) *picker {
@@ -41,6 +47,9 @@ func (p *picker) pick() bool {
 	}
 	p.provider = chosen
 	p.stage = pickModel
+	p.menu = newMenu(nil)
+	p.loading = true
+	p.modelsNote = ""
 	return true
 }
 

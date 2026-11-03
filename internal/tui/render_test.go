@@ -140,7 +140,55 @@ func TestDrawMenu(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var out strings.Builder
 			r := NewRenderer(&out, tc.width)
-			if err := r.DrawMenu(providerPrompt, []rune(tc.text), tc.cursor, tc.rows, tc.selected, tc.more, footer); err != nil {
+			if err := r.DrawMenu(providerPrompt, []rune(tc.text), tc.cursor, tc.rows, tc.selected, "", tc.more, footer); err != nil {
+				t.Fatal(err)
+			}
+			want := "\r\x1b[J" + tc.want
+			if got := out.String(); got != want {
+				t.Fatalf("got  %q\nwant %q", got, want)
+			}
+		})
+	}
+}
+
+func TestDrawModelMenuFrames(t *testing.T) {
+	footer := "groq/openai/gpt-oss-120b · jev off"
+	tests := []struct {
+		name string
+		note string
+		more string
+		text string
+		cur  int
+		rows []string
+		sel  int
+		want string
+	}{
+		{
+			"loading width 40",
+			"",
+			pickerLoading,
+			"",
+			0,
+			nil,
+			-1,
+			"model for groq: \r\nloading models\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[3A\r\x1b[16C",
+		},
+		{
+			"listed width 40",
+			"",
+			pickerHint,
+			"gpt",
+			3,
+			[]string{"openai/gpt-oss-120b"},
+			0,
+			"model for groq: gpt\r\n› openai/gpt-oss-120b\r\n↑ ↓ Enter, Esc cancels\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[4A\r\x1b[19C",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var out strings.Builder
+			r := NewRenderer(&out, 40)
+			if err := r.DrawMenu(modelPrompt("groq"), []rune(tc.text), tc.cur, tc.rows, tc.sel, tc.note, tc.more, footer); err != nil {
 				t.Fatal(err)
 			}
 			want := "\r\x1b[J" + tc.want
@@ -154,7 +202,7 @@ func TestDrawMenu(t *testing.T) {
 func TestDrawMenuClearErasesEverything(t *testing.T) {
 	var out strings.Builder
 	r := NewRenderer(&out, 40)
-	_ = r.DrawMenu(providerPrompt, nil, 0, []string{"groq", "openrouter", "ollama"}, 0, pickerHint, "groq/openai/gpt-oss-120b · jev off")
+	_ = r.DrawMenu(providerPrompt, nil, 0, []string{"groq", "openrouter", "ollama"}, 0, "", pickerHint, "groq/openai/gpt-oss-120b · jev off")
 	out.Reset()
 	if err := r.Clear(); err != nil {
 		t.Fatal(err)

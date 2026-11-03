@@ -44,6 +44,7 @@ type Session struct {
 	input    chan []byte
 	events   chan Event
 	done     chan turnResult
+	models   chan modelsResult
 	stopped  chan struct{}
 	flush    <-chan time.Time
 	cancel   context.CancelFunc
@@ -67,6 +68,7 @@ func NewSession(cfg Config) *Session {
 		input:    make(chan []byte),
 		events:   make(chan Event),
 		done:     make(chan turnResult),
+		models:   make(chan modelsResult, 1),
 		stopped:  make(chan struct{}),
 	}
 }
@@ -163,6 +165,8 @@ func (s *Session) step(ctx context.Context) {
 		s.showEvent(ev)
 	case res := <-s.done:
 		s.finishTurn(ctx, res)
+	case res := <-s.models:
+		s.handleModelsResult(res)
 	}
 }
 
@@ -294,7 +298,12 @@ func (s *Session) redraw() {
 	s.renderer.SetWidth(s.cfg.Width())
 	if s.picker != nil && s.picker.stage == pickProvider {
 		rows, sel := s.picker.menu.window()
-		_ = s.renderer.DrawMenu(providerPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, pickerMore(s.picker.menu), footerLine(s.cfg.Agent))
+		_ = s.renderer.DrawMenu(providerPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", pickerMore(s.picker.menu), footerLine(s.cfg.Agent))
+		return
+	}
+	if s.picker != nil && s.picker.stage == pickModel {
+		rows, sel := s.picker.menu.window()
+		_ = s.renderer.DrawMenu(modelPrompt(s.picker.provider), s.editor.Runes(), s.editor.Cursor(), rows, sel, s.picker.modelsNote, modelPickerMore(s.picker), footerLine(s.cfg.Agent))
 		return
 	}
 	if s.masking {

@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -54,6 +55,12 @@ func (s *Session) runSlash(name, arg string) {
 		if arg == "" {
 			s.startPicker()
 			return
+		}
+		if name := providerOnlyArg(arg); name != "" {
+			if slices.Contains(s.cfg.Agent.Providers(), name) {
+				s.startPickerAtProvider(name)
+				return
+			}
 		}
 		s.switchModel(arg)
 	case "/jev":

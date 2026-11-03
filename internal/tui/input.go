@@ -52,6 +52,7 @@ func (s *Session) providerKey(k Key) {
 	case KeyEnter:
 		if s.picker.pick() {
 			s.editor.Clear()
+			s.beginModelFetch()
 			s.dirty = true
 		}
 	case KeyEsc, KeyCtrlC:
@@ -65,23 +66,39 @@ func (s *Session) providerKey(k Key) {
 
 func (s *Session) modelKey(k Key) {
 	switch k.Type {
+	case KeyUp:
+		s.picker.move(-1)
+		s.dirty = true
+	case KeyDown:
+		s.picker.move(1)
+		s.dirty = true
 	case KeyEnter:
 		s.submitModel()
 	case KeyEsc, KeyCtrlC:
 		s.cancelPicker()
 	default:
 		s.editor.Handle(k)
+		if !s.picker.loading {
+			s.picker.setFilter(s.editor.Text())
+		}
 		s.dirty = true
 	}
 }
 
 func (s *Session) submitModel() {
-	model := strings.TrimSpace(s.editor.Text())
-	if model == "" {
+	typed := strings.TrimSpace(s.editor.Text())
+	if chosen, ok := s.picker.menu.chosen(); ok {
+		spec := s.picker.provider + "/" + chosen
+		s.closePicker()
+		s.switchModel(spec)
+		s.dirty = true
+		return
+	}
+	if typed == "" {
 		s.cancelPicker()
 		return
 	}
-	spec := s.picker.provider + "/" + model
+	spec := s.picker.provider + "/" + typed
 	s.closePicker()
 	s.switchModel(spec)
 	s.dirty = true
@@ -94,6 +111,7 @@ func (s *Session) cancelPicker() {
 }
 
 func (s *Session) closePicker() {
+	s.cancelModelFetch()
 	s.picker = nil
 	s.editor.Clear()
 	s.clearDrawn()
