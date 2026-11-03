@@ -215,6 +215,50 @@ func TestJevKeepsEveryToolInTheRegistry(t *testing.T) {
 	}
 }
 
+func TestSessionJevToggleKeepsServers(t *testing.T) {
+	e := newAddEnv(t, nil)
+	addFake(t, e, "fs")
+	e.vars["TYPESAFE_API_KEY"] = "k"
+	e.Env.NewJev = func(getenv func(string) string) (*jev.Client, error) {
+		c, err := jev.FromEnv(getenv)
+		if err != nil {
+			return nil, err
+		}
+		return &c, nil
+	}
+	ep, bySpec, err := resolveRunSpecs(runOpts{model: "xai/grok"}, e.Getenv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := newSessionAgent(e.Env, runOpts{}, ep, bySpec, nil, e.home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.release()
+	before := slices.Clone(a.tools.clients)
+	if len(before) == 0 {
+		t.Fatal("no mcp clients")
+	}
+	if err := a.SetJev(true); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(a.tools.clients, before) {
+		t.Fatal("mcp clients replaced when jev went on")
+	}
+	if _, ok := a.tools.reg.Get("search"); !ok {
+		t.Fatal("search missing with jev on")
+	}
+	if err := a.SetJev(false); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(a.tools.clients, before) {
+		t.Fatal("mcp clients replaced when jev went off")
+	}
+	if _, ok := a.tools.reg.Get("search"); ok {
+		t.Fatal("search left with jev off")
+	}
+}
+
 func TestResumeKeepsLoadedToolsAndRemovedConnectionIsSafe(t *testing.T) {
 	first := &fake.Provider{Turns: []fake.Turn{
 		fake.ToolTurn(connCall("1", tool.SearchName, `{"query":"fs__echo"}`)),

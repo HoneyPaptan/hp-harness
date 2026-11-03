@@ -444,7 +444,7 @@ func TestSessionJevSwitch(t *testing.T) {
 		minDraw int
 	}{
 		{"on switches", false, nil, "/jev on\r", "jev on\r\n", true, onFooter, 1},
-		{"on without a key stays off", false, errors.New("no key"), "/jev on\r", jevKeyHint + "\r\n", false, offFooter, 2},
+		{"on without a key stays off", false, errors.New("jev needs a key: hp key set TYPESAFE_API_KEY"), "/jev on\r", "error: jev needs a key: hp key set TYPESAFE_API_KEY\r\n", false, offFooter, 2},
 		{"off switches", true, nil, "/jev off\r", "jev off\r\n", false, offFooter, 1},
 		{"status off", false, nil, "/jev\r", "jev off\r\n", false, offFooter, 2},
 		{"status on", true, nil, "/jev\r", "jev on\r\n", true, onFooter, 2},

@@ -434,6 +434,22 @@ func TestSessionJevSwitchSameValueWritesNoRecord(t *testing.T) {
 	}
 }
 
+func TestSetJevMissingKey(t *testing.T) {
+	h := host.NewMemory()
+	env, _, _ := testEnv(t, h, nil, nil)
+	env.NewJev = func(func(string) string) (*jev.Client, error) { return nil, jev.ErrNoKey }
+	a := &sessionAgent{env: env, tools: openToolset(env, nil, nil)}
+	if err := a.SetJev(true); err == nil || err.Error() != jevKeyHint {
+		t.Fatalf("err %v", err)
+	}
+	if a.Jev() {
+		t.Fatal("jev turned on")
+	}
+	if err := a.SetJev(false); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestJevSummary(t *testing.T) {
 	h := host.NewMemory()
 	if err := h.WriteFile("/proj/a.go", []byte("package a\n")); err != nil {

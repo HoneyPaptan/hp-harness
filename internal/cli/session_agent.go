@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"time"
@@ -224,6 +225,9 @@ func (a *sessionAgent) SetJev(on bool) error {
 	}
 	client, err := openJev(a.env, on)
 	if err != nil {
+		if errors.Is(err, jev.ErrNoKey) {
+			return errors.New(jevKeyHint)
+		}
 		return err
 	}
 	if err := a.journalJev(on); err != nil {
@@ -234,7 +238,7 @@ func (a *sessionAgent) SetJev(on bool) error {
 }
 
 func (a *sessionAgent) journalJev(on bool) error {
-	if !a.started || on == a.Jev() {
+	if !a.started {
 		return nil
 	}
 	w, _, err := journal.Open(a.env.Host, a.jpath)
@@ -245,9 +249,8 @@ func (a *sessionAgent) journalJev(on bool) error {
 }
 
 func (a *sessionAgent) applyJev(client *jev.Client, on bool) {
-	a.tools.close()
 	a.client = client
-	a.tools = openToolset(a.env, a.skills, client)
+	a.tools.setJev(a.skills, client)
 	a.opts.jev = on
 }
 

@@ -10,7 +10,6 @@ const (
 	unknownHint   = "unknown command %s, /help lists them, // sends a literal /"
 	quitHint      = "press Ctrl-C again or Ctrl-D to quit"
 	literalPrefix = "//"
-	jevKeyHint    = "jev needs a key: hp key set TYPESAFE_API_KEY"
 	jevUsage      = "usage: /jev on|off"
 )
 
@@ -90,7 +89,7 @@ func (s *Session) switchJev(arg string) {
 
 func (s *Session) setJev(on bool) {
 	if err := s.cfg.Agent.SetJev(on); err != nil {
-		s.note(jevKeyHint)
+		s.fail(err)
 		return
 	}
 	s.note(jevLine(on))

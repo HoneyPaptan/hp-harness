@@ -14,13 +14,18 @@ import (
 )
 
 type toolset struct {
-	reg     *tool.Registry
-	clients []*mcp.Client
+	reg       *tool.Registry
+	connected []tool.Tool
+	clients   []*mcp.Client
 }
 
 func openToolset(env Env, skills []skill.Skill, client *jev.Client) *toolset {
 	connected, clients := connectionTools(env)
-	return &toolset{reg: buildRegistry(skills, jevTools(client), connected, client == nil), clients: clients}
+	return &toolset{reg: buildRegistry(skills, jevTools(client), connected, client == nil), connected: connected, clients: clients}
+}
+
+func (t *toolset) setJev(skills []skill.Skill, client *jev.Client) {
+	t.reg = buildRegistry(skills, jevTools(client), t.connected, client == nil)
 }
 
 func (t *toolset) close() {

@@ -6,6 +6,8 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
 
+const jevKeyHint = "jev needs a key: hp key set TYPESAFE_API_KEY"
+
 func openJev(env Env, on bool) (*jev.Client, error) {
 	if !on {
 		return nil, nil
