@@ -383,12 +383,59 @@ func TestSessionScripts(t *testing.T) {
 	}
 }
 
+func TestSessionModelPickerFilter(t *testing.T) {
+	a := newFakeAgent()
+	a.providers = []string{"openai", "groq", "xai"}
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "/model\r"},
+		{wait: providerPrompt},
+		{keys: "gr\r"},
+		{wait: "model for groq: "},
+		{keys: "fast\r"},
+		{wait: "model groq/fast"},
+		{keys: "\x04"},
+	})
+	h.waitExit()
+	if got := a.Model(); got != "groq/fast" {
+		t.Fatalf("model %q", got)
+	}
+	a2 := newFakeAgent()
+	a2.providers = []string{"openai", "groq", "xai"}
+	h2 := startSession(t, a2, false, false)
+	h2.play([]step{
+		{keys: "/model\r"},
+		{wait: providerPrompt},
+		{keys: "zz\r\x1b"},
+		{wait: pickerNote},
+		{keys: "\x04"},
+	})
+	h2.waitExit()
+	if got := a2.Model(); got != "xai/grok" {
+		t.Fatalf("model %q", got)
+	}
+	a3 := newFakeAgent()
+	a3.providers = []string{"openai", "groq", "xai"}
+	h3 := startSession(t, a3, false, false)
+	h3.play([]step{
+		{keys: "/model\r"},
+		{wait: providerPrompt},
+		{keys: "gr\x1b"},
+		{wait: pickerNote},
+		{keys: "\x04"},
+	})
+	h3.waitExit()
+	if got := a3.Model(); got != "xai/grok" {
+		t.Fatalf("model %q", got)
+	}
+}
+
 func TestSessionModelPicker(t *testing.T) {
 	a := newFakeAgent()
 	h := startSession(t, a, false, false)
 	h.play([]step{
 		{keys: "/model\r"},
-		{wait: pickerTitle},
+		{wait: providerPrompt},
 		{keys: "\x1b[B\r"},
 		{wait: "model for openrouter: "},
 		{keys: "m2\r"},
@@ -409,9 +456,9 @@ func TestSessionModelPickerCancel(t *testing.T) {
 		name  string
 		steps []step
 	}{
-		{"esc on the provider", []step{{keys: "/model\r"}, {wait: pickerTitle}, {keys: "\x1b"}}},
-		{"esc on the model", []step{{keys: "/model\r"}, {wait: pickerTitle}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\x1b"}}},
-		{"empty model", []step{{keys: "/model\r"}, {wait: pickerTitle}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\r"}}},
+		{"esc on the provider", []step{{keys: "/model\r"}, {wait: providerPrompt}, {keys: "\x1b"}}},
+		{"esc on the model", []step{{keys: "/model\r"}, {wait: providerPrompt}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\x1b"}}},
+		{"empty model", []step{{keys: "/model\r"}, {wait: providerPrompt}, {keys: "\r"}, {wait: "model for groq: "}, {keys: "\r"}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -432,7 +479,7 @@ func TestSessionModelPickerError(t *testing.T) {
 	h := startSession(t, a, false, false)
 	h.play([]step{
 		{keys: "/model\r"},
-		{wait: pickerTitle},
+		{wait: providerPrompt},
 		{keys: "\r"},
 		{wait: "model for groq: "},
 		{keys: "m2\r"},
@@ -451,7 +498,7 @@ func TestSessionModelPickerWithoutProviders(t *testing.T) {
 	h := startSession(t, a, false, false)
 	h.play([]step{{keys: "/model\r"}, {wait: pickerEmpty}, {keys: "\x04"}})
 	h.waitExit()
-	if strings.Contains(h.out.String(), pickerTitle) {
+	if strings.Contains(h.out.String(), providerPrompt) {
 		t.Fatalf("picker opened: %q", h.out.String())
 	}
 }

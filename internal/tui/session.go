@@ -293,7 +293,8 @@ func (s *Session) redraw() {
 	s.drawn = true
 	s.renderer.SetWidth(s.cfg.Width())
 	if s.picker != nil && s.picker.stage == pickProvider {
-		_ = s.renderer.DrawList(pickerTitle, s.picker.items, s.picker.selected, footerLine(s.cfg.Agent))
+		rows, sel := s.picker.menu.window()
+		_ = s.renderer.DrawMenu(providerPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, pickerMore(s.picker.menu), footerLine(s.cfg.Agent))
 		return
 	}
 	if s.masking {
@@ -305,6 +306,9 @@ func (s *Session) redraw() {
 
 func (s *Session) prompt() string {
 	if s.picker != nil {
+		if s.picker.stage == pickProvider {
+			return providerPrompt
+		}
 		return "model for " + s.picker.provider + ": "
 	}
 	if s.masking {

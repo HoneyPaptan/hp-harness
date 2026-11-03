@@ -93,46 +93,73 @@ func TestDrawFooter(t *testing.T) {
 	}
 }
 
-func TestDrawList(t *testing.T) {
+func TestDrawMenu(t *testing.T) {
+	footer := "groq/openai/gpt-oss-120b · jev off"
 	tests := []struct {
 		name     string
+		width    int
+		text     string
+		cursor   int
+		rows     []string
 		selected int
+		more     string
 		want     string
 	}{
 		{
-			"first row selected",
+			"width 40 filter typed",
+			40,
+			"gr",
+			2,
+			[]string{"groq"},
 			0,
-			"  pick a provider (↑ ↓ Enter, Esc cance…\r\n› groq\r\n  openrouter\r\n  ollama\r\n\r\ngroq/openai/gpt-oss-120b · jev off",
+			pickerHint,
+			"provider: gr\r\n› groq\r\n↑ ↓ Enter, Esc cancels\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[4A\r\x1b[12C",
 		},
 		{
-			"middle row selected",
+			"width 100 selected row",
+			100,
+			"",
+			0,
+			[]string{"groq", "openrouter", "ollama"},
 			1,
-			"  pick a provider (↑ ↓ Enter, Esc cance…\r\n  groq\r\n› openrouter\r\n  ollama\r\n\r\ngroq/openai/gpt-oss-120b · jev off",
+			pickerHint,
+			"provider: \r\n  groq\r\n› openrouter\r\n  ollama\r\n↑ ↓ Enter, Esc cancels\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[6A\r\x1b[10C",
+		},
+		{
+			"width 40 more line",
+			40,
+			"",
+			0,
+			[]string{"a", "b", "c", "d", "e", "f", "g", "h"},
+			0,
+			"+4 more · " + pickerHint,
+			"provider: \r\n› a\r\n  b\r\n  c\r\n  d\r\n  e\r\n  f\r\n  g\r\n  h\r\n+4 more · ↑ ↓ Enter, Esc cancels\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[11A\r\x1b[10C",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var out strings.Builder
-			r := NewRenderer(&out, 40)
-			if err := r.DrawList(pickerTitle, []string{"groq", "openrouter", "ollama"}, tc.selected, "groq/openai/gpt-oss-120b · jev off"); err != nil {
+			r := NewRenderer(&out, tc.width)
+			if err := r.DrawMenu(providerPrompt, []rune(tc.text), tc.cursor, tc.rows, tc.selected, tc.more, footer); err != nil {
 				t.Fatal(err)
 			}
-			if got, want := out.String(), "\r\x1b[J"+tc.want; got != want {
+			want := "\r\x1b[J" + tc.want
+			if got := out.String(); got != want {
 				t.Fatalf("got  %q\nwant %q", got, want)
 			}
 		})
 	}
 }
 
-func TestDrawListClearErasesEverything(t *testing.T) {
+func TestDrawMenuClearErasesEverything(t *testing.T) {
 	var out strings.Builder
 	r := NewRenderer(&out, 40)
-	r.DrawList(pickerTitle, []string{"groq", "openrouter", "ollama"}, 0, "groq/openai/gpt-oss-120b · jev off")
+	_ = r.DrawMenu(providerPrompt, nil, 0, []string{"groq", "openrouter", "ollama"}, 0, pickerHint, "groq/openai/gpt-oss-120b · jev off")
 	out.Reset()
 	if err := r.Clear(); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := out.String(), "\x1b[5A\r\x1b[J"; got != want {
+	if got, want := out.String(), "\r\x1b[J"; got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
 }

@@ -1,9 +1,12 @@
 package tui
 
+import "strconv"
+
 const (
-	pickerTitle = "  pick a provider (↑ ↓ Enter, Esc cancels)"
-	pickerNote  = "model unchanged"
-	pickerEmpty = "no provider has a key, run hp key set NAME"
+	providerPrompt = "provider: "
+	pickerHint     = "↑ ↓ Enter, Esc cancels"
+	pickerNote     = "model unchanged"
+	pickerEmpty    = "no provider has a key, run hp key set NAME"
 )
 
 type pickStage int
@@ -14,31 +17,36 @@ const (
 )
 
 type picker struct {
-	items    []string
-	selected int
+	menu     *menu
 	stage    pickStage
 	provider string
 }
 
 func newPicker(items []string) *picker {
-	return &picker{items: items}
+	return &picker{menu: newMenu(items)}
+}
+
+func (p *picker) setFilter(text string) {
+	p.menu.setFilter(text)
 }
 
 func (p *picker) move(delta int) {
-	if len(p.items) == 0 {
-		return
-	}
-	p.selected = (p.selected + delta + len(p.items)) % len(p.items)
+	p.menu.move(delta)
 }
 
-func (p *picker) chosen() string {
-	if len(p.items) == 0 {
-		return ""
+func (p *picker) pick() bool {
+	chosen, ok := p.menu.chosen()
+	if !ok {
+		return false
 	}
-	return p.items[p.selected]
-}
-
-func (p *picker) pick() {
-	p.provider = p.chosen()
+	p.provider = chosen
 	p.stage = pickModel
+	return true
+}
+
+func pickerMore(m *menu) string {
+	if n := m.moreHidden(); n > 0 {
+		return "+" + strconv.Itoa(n) + " more · " + pickerHint
+	}
+	return pickerHint
 }

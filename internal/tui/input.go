@@ -50,11 +50,16 @@ func (s *Session) providerKey(k Key) {
 		s.picker.move(1)
 		s.dirty = true
 	case KeyEnter:
-		s.picker.pick()
-		s.editor.Clear()
-		s.dirty = true
+		if s.picker.pick() {
+			s.editor.Clear()
+			s.dirty = true
+		}
 	case KeyEsc, KeyCtrlC:
 		s.cancelPicker()
+	default:
+		s.editor.Handle(k)
+		s.picker.setFilter(s.editor.Text())
+		s.dirty = true
 	}
 }
 

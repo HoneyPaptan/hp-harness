@@ -95,11 +95,15 @@ func maskedRunes(buf []rune) []rune {
 	return out
 }
 
-func (r *Renderer) DrawList(title string, items []string, selected int, footer string) error {
-	frame := make([]string, 0, len(items)+3)
-	frame = append(frame, r.dimRow(title))
-	for i, item := range items {
-		frame = append(frame, r.listRow(i == selected, item))
+func (r *Renderer) DrawMenu(prompt string, buf []rune, cursor int, rows []string, selected int, more string, footer string) error {
+	head := []rune(prompt)
+	view := layOut(slices.Concat(head, buf), len(head)+cursor, r.width)
+	frame := slices.Clone(view.rows)
+	for i, row := range rows {
+		frame = append(frame, r.listRow(i == selected, row))
+	}
+	if more != "" {
+		frame = append(frame, r.dimRow(more))
 	}
 	frame = append(frame, "")
 	if footer != "" {
@@ -109,7 +113,12 @@ func (r *Renderer) DrawList(title string, items []string, selected int, footer s
 	moveUp(&out, r.cursorRow)
 	out.WriteString("\r" + eraseBelow)
 	out.WriteString(strings.Join(frame, rowSeparator))
-	r.cursorRow, r.promptRow, r.lastRow = len(frame)-1, len(frame)-1, len(frame)-1
+	moveUp(&out, len(frame)-1-view.row)
+	out.WriteString("\r")
+	if view.col > 0 {
+		fmt.Fprintf(&out, "\x1b[%dC", view.col)
+	}
+	r.cursorRow, r.promptRow, r.lastRow = view.row, len(view.rows)-1, len(frame)-1
 	_, err := io.WriteString(r.w, out.String())
 	return err
 }
