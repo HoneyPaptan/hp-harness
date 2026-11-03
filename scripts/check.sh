@@ -16,10 +16,12 @@ formatting() {
 }
 
 core_boundary() {
-	[ -d internal/core ] || return 0
-	local banned
-	banned=$(go list -f '{{join .Imports "\n"}}' ./internal/core/... | grep -xE 'os|os/exec|net|net/http|syscall' || true)
-	[ -z "$banned" ] || fail "internal/core imports $(echo $banned); use Host"
+	local pkg banned
+	for pkg in internal/core internal/permit; do
+		[ -d "$pkg" ] || continue
+		banned=$(go list -f '{{join .Imports "\n"}}' "./$pkg/..." | grep -xE 'os|os/exec|net|net/http|syscall' || true)
+		[ -z "$banned" ] || fail "$pkg imports $(echo $banned); use Host"
+	done
 }
 
 size_budget() {
