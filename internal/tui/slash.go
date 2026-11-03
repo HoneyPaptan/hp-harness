@@ -8,14 +8,16 @@ import (
 )
 
 const (
-	maxErrorRunes = 200
-	unknownHint   = "unknown command %s, /help lists them, // sends a literal /"
-	quitHint      = "press Ctrl-C again or Ctrl-D to quit"
-	literalPrefix = "//"
-	jevUsage      = "usage: /jev on|off"
-	keyUsage      = "usage: /key NAME"
-	keyNotSaved   = "key not saved"
-	keyAddHint    = "add it with /key TYPESAFE_API_KEY"
+	maxErrorRunes  = 200
+	unknownHint    = "unknown command %s, /help lists them, // sends a literal /"
+	quitHint       = "press Ctrl-C again or Ctrl-D to quit"
+	literalPrefix  = "//"
+	jevUsage       = "usage: /jev on|off"
+	keyUsage       = "usage: /key NAME"
+	keyNotSaved    = "key not saved"
+	keyAddHint     = "add it with /key TYPESAFE_API_KEY"
+	permUsage      = "usage: /permissions [ask|auto|full-access|reset]"
+	fullAccessNote = "full access: no permission checks"
 )
 
 type slashCommand struct {
@@ -33,6 +35,8 @@ var slashCommands = []slashCommand{
 	{"/key", " NAME", "store an API key"},
 	{"/new", "", "start a fresh run"},
 	{"/runs", "", "list recent runs"},
+	{"/permissions", "", "show or set permission mode"},
+	{"/permissions", " ask|auto|full-access|reset", "switch mode or reset session grants"},
 	{"/quit", "", "leave, also Ctrl-D"},
 }
 
@@ -101,6 +105,8 @@ func (s *Session) runSlash(name, arg string) {
 		s.newRun()
 	case "/runs":
 		s.showRuns()
+	case "/permissions":
+		s.switchPermissions(arg)
 	case "/quit":
 		s.quit = true
 	default:
@@ -197,4 +203,51 @@ func (s *Session) showRuns() {
 	for _, line := range lines {
 		s.note(line)
 	}
+}
+
+func (s *Session) switchPermissions(arg string) {
+	if arg == "" {
+		s.note("permissions " + s.cfg.Agent.PermissionMode())
+		if info := s.cfg.Agent.PermissionInfo(); info != "" {
+			s.note(info)
+		}
+		return
+	}
+	prev := s.cfg.Agent.PermissionMode()
+	if err := s.cfg.Agent.SetPermissionMode(arg); err != nil {
+		s.note(permUsage)
+		return
+	}
+	mode := s.cfg.Agent.PermissionMode()
+	s.note("permissions " + mode)
+	if mode == "full-access" && prev != "full-access" {
+		s.note(fullAccessNote)
+	}
+	s.dirty = true
+}
+
+var permissionCycle = []string{"auto", "ask", "full-access"}
+
+func (s *Session) cyclePermissions() {
+	if s.complete != nil && s.complete.visible() {
+		return
+	}
+	cur := s.cfg.Agent.PermissionMode()
+	next := permissionCycle[0]
+	for i, m := range permissionCycle {
+		if m == cur {
+			next = permissionCycle[(i+1)%len(permissionCycle)]
+			break
+		}
+	}
+	prev := cur
+	if err := s.cfg.Agent.SetPermissionMode(next); err != nil {
+		s.fail(err)
+		return
+	}
+	s.note("permissions " + next)
+	if next == "full-access" && prev != "full-access" {
+		s.note(fullAccessNote)
+	}
+	s.dirty = true
 }

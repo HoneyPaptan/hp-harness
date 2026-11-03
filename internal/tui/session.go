@@ -355,10 +355,14 @@ func (s *Session) prompt() string {
 }
 
 func footerLine(a Agent) string {
-	if a.Model() == "" {
-		return "no model · /model"
+	mode := a.PermissionMode()
+	if mode == "" {
+		mode = "auto"
 	}
-	line := a.Model() + " · jev"
+	if a.Model() == "" {
+		return mode + " · no model · /model"
+	}
+	line := mode + " · " + a.Model() + " · jev"
 	if !a.Jev() {
 		line += " off"
 	}

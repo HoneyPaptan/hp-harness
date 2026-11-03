@@ -12,6 +12,8 @@ func TestSlashHelpLinesUnchanged(t *testing.T) {
 		"/key NAME      store an API key",
 		"/new           start a fresh run",
 		"/runs          list recent runs",
+		"/permissions   show or set permission mode",
+		"/permissions ask|auto|full-access|reset switch mode or reset session grants",
 		"/quit          leave, also Ctrl-D",
 		"//text         send /text to the model",
 		"Ctrl-C or Esc stops a turn",

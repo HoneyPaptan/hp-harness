@@ -179,6 +179,10 @@ func (a *sessionAgent) permissionAsk(ctx context.Context, action permit.Action) 
 }
 
 func (a *sessionAgent) SetPermissionMode(raw string) error {
+	if raw == "reset" {
+		a.permGrants = &permit.Grants{}
+		raw = string(permit.ModeAsk)
+	}
 	mode, err := permit.ParseMode(raw)
 	if err != nil {
 		return err
@@ -197,6 +201,14 @@ func (a *sessionAgent) SetPermissionMode(raw string) error {
 	}
 	a.permMode = mode
 	return nil
+}
+
+func (a *sessionAgent) PermissionInfo() string {
+	file, err := settingsPath(rawGetenv(a.env))
+	if err != nil {
+		return ""
+	}
+	return "rules in " + file
 }
 
 func (a *sessionAgent) finish(out core.Outcome, err error) (tui.Outcome, error) {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/host"
+	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/fake"
 	"github.com/HoneyPaptan/hp-harness/internal/tui"
@@ -286,5 +287,51 @@ func TestSessionAgentAskCancelWaiting(t *testing.T) {
 	}
 	if time.Since(start) > 800*time.Millisecond {
 		t.Fatalf("slow cancel")
+	}
+}
+
+func TestSessionAgentPermissionSwitchResume(t *testing.T) {
+	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("one"), fake.TextTurn("two")}}
+	h := host.NewMemory()
+	env, _, _ := testEnv(t, h, fp, nil)
+	ep := Endpoint{Preset: "xai", Model: "grok", BaseURL: presets["xai"].baseURL, KeyEnv: "XAI_API_KEY"}
+	spec := endpointSpec(ep)
+	bySpec := map[string]Endpoint{spec: ep}
+	a, err := newSessionAgent(env, runOpts{}, ep, bySpec, nil, "/proj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Send(context.Background(), "hi", func(tui.Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.SetPermissionMode("ask"); err != nil {
+		t.Fatal(err)
+	}
+	recs, err := journal.Read(h, a.jpath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saw bool
+	for _, rec := range recs {
+		if rec.Type == journal.TypePermissionSwitch {
+			saw = true
+		}
+	}
+	if !saw {
+		t.Fatal("no permission_switch")
+	}
+	st, err := journal.Replay(recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, jpath := a.id, a.jpath
+	a.release()
+	a2, err := restoredAgent(env, st, bySpec, ep, nil, id, jpath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a2.release()
+	if a2.PermissionMode() != "ask" {
+		t.Fatalf("mode %q", a2.PermissionMode())
 	}
 }

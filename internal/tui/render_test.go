@@ -68,10 +68,10 @@ func TestDrawFooter(t *testing.T) {
 		footer string
 		want   string
 	}{
-		{"width 100", 100, "hi", 2, "groq/openai/gpt-oss-120b · jev off",
-			"> hi\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[2A\r\x1b[4C"},
-		{"width 40", 40, "hi", 2, "xai/grok · jev",
-			"> hi\r\n\r\nxai/grok · jev\x1b[2A\r\x1b[4C"},
+		{"width 100", 100, "hi", 2, "auto · groq/openai/gpt-oss-120b · jev off",
+			"> hi\r\n\r\nauto · groq/openai/gpt-oss-120b · jev off\x1b[2A\r\x1b[4C"},
+		{"width 40", 40, "hi", 2, "auto · xai/grok · jev",
+			"> hi\r\n\r\nauto · xai/grok · jev\x1b[2A\r\x1b[4C"},
 		{"footer cut", 10, "", 0, "abc · jev off",
 			"> \r\n\r\nabc · jev…\x1b[2A\r\x1b[2C"},
 		{"footer at width", 10, "", 0, "abc defghi",
@@ -94,7 +94,7 @@ func TestDrawFooter(t *testing.T) {
 }
 
 func TestDrawMenu(t *testing.T) {
-	footer := "groq/openai/gpt-oss-120b · jev off"
+	footer := "auto · groq/openai/gpt-oss-120b · jev off"
 	tests := []struct {
 		name     string
 		width    int
@@ -113,7 +113,7 @@ func TestDrawMenu(t *testing.T) {
 			[]string{"groq"},
 			0,
 			pickerHint,
-			"provider: gr\r\n› groq\r\n↑ ↓ Enter, Esc cancels\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[4A\r\x1b[12C",
+			"provider: gr\r\n› groq\r\n↑ ↓ Enter, Esc cancels\r\n\r\nauto · groq/openai/gpt-oss-120b · jev o…\x1b[4A\r\x1b[12C",
 		},
 		{
 			"width 100 selected row",
@@ -123,7 +123,7 @@ func TestDrawMenu(t *testing.T) {
 			[]string{"groq", "openrouter", "ollama"},
 			1,
 			pickerHint,
-			"provider: \r\n  groq\r\n› openrouter\r\n  ollama\r\n↑ ↓ Enter, Esc cancels\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[6A\r\x1b[10C",
+			"provider: \r\n  groq\r\n› openrouter\r\n  ollama\r\n↑ ↓ Enter, Esc cancels\r\n\r\nauto · groq/openai/gpt-oss-120b · jev off\x1b[6A\r\x1b[10C",
 		},
 		{
 			"width 40 more line",
@@ -133,7 +133,7 @@ func TestDrawMenu(t *testing.T) {
 			[]string{"a", "b", "c", "d", "e", "f", "g", "h"},
 			0,
 			"+4 more · " + pickerHint,
-			"provider: \r\n› a\r\n  b\r\n  c\r\n  d\r\n  e\r\n  f\r\n  g\r\n  h\r\n+4 more · ↑ ↓ Enter, Esc cancels\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[11A\r\x1b[10C",
+			"provider: \r\n› a\r\n  b\r\n  c\r\n  d\r\n  e\r\n  f\r\n  g\r\n  h\r\n+4 more · ↑ ↓ Enter, Esc cancels\r\n\r\nauto · groq/openai/gpt-oss-120b · jev o…\x1b[11A\r\x1b[10C",
 		},
 	}
 	for _, tc := range tests {
@@ -152,7 +152,7 @@ func TestDrawMenu(t *testing.T) {
 }
 
 func TestDrawModelMenuFrames(t *testing.T) {
-	footer := "groq/openai/gpt-oss-120b · jev off"
+	footer := "auto · groq/openai/gpt-oss-120b · jev off"
 	tests := []struct {
 		name string
 		note string
@@ -171,7 +171,7 @@ func TestDrawModelMenuFrames(t *testing.T) {
 			0,
 			nil,
 			-1,
-			"model for groq: \r\nloading models\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[3A\r\x1b[16C",
+			"model for groq: \r\nloading models\r\n\r\nauto · groq/openai/gpt-oss-120b · jev o…\x1b[3A\r\x1b[16C",
 		},
 		{
 			"listed width 40",
@@ -181,7 +181,7 @@ func TestDrawModelMenuFrames(t *testing.T) {
 			3,
 			[]string{"openai/gpt-oss-120b"},
 			0,
-			"model for groq: gpt\r\n› openai/gpt-oss-120b\r\n↑ ↓ Enter, Esc cancels\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[4A\r\x1b[19C",
+			"model for groq: gpt\r\n› openai/gpt-oss-120b\r\n↑ ↓ Enter, Esc cancels\r\n\r\nauto · groq/openai/gpt-oss-120b · jev o…\x1b[4A\r\x1b[19C",
 		},
 	}
 	for _, tc := range tests {
@@ -202,11 +202,11 @@ func TestDrawModelMenuFrames(t *testing.T) {
 func TestDrawSlashCompletionMenu(t *testing.T) {
 	var out strings.Builder
 	r := NewRenderer(&out, 40)
-	footer := "xai/grok · jev off"
+	footer := "auto · xai/grok · jev off"
 	if err := r.DrawMenu(promptGlyph, []rune("/mo"), 3, []string{"model"}, 0, "", "", footer); err != nil {
 		t.Fatal(err)
 	}
-	want := "\r\x1b[J› /mo\r\n› model\r\n\r\nxai/grok · jev off\x1b[3A\r\x1b[5C"
+	want := "\r\x1b[J› /mo\r\n› model\r\n\r\nauto · xai/grok · jev off\x1b[3A\r\x1b[5C"
 	if got := out.String(); got != want {
 		t.Fatalf("got  %q\nwant %q", got, want)
 	}
@@ -215,7 +215,7 @@ func TestDrawSlashCompletionMenu(t *testing.T) {
 func TestDrawMenuClearErasesEverything(t *testing.T) {
 	var out strings.Builder
 	r := NewRenderer(&out, 40)
-	_ = r.DrawMenu(providerPrompt, nil, 0, []string{"groq", "openrouter", "ollama"}, 0, "", pickerHint, "groq/openai/gpt-oss-120b · jev off")
+	_ = r.DrawMenu(providerPrompt, nil, 0, []string{"groq", "openrouter", "ollama"}, 0, "", pickerHint, "auto · groq/openai/gpt-oss-120b · jev off")
 	out.Reset()
 	if err := r.Clear(); err != nil {
 		t.Fatal(err)

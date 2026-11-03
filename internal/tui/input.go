@@ -192,6 +192,10 @@ func (s *Session) endKey() {
 }
 
 func (s *Session) promptKey(ctx context.Context, k Key) {
+	if k.Type == KeyShiftTab {
+		s.cyclePermissions()
+		return
+	}
 	if s.completionKey(k) {
 		return
 	}

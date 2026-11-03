@@ -53,6 +53,9 @@ type Agent interface {
 	Reset() error
 	Runs() ([]string, error)
 	Files() ([]string, error)
+	PermissionMode() string
+	SetPermissionMode(string) error
+	PermissionInfo() string
 }
 
 type KeyMissingError struct{ Hint string }

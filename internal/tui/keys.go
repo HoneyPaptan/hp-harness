@@ -28,6 +28,7 @@ const (
 	KeyCtrlW
 	KeyEsc
 	KeyTab
+	KeyShiftTab
 	KeyPasteStart
 	KeyPasteEnd
 )
@@ -207,6 +208,9 @@ func nextCSI(b []byte) (Key, bool, int) {
 }
 
 func csiKey(params []byte, final byte) (KeyType, bool) {
+	if final == 'Z' && len(params) == 0 {
+		return KeyShiftTab, true
+	}
 	if final != '~' {
 		key, ok := finalKeys[final]
 		return key, ok

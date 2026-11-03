@@ -49,6 +49,8 @@ type fakeAgent struct {
 	files      []string
 	filesErr   error
 	filesCalls int
+	permMode   string
+	permInfo   string
 	script     []func(context.Context, func(Event)) (Outcome, error)
 	started    chan struct{}
 }
@@ -151,6 +153,34 @@ func (a *fakeAgent) Files() ([]string, error) {
 		return nil, a.filesErr
 	}
 	return append([]string(nil), a.files...), nil
+}
+
+func (a *fakeAgent) PermissionMode() string {
+	if a.permMode == "" {
+		return "auto"
+	}
+	return a.permMode
+}
+
+func (a *fakeAgent) SetPermissionMode(raw string) error {
+	if raw == "reset" {
+		a.permMode = "ask"
+		return nil
+	}
+	switch raw {
+	case "ask", "auto", "full-access":
+		a.permMode = raw
+		return nil
+	default:
+		return errors.New("bad mode")
+	}
+}
+
+func (a *fakeAgent) PermissionInfo() string {
+	if a.permInfo != "" {
+		return a.permInfo
+	}
+	return "rules in ~/.config/hp/settings.json"
 }
 
 func (a *fakeAgent) sent() []string {
@@ -470,7 +500,7 @@ func TestSessionModelPicker(t *testing.T) {
 	if got := a.Model(); got != "openrouter/m2" {
 		t.Fatalf("model %q", got)
 	}
-	if !strings.Contains(h.out.String(), "openrouter/m2 · jev off") {
+	if !strings.Contains(h.out.String(), "auto · openrouter/m2 · jev off") {
 		t.Fatalf("footer missing: %q", h.out.String())
 	}
 }
@@ -586,8 +616,8 @@ func TestSessionFooter(t *testing.T) {
 		want   string
 		reject string
 	}{
-		{"jev on", true, "xai/grok · jev", "jev off"},
-		{"jev off", false, "xai/grok · jev off", ""},
+		{"jev on", true, "auto · xai/grok · jev", "jev off"},
+		{"jev off", false, "auto · xai/grok · jev off", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -604,8 +634,8 @@ func TestSessionFooter(t *testing.T) {
 }
 
 func TestSessionJevSwitch(t *testing.T) {
-	const onFooter = "xai/grok · jev"
-	const offFooter = "xai/grok · jev off"
+	const onFooter = "auto · xai/grok · jev"
+	const offFooter = "auto · xai/grok · jev off"
 	tests := []struct {
 		name    string
 		jevOn   bool
@@ -645,7 +675,7 @@ func TestSessionJevSwitch(t *testing.T) {
 
 func TestSessionFooterStaysOutOfScrollback(t *testing.T) {
 	h := startSession(t, newFakeAgent(), false, false)
-	footer := "xai/grok · jev off"
+	footer := "auto · xai/grok · jev off"
 	h.play([]step{{keys: "go\r"}, {wait: "1 steps"}, {keys: "\x04"}})
 	h.waitExit()
 	out := h.out.String()
@@ -826,7 +856,7 @@ func TestSessionFooterNoModel(t *testing.T) {
 	a := newFakeAgent()
 	a.model = ""
 	h := startSessionWith(t, a, Config{})
-	h.play([]step{{wait: "no model · /model"}, {keys: "\x04"}})
+	h.play([]step{{wait: "auto · no model · /model"}, {keys: "\x04"}})
 	h.waitExit()
 }
 
@@ -836,7 +866,7 @@ func TestSessionPromptWithoutModelRestoresAfterPick(t *testing.T) {
 	a.models = []string{"fast"}
 	h := startSessionWith(t, a, Config{})
 	h.play([]step{
-		{wait: "no model · /model"},
+		{wait: "auto · no model · /model"},
 		{keys: "hello\r"},
 		{wait: "pick a model first"},
 		{wait: providerPrompt},

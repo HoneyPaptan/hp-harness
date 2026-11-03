@@ -47,6 +47,7 @@ func TestDecoderSingleRead(t *testing.T) {
 		{"ctrl u", "\x15", named(KeyCtrlU)},
 		{"ctrl w", "\x17", named(KeyCtrlW)},
 		{"tab", "\t", named(KeyTab)},
+		{"shift tab", "\x1b[Z", named(KeyShiftTab)},
 		{"unbound control dropped", "\x02a", typed("a")},
 		{"csi up", "\x1b[A", named(KeyUp)},
 		{"csi down", "\x1b[B", named(KeyDown)},
