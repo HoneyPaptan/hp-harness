@@ -66,36 +66,52 @@ func blockedIP(ip net.IP) bool {
 }
 
 func blockedIPv4(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsMulticast() || ip.IsUnspecified() {
-		return true
+	if len(ip) < net.IPv4len {
+		return false
 	}
-	if inRange(ip, 100, 64, 10) {
+	switch {
+	case ip[0] == 127:
 		return true
+	case ip[0] == 10:
+		return true
+	case ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31:
+		return true
+	case ip[0] == 192 && ip[1] == 168:
+		return true
+	case ip[0] == 169 && ip[1] == 254:
+		return true
+	case ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127:
+		return true
+	case ip[0] >= 224 && ip[0] < 240:
+		return true
+	case ip[0]|ip[1]|ip[2]|ip[3] == 0:
+		return true
+	default:
+		return false
 	}
-	return false
 }
 
 func blockedIPv6(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsMulticast() || ip.IsUnspecified() {
+	if len(ip) < net.IPv6len {
+		return false
+	}
+	if ip[0]|ip[1]|ip[2]|ip[3]|ip[4]|ip[5]|ip[6]|ip[7]|ip[8]|ip[9]|ip[10]|ip[11]|ip[12]|ip[13]|ip[14]|ip[15] == 0 {
 		return true
 	}
-	if ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() {
+	if ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0 &&
+		ip[4] == 0 && ip[5] == 0 && ip[6] == 0 && ip[7] == 0 &&
+		ip[8] == 0 && ip[9] == 0 && ip[10] == 0 && ip[11] == 0 &&
+		ip[12] == 0 && ip[13] == 0 && ip[14] == 0 && ip[15] == 1 {
 		return true
 	}
-	if len(ip) == net.IPv6len && ip[0] == 0xfc {
+	if ip[0] == 0xfe && ip[1]&0xc0 == 0x80 {
 		return true
 	}
-	if len(ip) == net.IPv6len && ip[0] == 0xfd {
+	if ip[0] == 0xfc || ip[0] == 0xfd {
 		return true
 	}
-	if ip4 := ip.To4(); ip4 != nil {
-		return blockedIPv4(ip4)
+	if ip[0] == 0xff {
+		return true
 	}
 	return false
-}
-
-func inRange(ip net.IP, a, b byte, prefix int) bool {
-	mask := net.CIDRMask(prefix, 32)
-	n := net.IPNet{IP: net.IPv4(a, b, 0, 0), Mask: mask}
-	return n.Contains(ip)
 }
