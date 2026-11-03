@@ -58,6 +58,7 @@ type Session struct {
 	dirty     bool
 	quit      bool
 	pending   string
+	queued    string
 	complete  *completion
 	fileCache []string
 	approval  *approval
@@ -240,22 +241,40 @@ func (s *Session) emit(ev Event) {
 func (s *Session) finishTurn(ctx context.Context, res turnResult) {
 	s.settle(res)
 	s.lastKey = s.cfg.Now()
-	switch {
-	case s.stopping:
+	interrupted := s.stopping
+	if interrupted {
 		s.stopping = false
-	case ctx.Err() != nil:
+	}
+	switch {
+	case ctx.Err() != nil && !interrupted:
+		s.out.gap()
+		s.dirty = true
 		return
 	case res.err != nil:
 		if IsNoModel(res.err) {
 			s.pickModelFirst("")
-		} else {
+		} else if !interrupted {
 			s.fail(res.err)
 		}
 	default:
-		s.note(statusLine(res.outcome))
+		if !interrupted {
+			s.note(statusLine(res.outcome))
+		}
 	}
 	s.out.gap()
 	s.dirty = true
+	s.startQueued(ctx)
+}
+
+func (s *Session) startQueued(ctx context.Context) {
+	if s.queued == "" || s.busy() {
+		return
+	}
+	prompt := s.queued
+	s.queued = ""
+	s.startTurn(ctx, func(ctx context.Context, emit func(Event)) (Outcome, error) {
+		return s.cfg.Agent.Send(ctx, prompt, emit)
+	})
 }
 
 func (s *Session) settle(res turnResult) {

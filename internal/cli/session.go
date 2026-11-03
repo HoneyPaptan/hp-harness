@@ -72,7 +72,9 @@ func openFreshSession(ctx context.Context, env Env, o runOpts, ep Endpoint, bySp
 	if err != nil {
 		return exitErr(env, "", "", err)
 	}
-	kickExecEnv(env, dir)
+	if env.LoginEnv != nil {
+		env.LoginEnv(dir)
+	}
 	a, err := newSessionAgent(env, o, ep, bySpec, client, dir)
 	if err != nil {
 		return exitErr(env, "", "", err)
@@ -93,7 +95,9 @@ func continueSession(ctx context.Context, env Env, o runOpts) int {
 	if id == "" {
 		return exitUsage(env, usagef("no run to continue in %s", dir))
 	}
-	kickExecEnv(env, dir)
+	if env.LoginEnv != nil {
+		env.LoginEnv(dir)
+	}
 	a, unfinished, code := openRun(env, o, id)
 	if code >= 0 {
 		return code

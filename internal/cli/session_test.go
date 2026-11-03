@@ -353,15 +353,18 @@ func TestSessionInterruptThenContinues(t *testing.T) {
 }
 
 type blockOnce struct {
-	once    sync.Once
+	mu      sync.Mutex
+	calls   int
 	fp      *fake.Provider
 	entered chan struct{}
 }
 
 func (b *blockOnce) Stream(ctx context.Context, req provider.Request) iter.Seq2[provider.Event, error] {
-	first := false
-	b.once.Do(func() { first = true })
-	if !first {
+	b.mu.Lock()
+	b.calls++
+	block := b.calls == 1
+	b.mu.Unlock()
+	if !block {
 		return b.fp.Stream(ctx, req)
 	}
 	return func(yield func(provider.Event, error) bool) {

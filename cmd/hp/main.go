@@ -48,14 +48,16 @@ func buildEnv() (cli.Env, error) {
 		return cli.Env{}, err
 	}
 	exe, _ := os.Executable()
-	return cli.Env{
+	env := cli.Env{
 		Args: os.Args[1:], Getenv: os.Getenv, Cwd: cwd,
 		Stdout: os.Stdout, Stderr: os.Stderr, Host: host.Native{},
 		Rand: rand.Reader, Version: version, NewProvider: cli.SharedProviders(newProvider), NewJev: newJev,
 		Spawn: spawnDetached, Alive: processAlive, ProcStart: processStart, Signal: processSignal, Pid: os.Getpid(),
 		Lock: host.Native{}.Lock, Exe: exe, Os: runtime.GOOS,
 		Term: stdTerminal{}, RunCtl: runCtl,
-	}, nil
+	}
+	env.LoginEnv = memoLoginEnv(&env)
+	return env, nil
 }
 
 func newJev(getenv func(string) string) (*jev.Client, error) {

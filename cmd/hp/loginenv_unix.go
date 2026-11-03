@@ -17,8 +17,15 @@ const loginEnvTimeout = 3 * time.Second
 
 var loginEnvWait = loginEnvTimeout
 
-func init() {
-	cli.SetExecEnvInit(startLoginEnv)
+func memoLoginEnv(env *cli.Env) func(string) func() []string {
+	var once sync.Once
+	var get func() []string
+	return func(dir string) func() []string {
+		once.Do(func() {
+			get = startLoginEnv(*env, dir)
+		})
+		return get
+	}
 }
 
 func startLoginEnv(env cli.Env, dir string) func() []string {

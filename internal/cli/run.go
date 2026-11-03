@@ -91,7 +91,9 @@ func runAgent(ctx context.Context, env Env, o runOpts, prompt string) int {
 	if err != nil {
 		return exitErr(env, "", "", err)
 	}
-	kickExecEnv(env, dir)
+	if env.LoginEnv != nil {
+		env.LoginEnv(dir)
+	}
 	prompt = expandMentions(env.Host, dir, prompt)
 	id, err := newRunID(env.Host.Now(), env.Rand)
 	if err != nil {
@@ -131,12 +133,19 @@ func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoi
 	return out, pr, err
 }
 
+func loginEnvExec(env Env, dir string) func() []string {
+	if env.LoginEnv == nil {
+		return nil
+	}
+	return env.LoginEnv(dir)
+}
+
 func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Registry, obs core.Observer, client *jev.Client, rp runPerm) core.Deps {
 	d := core.Deps{
 		Host: env.Host, Provider: env.NewProvider(ep), Tools: tools,
 		ToolChooser: jevChooser(client), Observer: obs,
 		Gate:    newGate(env.Host, rp.mode, rp.rules, rp.grants, rp.dir, env.Getenv("HOME"), nil, newReviewer(env, func() Endpoint { return ep })),
-		ExecEnv: sharedExecEnv(env, rp.dir),
+		ExecEnv: loginEnvExec(env, rp.dir),
 	}
 	d.Providers = limitProviders(env, bySpec)
 	return d

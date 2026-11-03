@@ -20,7 +20,7 @@ func (s *Session) handleKey(ctx context.Context, k Key) {
 			s.approvalKey(k)
 			return
 		}
-		s.turnKey(k)
+		s.turnKey(ctx, k)
 		return
 	}
 	if s.picker != nil {
@@ -141,11 +141,14 @@ func (s *Session) pickModelFirst(text string) {
 	s.dirty = true
 }
 
-func (s *Session) turnKey(k Key) {
+func (s *Session) turnKey(ctx context.Context, k Key) {
 	switch k.Type {
 	case KeyCtrlC, KeyEsc:
 		s.interrupt()
 	case KeyEnter, KeyCtrlD, KeyCtrlL:
+		if s.stopping && strings.TrimSpace(s.editor.Text()) != "" {
+			s.submit(ctx)
+		}
 	default:
 		s.editor.Handle(k)
 	}
@@ -252,6 +255,10 @@ func (s *Session) submit(ctx context.Context) {
 		return
 	}
 	prompt := promptText(text)
+	if s.busy() {
+		s.queued = prompt
+		return
+	}
 	s.startTurn(ctx, func(ctx context.Context, emit func(Event)) (Outcome, error) {
 		return s.cfg.Agent.Send(ctx, prompt, emit)
 	})

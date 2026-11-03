@@ -139,20 +139,18 @@ func testGetenv(m map[string]string) func(string) string {
 	}
 }
 
-func TestSharedExecEnvOnce(t *testing.T) {
-	cli.ResetExecEnvForTest(func(cli.Env, string) func() []string {
-		return func() []string { return nil }
-	})
+func TestMemoLoginEnvOnce(t *testing.T) {
+	env := cli.Env{Getenv: testGetenv(map[string]string{"HP_LOGIN_ENV": "0"})}
+	login := memoLoginEnv(&env)
 	var n sync.WaitGroup
 	n.Add(2)
-	env := cli.Env{Getenv: testGetenv(map[string]string{"HP_LOGIN_ENV": "0"})}
 	go func() {
 		defer n.Done()
-		cli.SharedExecEnvForTest(env, "/w")
+		login("/w")
 	}()
 	go func() {
 		defer n.Done()
-		cli.SharedExecEnvForTest(env, "/w")
+		login("/w")
 	}()
 	n.Wait()
 }
