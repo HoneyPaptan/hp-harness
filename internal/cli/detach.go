@@ -141,6 +141,9 @@ func cmdStop(env Env, args []string) int {
 		return exitUsage(env, usagef("run id required"))
 	}
 	id := args[0]
+	if !safeRunID(id) {
+		return exitUsage(env, usagef("invalid run id %q", id))
+	}
 	pid, ok := readRunPid(env, id)
 	if !ok || !env.Alive(pid) {
 		fmt.Fprintf(env.Stderr, "run %s is not running\n", id)
@@ -152,4 +155,8 @@ func cmdStop(env Env, args []string) int {
 	}
 	fmt.Fprintf(env.Stdout, "stopping %s\n", id)
 	return 0
+}
+
+func safeRunID(id string) bool {
+	return id != "" && !strings.HasPrefix(id, ".") && !strings.ContainsAny(id, "/\\\x00")
 }

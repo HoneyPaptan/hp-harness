@@ -17,6 +17,9 @@ func cmdAttach(ctx context.Context, env Env, args []string) int {
 		return exitUsage(env, usagef("run id required"))
 	}
 	id := args[0]
+	if !safeRunID(id) {
+		return exitUsage(env, usagef("invalid run id %q", id))
+	}
 	jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
 	if _, err := journal.ReadStart(env.Host, jpath); err != nil {
 		return exitUsage(env, usagef("run %q not found", id))

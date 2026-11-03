@@ -25,6 +25,9 @@ func cmdResume(ctx context.Context, env Env, args []string) int {
 		return exitUsage(env, usagef("run id required"))
 	}
 	id := rest[0]
+	if !safeRunID(id) {
+		return exitUsage(env, usagef("invalid run id %q", id))
+	}
 	if detach {
 		jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
 		start, err := journal.ReadStart(env.Host, jpath)

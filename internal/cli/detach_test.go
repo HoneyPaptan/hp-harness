@@ -227,3 +227,17 @@ func TestPidFileRecordsStart(t *testing.T) {
 		t.Fatalf("pid %d ok %v", pid, ok)
 	}
 }
+
+func TestRunCommandsRejectPathIDs(t *testing.T) {
+	for _, cmd := range []string{"stop", "resume", "attach"} {
+		h := host.NewMemory()
+		env, _, stderr := testEnv(t, h, nil, nil)
+		env.Args = []string{cmd, "../../etc/x"}
+		if code := Main(context.Background(), env); code != 2 {
+			t.Fatalf("%s code %d", cmd, code)
+		}
+		if !strings.Contains(stderr.String(), "invalid run id") {
+			t.Fatalf("%s: %s", cmd, stderr.String())
+		}
+	}
+}
