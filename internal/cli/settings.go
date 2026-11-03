@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/HoneyPaptan/hp-harness/internal/permit"
 )
@@ -60,15 +61,57 @@ func validateCompactionSettings(file string, st settings) error {
 	if st.AutoCompactPercent != nil {
 		p := *st.AutoCompactPercent
 		if p < 10 || p > 80 {
-			return fmt.Errorf("%s: auto_compact_percent out of range", file)
+			return fmt.Errorf("%s: auto_compact_percent", file)
 		}
 	}
 	for spec, w := range st.ContextWindows {
 		if w <= 0 {
-			return fmt.Errorf("%s: context_windows[%q] must be positive", file, spec)
+			return fmt.Errorf("%s: context_windows[%q]", file, spec)
 		}
 	}
 	return nil
+}
+
+const defaultContextWindow = 128000
+
+var contextWindowPrefixes = []struct {
+	prefix string
+	size   int
+}{
+	{"gpt-oss", 131072},
+	{"claude-", 200000},
+	{"llama-3.3-70b", 131072},
+	{"kimi-k2", 131072},
+}
+
+func contextWindow(st settings, runSpec, runModel string) func(string) int {
+	afterPreset := modelAfterPreset(runSpec)
+	return func(model string) int {
+		if w, ok := st.ContextWindows[model]; ok {
+			return w
+		}
+		if model == runModel {
+			if w, ok := st.ContextWindows[runSpec]; ok {
+				return w
+			}
+			if w, ok := st.ContextWindows[afterPreset]; ok {
+				return w
+			}
+		}
+		for _, e := range contextWindowPrefixes {
+			if strings.HasPrefix(model, e.prefix) {
+				return e.size
+			}
+		}
+		return defaultContextWindow
+	}
+}
+
+func modelAfterPreset(spec string) string {
+	if i := strings.IndexByte(spec, '/'); i >= 0 {
+		return spec[i+1:]
+	}
+	return spec
 }
 
 func compactPercent(st settings) int {

@@ -147,7 +147,7 @@ func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Regis
 		Gate:    newGate(env.Host, rp.mode, rp.rules, rp.grants, rp.dir, env.Getenv("HOME"), nil, newReviewer(env, func() Endpoint { return ep })),
 		ExecEnv: loginEnvExec(env, rp.dir),
 	}
-	d.ContextWindow = contextWindow(st, endpointSpec(ep))
+	d.ContextWindow = contextWindow(st, endpointSpec(ep), ep.Model)
 	d.CompactPercent = compactPercent(st)
 	d.Providers = limitProviders(env, bySpec)
 	return d

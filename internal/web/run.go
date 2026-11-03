@@ -236,7 +236,7 @@ func (r *run) observer() core.Observer {
 			r.failedAttempt(Event{Kind: KindRetry, DelayMS: d.Milliseconds(), Attempt: attempt, Max: limit})
 		},
 		OnCompact: func(int) {
-			r.failedAttempt(Event{Kind: KindCompact})
+			r.emit(Event{Kind: KindCompact})
 		},
 	}
 }

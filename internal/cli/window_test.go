@@ -10,7 +10,7 @@ import (
 
 func TestContextWindowSettingsSpec(t *testing.T) {
 	st := settings{ContextWindows: map[string]int{"groq/fast": 4096}}
-	win := contextWindow(st, "groq/fast")
+	win := contextWindow(st, "groq/fast", "fast")
 	if got := win("fast"); got != 4096 {
 		t.Fatalf("got %d", got)
 	}
@@ -18,15 +18,26 @@ func TestContextWindowSettingsSpec(t *testing.T) {
 
 func TestContextWindowSettingsBareModel(t *testing.T) {
 	st := settings{ContextWindows: map[string]int{"openai/gpt-oss-120b": 9999}}
-	win := contextWindow(st, "groq/openai/gpt-oss-120b")
-	if got := win("gpt-oss-120b"); got != 9999 {
+	win := contextWindow(st, "groq/openai/gpt-oss-120b", "openai/gpt-oss-120b")
+	if got := win("openai/gpt-oss-120b"); got != 9999 {
 		t.Fatalf("got %d", got)
+	}
+}
+
+func TestContextWindowFallbackIgnoresRunSpec(t *testing.T) {
+	st := settings{ContextWindows: map[string]int{"xai/grok": 5000}}
+	win := contextWindow(st, "xai/grok", "grok")
+	if got := win("other-model"); got != defaultContextWindow {
+		t.Fatalf("got %d", got)
+	}
+	if got := win("grok"); got != 5000 {
+		t.Fatalf("primary %d", got)
 	}
 }
 
 func TestContextWindowPrefixTable(t *testing.T) {
 	st := settings{}
-	win := contextWindow(st, "xai/grok")
+	win := contextWindow(st, "xai/grok", "grok")
 	cases := map[string]int{
 		"gpt-oss-120b":    131072,
 		"claude-sonnet-4": 200000,
@@ -41,7 +52,7 @@ func TestContextWindowPrefixTable(t *testing.T) {
 }
 
 func TestContextWindowDefault(t *testing.T) {
-	win := contextWindow(settings{}, "xai/grok")
+	win := contextWindow(settings{}, "xai/grok", "grok")
 	if got := win("unknown-model"); got != defaultContextWindow {
 		t.Fatalf("got %d", got)
 	}

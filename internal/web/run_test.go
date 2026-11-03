@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/HoneyPaptan/hp-harness/internal/core"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/fake"
@@ -247,6 +248,27 @@ func TestReconnectAfterJournaled(t *testing.T) {
 	got := h.connect(id, seen[len(seen)-1].ID).until(statusIs(StatusFinished))
 	if kinds(got) != "text turn_end run_status" || textOf(got) != "bb" {
 		t.Fatalf("%+v", got)
+	}
+}
+
+func TestCompactKeepsPartialText(t *testing.T) {
+	b := newBackend(nil)
+	b.resume = func(obs core.Observer) (Stats, error) {
+		obs.OnEvent(provider.Event{Kind: provider.EventText, Text: "keep"})
+		obs.OnCompact(1)
+		return Stats{Reason: core.ReasonFinal, Steps: 1, TTFT: time.Millisecond}, nil
+	}
+	h := newHarness(t, b, nil)
+	id := h.start("first")
+	c := h.connect(id, 0)
+	got := c.until(statusIs(StatusFinished))
+	if textOf(got) != "keep" {
+		t.Fatalf("text %q", textOf(got))
+	}
+	for _, ev := range got {
+		if ev.Kind == KindCompact && ev.Discard {
+			t.Fatalf("compact discarded: %+v", ev)
+		}
 	}
 }
 

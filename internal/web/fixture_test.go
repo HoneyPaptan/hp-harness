@@ -95,6 +95,7 @@ type testBackend struct {
 	next        int
 	started     int
 	foreign     map[string]bool
+	resume      func(core.Observer) (Stats, error)
 }
 
 func newBackend(prov provider.Provider, tools ...tool.Tool) *testBackend {
@@ -202,6 +203,9 @@ func (a *testAgent) Send(ctx context.Context, prompt string, obs core.Observer) 
 }
 
 func (a *testAgent) Resume(ctx context.Context, obs core.Observer) (Stats, error) {
+	if a.b.resume != nil {
+		return a.b.resume(obs)
+	}
 	return outcomeStats(core.Resume(ctx, a.deps(obs), journalFile(a.id)))
 }
 

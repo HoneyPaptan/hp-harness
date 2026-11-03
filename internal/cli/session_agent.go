@@ -131,11 +131,15 @@ func (a *sessionAgent) register() error {
 
 func (a *sessionAgent) begin(obs core.Observer) core.Deps {
 	a.clock = newPrinter(a.env, a.id, a.client)
+	return a.deps(a.tracked(obs))
+}
+
+func (a *sessionAgent) deps(obs core.Observer) core.Deps {
 	rp := runPerm{
 		mode:  func() permit.Mode { return a.permMode },
 		rules: a.permRules, grants: a.permGrants, dir: a.dir,
 	}
-	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, a.tracked(obs), a.client, rp, a.settings)
+	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, obs, a.client, rp, a.settings)
 	d.Gate = newGate(a.env.Host, rp.mode, rp.rules, rp.grants, rp.dir, a.env.Getenv("HOME"), a.permissionAsk, newReviewer(a.env, func() Endpoint { return a.ep }))
 	d.Providers = providerFactory(a.env, a.bySpec)
 	return d
@@ -216,14 +220,7 @@ func (a *sessionAgent) Compact(ctx context.Context) (bool, error) {
 	if !a.started {
 		return false, nil
 	}
-	rp := runPerm{
-		mode:  func() permit.Mode { return a.permMode },
-		rules: a.permRules, grants: a.permGrants, dir: a.dir,
-	}
-	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, core.Observer{}, a.client, rp, a.settings)
-	d.Gate = newGate(a.env.Host, rp.mode, rp.rules, rp.grants, rp.dir, a.env.Getenv("HOME"), a.permissionAsk, newReviewer(a.env, func() Endpoint { return a.ep }))
-	d.Providers = providerFactory(a.env, a.bySpec)
-	return core.Compact(ctx, d, a.jpath)
+	return core.Compact(ctx, a.deps(core.Observer{}), a.jpath)
 }
 
 func (a *sessionAgent) finish(out core.Outcome, err error) (tui.Outcome, error) {
