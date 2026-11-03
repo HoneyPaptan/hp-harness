@@ -116,14 +116,24 @@ func readLimited(r io.Reader, limit int64) ([]byte, error) {
 
 func httpStatusErr(code int, body []byte) tool.Result {
 	msg := fmt.Sprintf("http %d", code)
-	if len(body) > 0 {
-		snip := string(body)
-		if len(snip) > errBodyLimit {
-			snip = snip[:errBodyLimit]
-		}
+	if snip := errBodySnip(body, ""); snip != "" {
 		msg += " " + snip
 	}
 	return toolErr("%s", msg)
+}
+
+func errBodySnip(body []byte, redact string) string {
+	if len(body) == 0 {
+		return ""
+	}
+	snip := string(body)
+	if redact != "" {
+		snip = strings.ReplaceAll(snip, redact, "")
+	}
+	if len(snip) > errBodyLimit {
+		snip = snip[:errBodyLimit]
+	}
+	return snip
 }
 
 func bodyText(contentType string, body []byte) (text, title string, err error) {
