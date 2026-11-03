@@ -324,7 +324,7 @@ func (a *sessionAgent) Runs() ([]string, error) {
 }
 
 func (a *sessionAgent) Files() ([]string, error) {
-	return nil, nil
+	return listFiles(a.env.Host, a.dir)
 }
 
 func (a *sessionAgent) release() {
