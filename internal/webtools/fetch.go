@@ -131,7 +131,7 @@ func errBodySnip(body []byte, redact string) string {
 		snip = strings.ReplaceAll(snip, redact, "")
 	}
 	if len(snip) > errBodyLimit {
-		snip = snip[:errBodyLimit]
+		snip = trimUTF8Bytes(snip, errBodyLimit)
 	}
 	return snip
 }
@@ -176,7 +176,7 @@ func formatFetchOutput(finalURL, title, text string) string {
 	if cut > len(out) {
 		cut = len(out)
 	}
-	return out[:cut] + "\n" + truncationLine
+	return trimUTF8Bytes(out, cut) + "\n" + truncationLine
 }
 
 func toolErr(format string, a ...any) tool.Result {

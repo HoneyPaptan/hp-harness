@@ -40,9 +40,6 @@ type exaResult struct {
 }
 
 func SearchTool(c *http.Client, endpoint, key string) tool.Tool {
-	if c == nil {
-		c = http.DefaultClient
-	}
 	t := exaTool{c: c, endpoint: endpoint, key: key}
 	return tool.Tool{
 		Name:        "web_search",
@@ -59,40 +56,14 @@ type exaTool struct {
 }
 
 func (t *exaTool) run(ctx context.Context, env tool.Env, raw json.RawMessage) (tool.Result, error) {
-	var args exaSearchArgs
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&args); err != nil {
-		return toolErr("%v", err), nil
+	query, count, errRes, ok := parseSearchArgs(raw)
+	if !ok {
+		return errRes, nil
 	}
-	query := strings.TrimSpace(args.Query)
-	if query == "" {
-		return toolErr("query is required"), nil
+	httpReq, errRes, ok := newExaRequest(ctx, t.endpoint, t.key, query, count)
+	if !ok {
+		return errRes, nil
 	}
-	count := 5
-	if args.Count != nil {
-		count = *args.Count
-		if count < 1 {
-			count = 1
-		} else if count > 10 {
-			count = 10
-		}
-	}
-	var req exaSearchRequest
-	req.Query = query
-	req.Type = "auto"
-	req.NumResults = count
-	req.Contents.Highlights = true
-	reqBody, err := json.Marshal(req)
-	if err != nil {
-		return toolErr("%v", err), nil
-	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, t.endpoint, bytes.NewReader(reqBody))
-	if err != nil {
-		return toolErr("%v", err), nil
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", t.key)
 	resp, err := t.c.Do(httpReq)
 	if err != nil {
 		return networkErr(ctx, err)
@@ -109,13 +80,68 @@ func (t *exaTool) run(ctx context.Context, env tool.Env, raw json.RawMessage) (t
 		}
 		return toolErr("%s", msg), nil
 	}
+	results, errRes, ok := decodeExaResults(respBody)
+	if !ok {
+		return errRes, nil
+	}
+	return tool.Result{Text: formatExaOutput(results)}, nil
+}
+
+func parseSearchArgs(raw json.RawMessage) (query string, count int, errRes tool.Result, ok bool) {
+	var args exaSearchArgs
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&args); err != nil {
+		return "", 0, toolErr("%v", err), false
+	}
+	query = strings.TrimSpace(args.Query)
+	if query == "" {
+		return "", 0, toolErr("query is required"), false
+	}
+	return query, clampCount(args.Count), tool.Result{}, true
+}
+
+func clampCount(count *int) int {
+	if count == nil {
+		return 5
+	}
+	n := *count
+	if n < 1 {
+		return 1
+	}
+	if n > 10 {
+		return 10
+	}
+	return n
+}
+
+func newExaRequest(ctx context.Context, endpoint, key, query string, count int) (*http.Request, tool.Result, bool) {
+	var req exaSearchRequest
+	req.Query = query
+	req.Type = "auto"
+	req.NumResults = count
+	req.Contents.Highlights = true
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, toolErr("%v", err), false
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, toolErr("%v", err), false
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-api-key", key)
+	return httpReq, tool.Result{}, true
+}
+
+func decodeExaResults(body []byte) ([]exaResult, tool.Result, bool) {
 	var parsed struct {
 		Results []exaResult `json:"results"`
 	}
-	if err := json.Unmarshal(respBody, &parsed); err != nil {
-		return toolErr("invalid exa response: %v", err), nil
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, toolErr("invalid exa response: %v", err), false
 	}
-	return tool.Result{Text: formatExaOutput(parsed.Results)}, nil
+	return parsed.Results, tool.Result{}, true
 }
 
 func formatExaOutput(results []exaResult) string {
@@ -128,25 +154,24 @@ func formatExaOutput(results []exaResult) string {
 			b.WriteString("\n\n")
 		}
 		fmt.Fprintf(&b, "%d. %s\n%s", i+1, r.Title, r.URL)
-		if len(r.Highlights) > 0 {
-			parts := make([]string, 0, len(r.Highlights))
-			for _, p := range r.Highlights {
-				if len(p) > maxHighlightBytes {
-					p = p[:maxHighlightBytes]
-				}
-				if p != "" {
-					parts = append(parts, p)
-				}
-			}
-			if len(parts) > 0 {
-				b.WriteByte('\n')
-				b.WriteString(strings.Join(parts, " … "))
-			}
+		if hl := joinHighlights(r.Highlights); hl != "" {
+			b.WriteByte('\n')
+			b.WriteString(hl)
 		}
 	}
-	out := b.String()
-	if len(out) > maxSearchOutputBytes {
-		return out[:maxSearchOutputBytes]
+	return trimUTF8Bytes(b.String(), maxSearchOutputBytes)
+}
+
+func joinHighlights(parts []string) string {
+	if len(parts) == 0 {
+		return ""
 	}
-	return out
+	trimmed := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = trimUTF8Bytes(p, maxHighlightBytes)
+		if p != "" {
+			trimmed = append(trimmed, p)
+		}
+	}
+	return strings.Join(trimmed, " … ")
 }

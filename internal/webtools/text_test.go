@@ -3,6 +3,7 @@ package webtools
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 const sampleHTML = `<!DOCTYPE html>
@@ -44,6 +45,21 @@ func TestHTMLToTextGolden(t *testing.T) {
 
 func diffLines(got, want string) string {
 	return "got:\n" + got + "\nwant:\n" + want
+}
+
+func TestTrimUTF8BytesMultibyte(t *testing.T) {
+	s := strings.Repeat("日", 100)
+	got := trimUTF8Bytes(s, 10)
+	if !utf8.ValidString(got) {
+		t.Fatalf("invalid utf-8: %q", got)
+	}
+	if len(got) > 10 {
+		t.Fatalf("len %d want <= 10", len(got))
+	}
+	wantRunes := 10 / 3
+	if len([]rune(got)) != wantRunes {
+		t.Fatalf("runes %d want %d", len([]rune(got)), wantRunes)
+	}
 }
 
 func TestHTMLToTextBlockBreaks(t *testing.T) {

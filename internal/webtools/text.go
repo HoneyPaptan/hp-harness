@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 func htmlToText(src []byte) (title, body string) {
@@ -406,4 +407,18 @@ func asciiEqualFold(a, b []byte) bool {
 		}
 	}
 	return true
+}
+
+func trimUTF8Bytes(s string, maxBytes int) string {
+	if maxBytes <= 0 {
+		return ""
+	}
+	if len(s) <= maxBytes {
+		return s
+	}
+	cut := maxBytes
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
