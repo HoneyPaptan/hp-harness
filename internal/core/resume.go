@@ -89,17 +89,6 @@ func (r *runner) settlePending(ctx context.Context, pending []journal.Pending) e
 
 func (r *runner) settleOne(ctx context.Context, env tool.Env, p journal.Pending) (provider.ToolResult, error) {
 	if p.Started {
-		tr, allow, err := r.gateCall(ctx, p.Call)
-		if err != nil {
-			return provider.ToolResult{}, err
-		}
-		if !allow {
-			if err := r.w.ToolResult(tr); err != nil {
-				return provider.ToolResult{}, err
-			}
-			r.deps.Observer.emitToolResult(tr)
-			return tr, nil
-		}
 		return r.abandonCall(p.Call.ID, interruptedMsg)
 	}
 	return r.execCall(ctx, env, p.Call)

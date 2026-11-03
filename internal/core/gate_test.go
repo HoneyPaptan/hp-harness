@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sync/atomic"
+	"strings"
 	"testing"
 
 	"github.com/HoneyPaptan/hp-harness/internal/host"
@@ -181,7 +182,7 @@ func TestGateBlocksUntilContextCanceled(t *testing.T) {
 	}
 }
 
-func TestResumeStartedToolHeldByGate(t *testing.T) {
+func TestResumeStartedToolSkipsGate(t *testing.T) {
 	h := host.NewMemory()
 	var runs atomic.Int32
 	crash := tool.Tool{
@@ -201,9 +202,10 @@ func TestResumeStartedToolHeldByGate(t *testing.T) {
 	if runs.Load() != 1 {
 		t.Fatalf("runs %d", runs.Load())
 	}
-	reason := "policy wait"
+	var gated atomic.Int32
 	hold := func(ctx context.Context, c provider.ToolCall) Verdict {
-		return Verdict{Allow: false, Reason: reason}
+		gated.Add(1)
+		return Verdict{Allow: false, Reason: "policy wait"}
 	}
 	fpResume := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("done")}}
 	d := Deps{Host: h, Provider: fpResume, Tools: reg, Gate: hold}
@@ -211,12 +213,11 @@ func TestResumeStartedToolHeldByGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Text != "done" || runs.Load() != 1 {
-		t.Fatalf("out %+v runs %d", out, runs.Load())
+	if out.Text != "done" || runs.Load() != 1 || gated.Load() != 0 {
+		t.Fatalf("out %+v runs %d gated %d", out, runs.Load(), gated.Load())
 	}
-	want := "held: " + reason
 	res := fpResume.Requests[0].Messages[len(fpResume.Requests[0].Messages)-1].ToolResults[0]
-	if !res.IsError || res.Text != want {
+	if !res.IsError || strings.HasPrefix(res.Text, "held:") {
 		t.Fatalf("res %+v", res)
 	}
 }
