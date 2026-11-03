@@ -23,7 +23,7 @@ func (r *runner) gateCall(ctx context.Context, call provider.ToolCall) (provider
 	if r.deps.Gate == nil {
 		return provider.ToolResult{}, true, nil
 	}
-	v := r.deps.Gate(ctx, call)
+	v := r.deps.Gate(ctx, call, r.msgs)
 	if err := ctx.Err(); err != nil {
 		return provider.ToolResult{}, false, err
 	}

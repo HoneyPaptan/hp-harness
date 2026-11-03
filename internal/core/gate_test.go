@@ -58,7 +58,7 @@ func TestGateAllowRunsAndSeesCall(t *testing.T) {
 	args := json.RawMessage(`{"x":1}`)
 	call := provider.ToolCall{ID: "1", Name: "work", Args: args}
 	var seen provider.ToolCall
-	gate := func(ctx context.Context, c provider.ToolCall) Verdict {
+	gate := func(ctx context.Context, c provider.ToolCall, _ []provider.Message) Verdict {
 		seen = c
 		return Verdict{Allow: true}
 	}
@@ -78,13 +78,36 @@ func TestGateAllowRunsAndSeesCall(t *testing.T) {
 	}
 }
 
+func TestGateReceivesMessages(t *testing.T) {
+	h := host.NewMemory()
+	var runs atomic.Int32
+	reg := tool.NewRegistry(countingTool("work", &runs))
+	call := provider.ToolCall{ID: "1", Name: "work", Args: json.RawMessage(`{}`)}
+	var got []provider.Message
+	gate := func(ctx context.Context, c provider.ToolCall, passed []provider.Message) Verdict {
+		got = passed
+		return Verdict{Allow: true}
+	}
+	fp := &fake.Provider{Turns: []fake.Turn{
+		fake.ToolTurn(call),
+		fake.TextTurn("done"),
+	}}
+	d := Deps{Host: h, Provider: fp, Tools: reg, Gate: gate}
+	if _, err := Run(context.Background(), d, gateCfg()); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Text != "go" || len(got[1].ToolCalls) != 1 {
+		t.Fatalf("msgs %+v", got)
+	}
+}
+
 func TestGateHoldWithReason(t *testing.T) {
 	h := host.NewMemory()
 	var runs atomic.Int32
 	reg := tool.NewRegistry(countingTool("bash", &runs))
 	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"cmd":"git push"}`)}
 	reason := "denied by rule bash git push *"
-	gate := func(ctx context.Context, c provider.ToolCall) Verdict {
+	gate := func(ctx context.Context, c provider.ToolCall, _ []provider.Message) Verdict {
 		return Verdict{Allow: false, Reason: reason}
 	}
 	fp := &fake.Provider{Turns: []fake.Turn{
@@ -135,7 +158,7 @@ func TestGateHoldEmptyReason(t *testing.T) {
 	var runs atomic.Int32
 	reg := tool.NewRegistry(countingTool("work", &runs))
 	call := provider.ToolCall{ID: "1", Name: "work", Args: json.RawMessage(`{}`)}
-	gate := func(ctx context.Context, c provider.ToolCall) Verdict {
+	gate := func(ctx context.Context, c provider.ToolCall, _ []provider.Message) Verdict {
 		return Verdict{Allow: false}
 	}
 	fp := &fake.Provider{Turns: []fake.Turn{
@@ -161,7 +184,7 @@ func TestGateBlocksUntilContextCanceled(t *testing.T) {
 	reg := tool.NewRegistry(countingTool("work", &runs))
 	call := provider.ToolCall{ID: "1", Name: "work", Args: json.RawMessage(`{}`)}
 	ctx, cancel := context.WithCancel(context.Background())
-	gate := func(ctx context.Context, c provider.ToolCall) Verdict {
+	gate := func(ctx context.Context, c provider.ToolCall, _ []provider.Message) Verdict {
 		<-ctx.Done()
 		return Verdict{Allow: true}
 	}
@@ -203,7 +226,7 @@ func TestResumeStartedToolSkipsGate(t *testing.T) {
 		t.Fatalf("runs %d", runs.Load())
 	}
 	var gated atomic.Int32
-	hold := func(ctx context.Context, c provider.ToolCall) Verdict {
+	hold := func(ctx context.Context, c provider.ToolCall, _ []provider.Message) Verdict {
 		gated.Add(1)
 		return Verdict{Allow: false, Reason: "policy wait"}
 	}

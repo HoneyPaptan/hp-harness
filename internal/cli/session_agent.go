@@ -129,6 +129,7 @@ func (a *sessionAgent) begin(obs core.Observer) core.Deps {
 		rules: a.permRules, grants: a.permGrants, dir: a.dir,
 	}
 	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, a.tracked(obs), a.client, rp)
+	d.Gate = newGate(a.env.Host, rp.mode, rp.rules, rp.grants, rp.dir, a.env.Getenv("HOME"), nil, newReviewer(a.env, func() Endpoint { return a.ep }))
 	d.Providers = providerFactory(a.env, a.bySpec)
 	return d
 }

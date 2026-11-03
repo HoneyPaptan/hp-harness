@@ -18,7 +18,7 @@ func TestGateDenyHold(t *testing.T) {
 		{Tool: "bash", Pattern: "git push *", Verdict: permit.Deny},
 	}, &permit.Grants{}, "/w", "/home/u", nil, nil)
 	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"command":"git push origin main"}`)}
-	v := gate(context.Background(), call)
+	v := gate(context.Background(), call, nil)
 	if v.Allow || v.Reason != "denied by rule bash git push *" {
 		t.Fatalf("verdict %+v", v)
 	}
@@ -29,7 +29,7 @@ func TestGateAskNilHold(t *testing.T) {
 	mode := permit.ModeAsk
 	gate := newGate(h, func() permit.Mode { return mode }, nil, &permit.Grants{}, "/w", "/home/u", nil, nil)
 	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"command":"git push origin main"}`)}
-	v := gate(context.Background(), call)
+	v := gate(context.Background(), call, nil)
 	want := "needs approval: run it in a session or use --full-access"
 	if v.Allow || v.Reason != want {
 		t.Fatalf("verdict %+v", v)
@@ -49,11 +49,11 @@ func TestGateAskAlwaysGrant(t *testing.T) {
 	}
 	gate := newGate(h, func() permit.Mode { return mode }, nil, grants, "/w", "/home/u", ask, nil)
 	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"command":"git push origin main"}`)}
-	v := gate(context.Background(), call)
+	v := gate(context.Background(), call, nil)
 	if !v.Allow {
 		t.Fatalf("first %+v", v)
 	}
-	v = gate(context.Background(), call)
+	v = gate(context.Background(), call, nil)
 	if !v.Allow {
 		t.Fatalf("second %+v", v)
 	}
@@ -65,7 +65,7 @@ func TestGateAskNoHold(t *testing.T) {
 	ask := func(context.Context, permit.Action) askAnswer { return askNo }
 	gate := newGate(h, func() permit.Mode { return mode }, nil, &permit.Grants{}, "/w", "/home/u", ask, nil)
 	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"command":"git push origin main"}`)}
-	v := gate(context.Background(), call)
+	v := gate(context.Background(), call, nil)
 	if v.Allow || v.Reason != "declined by the user" {
 		t.Fatalf("verdict %+v", v)
 	}
@@ -76,7 +76,7 @@ func TestGateReviewHold(t *testing.T) {
 	mode := permit.ModeAuto
 	gate := newGate(h, func() permit.Mode { return mode }, nil, &permit.Grants{}, "/w", "/home/u", nil, nil)
 	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"command":"git push origin main"}`)}
-	v := gate(context.Background(), call)
+	v := gate(context.Background(), call, nil)
 	if v.Allow || v.Reason != "needs review" {
 		t.Fatalf("verdict %+v", v)
 	}
@@ -87,11 +87,11 @@ func TestGateModeSwitch(t *testing.T) {
 	mode := permit.ModeAuto
 	gate := newGate(h, func() permit.Mode { return mode }, nil, &permit.Grants{}, "/w", "/home/u", nil, nil)
 	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"command":"git push origin main"}`)}
-	if v := gate(context.Background(), call); v.Allow || v.Reason != "needs review" {
+	if v := gate(context.Background(), call, nil); v.Allow || v.Reason != "needs review" {
 		t.Fatalf("auto review %+v", v)
 	}
 	mode = permit.ModeFull
-	if v := gate(context.Background(), call); !v.Allow {
+	if v := gate(context.Background(), call, nil); !v.Allow {
 		t.Fatalf("full %+v", v)
 	}
 }
@@ -102,7 +102,7 @@ func TestGateWriteSymlinkReviewed(t *testing.T) {
 	mode := permit.ModeAuto
 	gate := newGate(h, func() permit.Mode { return mode }, nil, &permit.Grants{}, "/w", "/home/u", nil, nil)
 	call := provider.ToolCall{ID: "1", Name: "write", Args: json.RawMessage(`{"path":"link/new.go"}`)}
-	v := gate(context.Background(), call)
+	v := gate(context.Background(), call, nil)
 	if v.Allow || v.Reason != "needs review" {
 		t.Fatalf("verdict %+v", v)
 	}
@@ -113,7 +113,7 @@ func TestGateWriteNewFileRoutine(t *testing.T) {
 	mode := permit.ModeAuto
 	gate := newGate(h, func() permit.Mode { return mode }, nil, &permit.Grants{}, "/w", "/home/u", nil, nil)
 	call := provider.ToolCall{ID: "1", Name: "write", Args: json.RawMessage(`{"path":"new.go","contents":"x"}`)}
-	v := gate(context.Background(), call)
+	v := gate(context.Background(), call, nil)
 	if !v.Allow {
 		t.Fatalf("verdict %+v", v)
 	}

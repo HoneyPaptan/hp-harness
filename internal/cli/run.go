@@ -134,7 +134,7 @@ func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Regis
 	d := core.Deps{
 		Host: env.Host, Provider: env.NewProvider(ep), Tools: tools,
 		ToolChooser: jevChooser(client), Observer: obs,
-		Gate: newGate(env.Host, rp.mode, rp.rules, rp.grants, rp.dir, env.Getenv("HOME"), nil, nil),
+		Gate: newGate(env.Host, rp.mode, rp.rules, rp.grants, rp.dir, env.Getenv("HOME"), nil, newReviewer(env, func() Endpoint { return ep })),
 	}
 	d.Providers = limitProviders(env, bySpec)
 	return d

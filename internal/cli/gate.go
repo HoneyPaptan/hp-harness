@@ -23,17 +23,17 @@ const (
 
 type askFunc func(ctx context.Context, action permit.Action) askAnswer
 
-type gateReview func(ctx context.Context, action permit.Action) core.Verdict
+type gateReview func(ctx context.Context, action permit.Action, msgs []provider.Message) core.Verdict
 
-func defaultReview(context.Context, permit.Action) core.Verdict {
+func defaultReview(context.Context, permit.Action, []provider.Message) core.Verdict {
 	return core.Verdict{Allow: false, Reason: "needs review"}
 }
 
-func newGate(h host.Host, mode func() permit.Mode, rules []permit.Rule, grants *permit.Grants, dir, home string, ask askFunc, review gateReview) func(context.Context, provider.ToolCall) core.Verdict {
+func newGate(h host.Host, mode func() permit.Mode, rules []permit.Rule, grants *permit.Grants, dir, home string, ask askFunc, review gateReview) func(context.Context, provider.ToolCall, []provider.Message) core.Verdict {
 	if review == nil {
 		review = defaultReview
 	}
-	return func(ctx context.Context, call provider.ToolCall) core.Verdict {
+	return func(ctx context.Context, call provider.ToolCall, msgs []provider.Message) core.Verdict {
 		a := permit.Describe(call, dir)
 		if a.Kind == permit.KindWrite && writeEscapes(h, dir, call) {
 			a.Linked = true
@@ -60,7 +60,7 @@ func newGate(h host.Host, mode func() permit.Mode, rules []permit.Rule, grants *
 				return core.Verdict{Allow: false, Reason: "declined by the user"}
 			}
 		case permit.Review:
-			return review(ctx, a)
+			return review(ctx, a, msgs)
 		default:
 			return core.Verdict{Allow: false, Reason: reason}
 		}
