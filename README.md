@@ -135,6 +135,21 @@ Settings in `~/.config/hp/settings.json`:
 
 `auto_compact_percent` takes 10 to 80 (default 80). `context_windows` sets a model's window by its `-m` spec. Without one, hp knows a few model families and otherwise assumes 128000 tokens.
 
+## Web tools
+
+Like fx, the agent can read public pages and search the web:
+
+- `web_fetch` reads an `http` or `https` URL and returns its text (HTML is turned into plain text, capped at 64 KB). Public pages only: hp refuses loopback, private, link local and tailnet addresses, checked at connect time so redirects cannot get around it. `HP_WEB_ALLOW_PRIVATE=1` lifts that for a local docs server.
+- `web_search` searches through [Exa](https://exa.ai) and returns titles, links and short highlights. It appears only when `EXA_API_KEY` is set (`hp key EXA_API_KEY` stores it).
+
+URLs and queries leave your machine, so both tools are never routine: in `auto` mode the reviewer checks each call, `ask` asks, `full-access` runs. Allow what you trust with rules:
+
+```json
+{"permission": {"web_fetch": {"https://pkg.go.dev/*": "allow"}, "web_search": {"*": "allow"}}}
+```
+
+`"web": false` in settings removes both tools. A large page can exceed a small per minute token limit (Groq's free tier, for example); ask for a smaller page or a specific section.
+
 ## Permissions
 
 Every tool call passes through a permission gate before it runs. The footer shows the active mode: `auto`, `ask`, or `full-access`. `auto` is the default when nothing else is set.
