@@ -131,7 +131,7 @@ func (b *webBackend) Start(model, prompt string) (web.Agent, error) {
 	if err != nil {
 		return nil, invalid(err)
 	}
-	a, err := newSessionAgent(b.env, o, ep, bySpec, client, b.dir)
+	a, err := newSessionAgent(b.env, o, ep, bySpec, client, b.dir, nil)
 	if err != nil {
 		return nil, err
 	}

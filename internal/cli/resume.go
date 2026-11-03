@@ -84,12 +84,12 @@ func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]End
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
-	mode, rules, grants, _, _, err := effectivePermission(env, false, st.Permission)
+	mode, rules, grants, _, set, err := effectivePermission(env, false, st.Permission)
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
 	pr := newPrinter(env, id, client)
-	tools := openToolset(env, skills, client)
+	tools := openToolset(env, start.Dir, skills, client, set, st.Messages)
 	defer tools.close()
 	rp := runPerm{
 		mode:  func() permit.Mode { return mode },

@@ -205,7 +205,7 @@ func TestFewConnectionToolsAreSentDirectly(t *testing.T) {
 func TestJevKeepsEveryToolInTheRegistry(t *testing.T) {
 	e := newAddEnv(t, nil)
 	addFake(t, e, "fs")
-	set := openToolset(e.Env, nil, &jev.Client{})
+	set := openToolset(e.Env, e.home, nil, &jev.Client{}, settings{}, nil)
 	defer set.close()
 	if _, ok := set.reg.Get(tool.SearchName); ok {
 		t.Fatal("no tools tool with Jev")
@@ -230,7 +230,7 @@ func TestSessionJevToggleKeepsServers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := newSessionAgent(e.Env, runOpts{}, ep, bySpec, nil, e.home)
+	a, err := newSessionAgent(e.Env, runOpts{}, ep, bySpec, nil, e.home, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +336,7 @@ func TestSessionAgentSharesServersAcrossTurnsAndReleases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := newSessionAgent(e.Env, runOpts{}, ep, bySpec, nil, e.home)
+	a, err := newSessionAgent(e.Env, runOpts{}, ep, bySpec, nil, e.home, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

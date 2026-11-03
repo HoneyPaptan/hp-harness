@@ -75,7 +75,7 @@ func openFreshSession(ctx context.Context, env Env, o runOpts, ep Endpoint, bySp
 	if env.LoginEnv != nil {
 		env.LoginEnv(dir)
 	}
-	a, err := newSessionAgent(env, o, ep, bySpec, client, dir)
+	a, err := newSessionAgent(env, o, ep, bySpec, client, dir, nil)
 	if err != nil {
 		return exitErr(env, "", "", err)
 	}

@@ -179,7 +179,7 @@ func askModeAgent(t *testing.T, fp *fake.Provider) *sessionAgent {
 	env, _, _ := testEnv(t, h, fp, map[string]string{"HP_PERMISSION_MODE": "ask"})
 	ep := Endpoint{Preset: "xai", Model: "grok", BaseURL: presets["xai"].baseURL, KeyEnv: "XAI_API_KEY"}
 	spec := endpointSpec(ep)
-	a, err := newSessionAgent(env, runOpts{}, ep, map[string]Endpoint{spec: ep}, nil, "/proj")
+	a, err := newSessionAgent(env, runOpts{}, ep, map[string]Endpoint{spec: ep}, nil, "/proj", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func TestSessionAgentPermissionSwitchResume(t *testing.T) {
 	ep := Endpoint{Preset: "xai", Model: "grok", BaseURL: presets["xai"].baseURL, KeyEnv: "XAI_API_KEY"}
 	spec := endpointSpec(ep)
 	bySpec := map[string]Endpoint{spec: ep}
-	a, err := newSessionAgent(env, runOpts{}, ep, bySpec, nil, "/proj")
+	a, err := newSessionAgent(env, runOpts{}, ep, bySpec, nil, "/proj", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

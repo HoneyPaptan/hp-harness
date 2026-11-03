@@ -122,7 +122,7 @@ func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoi
 	}
 	pr := newPrinter(env, id, client)
 	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env, modeString(mode), st)
-	tools := openToolset(env, skills, client)
+	tools := openToolset(env, dir, skills, client, st, nil)
 	defer tools.close()
 	rp := runPerm{
 		mode:  func() permit.Mode { return mode },

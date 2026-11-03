@@ -9,6 +9,7 @@ import (
 
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/mcp"
+	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/skill"
 	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
@@ -17,15 +18,17 @@ type toolset struct {
 	reg       *tool.Registry
 	connected []tool.Tool
 	clients   []*mcp.Client
+	nested    *nestedContext
 }
 
-func openToolset(env Env, skills []skill.Skill, client *jev.Client) *toolset {
+func openToolset(env Env, workDir string, skills []skill.Skill, client *jev.Client, st settings, msgs []provider.Message) *toolset {
 	connected, clients := connectionTools(env)
-	return &toolset{reg: buildRegistry(skills, jevTools(client), connected, client == nil), connected: connected, clients: clients}
+	nested := newNestedContext(contextEnabled(st), env.Host, workDir, attachedInstructionPaths(msgs))
+	return &toolset{reg: buildRegistry(skills, jevTools(client), connected, client == nil, nested), connected: connected, clients: clients, nested: nested}
 }
 
 func (t *toolset) setJev(skills []skill.Skill, client *jev.Client) {
-	t.reg = buildRegistry(skills, jevTools(client), t.connected, client == nil)
+	t.reg = buildRegistry(skills, jevTools(client), t.connected, client == nil, t.nested)
 }
 
 func (t *toolset) close() {

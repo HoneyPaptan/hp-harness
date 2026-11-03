@@ -40,22 +40,21 @@ type sessionAgent struct {
 	turnEmit   func(tui.Event)
 }
 
-func newSessionAgent(env Env, o runOpts, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, dir string) (*sessionAgent, error) {
+func newSessionAgent(env Env, o runOpts, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, dir string, msgs []provider.Message) (*sessionAgent, error) {
 	skills, err := discoverSkills(env, dir)
 	if err != nil {
 		return nil, err
 	}
-	tools := openToolset(env, skills, client)
-	a := &sessionAgent{env: env, opts: o, client: client, dir: dir, skills: skills, tools: tools, ep: ep, bySpec: bySpec}
+	a := &sessionAgent{env: env, opts: o, client: client, dir: dir, skills: skills, ep: ep, bySpec: bySpec}
 	if err := a.initPerm(false, ""); err != nil {
-		tools.close()
 		return nil, err
 	}
+	a.tools = openToolset(env, dir, skills, client, a.settings, msgs)
 	return a, nil
 }
 
 func restoredAgent(env Env, st journal.State, bySpec map[string]Endpoint, ep Endpoint, client *jev.Client, id, jpath string) (*sessionAgent, error) {
-	a, err := newSessionAgent(env, optsFromStart(st.Start), ep, bySpec, client, st.Start.Dir)
+	a, err := newSessionAgent(env, optsFromStart(st.Start), ep, bySpec, client, st.Start.Dir, st.Messages)
 	if err != nil {
 		return nil, err
 	}

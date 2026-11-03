@@ -438,7 +438,7 @@ func TestSetJevMissingKey(t *testing.T) {
 	h := host.NewMemory()
 	env, _, _ := testEnv(t, h, nil, nil)
 	env.NewJev = func(func(string) string) (*jev.Client, error) { return nil, jev.ErrNoKey }
-	a := &sessionAgent{env: env, tools: openToolset(env, nil, nil)}
+	a := &sessionAgent{env: env, tools: openToolset(env, "/proj", nil, nil, settings{}, nil)}
 	if err := a.SetJev(true); err == nil || err.Error() != jevKeyHint {
 		t.Fatalf("err %v", err)
 	}
@@ -480,7 +480,7 @@ func TestSetJevSeesKeyAddedDuringSession(t *testing.T) {
 		c, err := jev.FromEnv(getenv)
 		return &c, err
 	}
-	a := &sessionAgent{env: env, tools: openToolset(env, nil, nil)}
+	a := &sessionAgent{env: env, tools: openToolset(env, "/proj", nil, nil, settings{}, nil)}
 	if err := a.SetJev(true); err == nil {
 		t.Fatal("jev on without a key")
 	}
@@ -500,7 +500,7 @@ func TestSaveKeyThenJevOn(t *testing.T) {
 		c, err := jev.FromEnv(getenv)
 		return &c, err
 	}
-	a := &sessionAgent{env: env, tools: openToolset(env, nil, nil)}
+	a := &sessionAgent{env: env, tools: openToolset(env, "/proj", nil, nil, settings{}, nil)}
 	if err := a.SaveKey("TYPESAFE_API_KEY", "k"); err != nil {
 		t.Fatal(err)
 	}

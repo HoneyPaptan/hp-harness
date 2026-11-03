@@ -21,8 +21,8 @@ func discoverSkills(env Env, dir string) ([]skill.Skill, error) {
 	return skill.Discover(env.Host, skillDirs(dir, env.Getenv("HOME")))
 }
 
-func buildRegistry(skills []skill.Skill, extra, connected []tool.Tool, deferring bool) *tool.Registry {
-	direct := append(tool.Builtins(), extra...)
+func buildRegistry(skills []skill.Skill, extra, connected []tool.Tool, deferring bool, nested *nestedContext) *tool.Registry {
+	direct := wrapNestedTools(append(tool.Builtins(), extra...), nested)
 	if len(skills) > 0 {
 		direct = append(direct, skill.NewTool(skills))
 	}
