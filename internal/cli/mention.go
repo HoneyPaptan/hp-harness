@@ -73,17 +73,11 @@ func mentionPaths(prompt string) []string {
 }
 
 func resolveMention(h host.Host, dir, rel string) (abs, display string, ok bool) {
-	if rel == "" || filepath.IsAbs(rel) {
+	parts, ok := relPathParts(rel)
+	if !ok {
 		return "", "", false
 	}
 	display = filepath.ToSlash(path.Clean(rel))
-	if mentionBadPath(display) {
-		return "", "", false
-	}
-	parts := mentionParts(display)
-	if len(parts) == 0 {
-		return "", "", false
-	}
 	cur := dir
 	for i, p := range parts {
 		cur = filepath.Join(cur, p)

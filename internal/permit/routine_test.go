@@ -27,6 +27,13 @@ func TestBashRoutine(t *testing.T) {
 			t.Errorf("expected routine %q", cmd)
 		}
 	}
+	more := []string{"rg foo", "git log --oneline", "git branch", "go test ./..."}
+	for _, cmd := range more {
+		a := Action{Tool: "bash", Target: cmd, Kind: KindExec}
+		if !Routine(a, dir, home) {
+			t.Errorf("expected routine %q", cmd)
+		}
+	}
 }
 
 func TestBashNotRoutine(t *testing.T) {
@@ -47,6 +54,16 @@ func TestBashNotRoutine(t *testing.T) {
 		"make install",
 		"make test x",
 		"npm run release",
+		"rg --pre=sh x",
+		"grep --pre-glob='*.sh' x",
+		"git diff --ext-diff",
+		"git log --output=/tmp/x",
+		"git -c core.pager=sh log",
+		"git branch -D main",
+		"go test -exec sh ./...",
+		"go build -o /usr/bin/x",
+		"find . -fprint0 x",
+		"cat $HOME/x",
 	}
 	for _, cmd := range cmds {
 		a := Action{Tool: "bash", Target: cmd, Kind: KindExec}
@@ -72,6 +89,13 @@ func TestWriteRoutine(t *testing.T) {
 		if Routine(a, dir, home) {
 			t.Errorf("expected not routine write %q", target)
 		}
+	}
+}
+
+func TestWriteLinkedNotRoutine(t *testing.T) {
+	a := Action{Tool: "write", Target: "x.go", Kind: KindWrite, Linked: true}
+	if Routine(a, "/w", "/home/u") {
+		t.Fatal("linked write should not be routine")
 	}
 }
 

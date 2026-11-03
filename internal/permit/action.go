@@ -11,6 +11,7 @@ type Action struct {
 	Tool   string
 	Target string
 	Kind   Kind
+	Linked bool
 }
 
 func (a Action) String() string {
