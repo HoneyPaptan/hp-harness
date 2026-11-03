@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+func RunsDir(getenv func(string) string) string {
+	return runsDir(getenv)
+}
+
 func runsDir(getenv func(string) string) string {
 	if base := getenv("XDG_STATE_HOME"); base != "" {
 		return path.Join(base, "hp", "runs")

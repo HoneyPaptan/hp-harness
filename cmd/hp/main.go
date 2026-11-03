@@ -38,6 +38,7 @@ func run() int {
 	if detached {
 		env.Getenv = detachedGetenv
 	}
+	privateRunsDir(env.Getenv)
 	return cli.Main(ctx, env)
 }
 
@@ -102,4 +103,11 @@ func detachedGetenv(key string) string {
 		return "1"
 	}
 	return os.Getenv(key)
+}
+
+func privateRunsDir(getenv func(string) string) {
+	dir := cli.RunsDir(getenv)
+	if err := os.MkdirAll(dir, 0o700); err == nil {
+		_ = os.Chmod(dir, 0o700)
+	}
 }
