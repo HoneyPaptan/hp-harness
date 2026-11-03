@@ -35,6 +35,10 @@ func Describe(call provider.ToolCall, dir string) Action {
 		return bashAction(call)
 	case "search":
 		return searchAction(call)
+	case "web_fetch":
+		return webFetchAction(call)
+	case "web_search":
+		return webSearchAction(call)
 	case "skill":
 		return skillAction(call)
 	case "tools":
@@ -69,13 +73,23 @@ func bashAction(call provider.ToolCall) Action {
 }
 
 func searchAction(call provider.ToolCall) Action {
-	var args struct {
-		Query string `json:"query"`
+	return Action{Tool: "search", Target: stringArg(call.Args, "query"), Kind: KindNet}
+}
+
+func webFetchAction(call provider.ToolCall) Action {
+	return Action{Tool: "web_fetch", Target: stringArg(call.Args, "url"), Kind: KindExternal}
+}
+
+func webSearchAction(call provider.ToolCall) Action {
+	return Action{Tool: "web_search", Target: stringArg(call.Args, "query"), Kind: KindExternal}
+}
+
+func stringArg(raw json.RawMessage, field string) string {
+	var args map[string]string
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return ""
 	}
-	if err := json.Unmarshal(call.Args, &args); err != nil {
-		return Action{Tool: "search", Target: "", Kind: KindNet}
-	}
-	return Action{Tool: "search", Target: args.Query, Kind: KindNet}
+	return args[field]
 }
 
 func skillAction(call provider.ToolCall) Action {

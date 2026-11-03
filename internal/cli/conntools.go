@@ -19,16 +19,21 @@ type toolset struct {
 	connected []tool.Tool
 	clients   []*mcp.Client
 	nested    *nestedContext
+	env       Env
+	st        settings
 }
 
 func openToolset(env Env, workDir string, skills []skill.Skill, client *jev.Client, st settings, msgs []provider.Message) *toolset {
 	connected, clients := connectionTools(env)
 	nested := newNestedContext(contextEnabled(st), env.Host, workDir, attachedInstructionPaths(msgs))
-	return &toolset{reg: buildRegistry(skills, jevTools(client), connected, client == nil, nested), connected: connected, clients: clients, nested: nested}
+	return &toolset{
+		reg:       buildRegistry(skills, toolExtras(env, client, st), connected, client == nil, nested),
+		connected: connected, clients: clients, nested: nested, env: env, st: st,
+	}
 }
 
 func (t *toolset) setJev(skills []skill.Skill, client *jev.Client) {
-	t.reg = buildRegistry(skills, jevTools(client), t.connected, client == nil, t.nested)
+	t.reg = buildRegistry(skills, toolExtras(t.env, client, t.st), t.connected, client == nil, t.nested)
 }
 
 func (t *toolset) close() {

@@ -196,7 +196,7 @@ func TestFewConnectionToolsAreSentDirectly(t *testing.T) {
 	if code := e.run("run", "-m", "xai/grok", "go"); code != 0 {
 		t.Fatalf("code %d %s", code, e.stderr)
 	}
-	want := []string{"read", "write", "edit", "bash", "grep", "fs__echo", "fs__tool01"}
+	want := []string{"read", "write", "edit", "bash", "grep", "web_fetch", "fs__echo", "fs__tool01"}
 	if got := requestToolNames(fp.Requests[0]); !slices.Equal(got, want) {
 		t.Fatalf("tools %v", got)
 	}

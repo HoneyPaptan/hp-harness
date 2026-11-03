@@ -165,6 +165,40 @@ func TestDecideMCPRule(t *testing.T) {
 	}
 }
 
+func TestDecideWebFetchRules(t *testing.T) {
+	rules := []Rule{{Tool: "web_fetch", Pattern: "https://pkg.go.dev/*", Verdict: Allow}}
+	allowed := Action{Tool: "web_fetch", Target: "https://pkg.go.dev/std", Kind: KindExternal}
+	v, _ := Decide(ModeAuto, rules, nil, allowed, "/w", "/home/u")
+	if v != Allow {
+		t.Fatalf("allowed got %q", v)
+	}
+	other := Action{Tool: "web_fetch", Target: "https://example.com/", Kind: KindExternal}
+	v, _ = Decide(ModeAuto, rules, nil, other, "/w", "/home/u")
+	if v != Review {
+		t.Fatalf("other got %q", v)
+	}
+}
+
+func TestDecideWebSearchAllowAll(t *testing.T) {
+	rules := []Rule{{Tool: "web_search", Pattern: "*", Verdict: Allow}}
+	a := Action{Tool: "web_search", Target: "anything", Kind: KindExternal}
+	v, _ := Decide(ModeAuto, rules, nil, a, "/w", "/home/u")
+	if v != Allow {
+		t.Fatalf("got %q", v)
+	}
+}
+
+func TestParseRulesWebToolNames(t *testing.T) {
+	raw := json.RawMessage(`{"web_fetch": {"https://pkg.go.dev/*": "allow"}, "web_search": "allow"}`)
+	rules, err := ParseRules(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rules) != 2 {
+		t.Fatalf("len %d", len(rules))
+	}
+}
+
 func TestGrantsExactMatch(t *testing.T) {
 	g := &Grants{}
 	g.Add(Action{Tool: "bash", Target: "git push", Kind: KindExec})

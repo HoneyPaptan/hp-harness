@@ -60,6 +60,16 @@ func TestDescribeTools(t *testing.T) {
 			want: Action{Tool: "search", Target: "how auth works", Kind: KindNet},
 		},
 		{
+			name: "web_fetch",
+			call: provider.ToolCall{Name: "web_fetch", Args: json.RawMessage(`{"url":"https://pkg.go.dev/std"}`)},
+			want: Action{Tool: "web_fetch", Target: "https://pkg.go.dev/std", Kind: KindExternal},
+		},
+		{
+			name: "web_search",
+			call: provider.ToolCall{Name: "web_search", Args: json.RawMessage(`{"query":"go modules"}`)},
+			want: Action{Tool: "web_search", Target: "go modules", Kind: KindExternal},
+		},
+		{
 			name: "skill",
 			call: provider.ToolCall{Name: "skill", Args: json.RawMessage(`{"name":"deploy"}`)},
 			want: Action{Tool: "skill", Target: "deploy", Kind: KindMeta},

@@ -125,6 +125,18 @@ func TestMCPNotRoutine(t *testing.T) {
 	}
 }
 
+func TestWebToolsNotRoutine(t *testing.T) {
+	dir, home := "/w", "/home/u"
+	fetch := Action{Tool: "web_fetch", Target: "https://pkg.go.dev/", Kind: KindExternal}
+	if Routine(fetch, dir, home) {
+		t.Fatal("web_fetch should not be routine")
+	}
+	search := Action{Tool: "web_search", Target: "x", Kind: KindExternal}
+	if Routine(search, dir, home) {
+		t.Fatal("web_search should not be routine")
+	}
+}
+
 func TestShellWords(t *testing.T) {
 	tests := []struct {
 		in   string

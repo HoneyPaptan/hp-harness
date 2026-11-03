@@ -18,6 +18,7 @@ type settings struct {
 	PermissionMode     string          `json:"permission_mode"`
 	Permission         json.RawMessage `json:"permission"`
 	Context            *bool           `json:"context"`
+	Web                *bool           `json:"web"`
 	AutoCompactPercent *int            `json:"auto_compact_percent"`
 	ContextWindows     map[string]int  `json:"context_windows"`
 }
