@@ -121,6 +121,20 @@ Set `"context": false` in `~/.config/hp/settings.json` to turn all of this off.
 
 The bash tool runs commands with `bash -c`, using the environment of your login shell (`$SHELL -l -c 'env -0'`, read once per process, 3 second limit), so PATH entries and tools from your fish, zsh or bash config are there. Every command also gets `AI_AGENT=hp`. `HP_LOGIN_ENV=0` keeps hp's own environment instead.
 
+## Compaction
+
+A long run keeps going when it fills the model's context, like fx. When the last request used 80% of the usable input window (the window minus `--max-tokens`), hp replaces older history with a short handoff before the next request: your earlier prompts word for word, plus a summary written by the session's own model in one request without tools. The most recent part (about 5% of the window) stays as it was, and a tool call is never split from its result. If the provider still reports a context overflow, hp compacts and retries the turn once.
+
+The full history stays in the run's journal; resume and `hp -c` continue from the compacted context. Type `/compact` in a session to compact right away; it says `nothing to compact` when the history is too short to need it.
+
+Settings in `~/.config/hp/settings.json`:
+
+```json
+{"auto_compact_percent": 70, "context_windows": {"groq/openai/gpt-oss-120b": 131072}}
+```
+
+`auto_compact_percent` takes 10 to 80 (default 80). `context_windows` sets a model's window by its `-m` spec. Without one, hp knows a few model families and otherwise assumes 128000 tokens.
+
 ## Permissions
 
 Every tool call passes through a permission gate before it runs. The footer shows the active mode: `auto`, `ask`, or `full-access`. `auto` is the default when nothing else is set.
