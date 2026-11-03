@@ -223,6 +223,9 @@ func (a *sessionAgent) SetJev(on bool) error {
 	if on == a.Jev() {
 		return nil
 	}
+	if on {
+		a.env = reloadKeyFile(a.env)
+	}
 	client, err := openJev(a.env, on)
 	if err != nil {
 		if errors.Is(err, jev.ErrNoKey) {

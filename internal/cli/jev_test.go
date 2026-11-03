@@ -264,9 +264,6 @@ func TestResumeJevFromJournal(t *testing.T) {
 			if got := hasTool(fp.Requests[0], "search"); got != tt.want {
 				t.Fatalf("search %v want %v", got, tt.want)
 			}
-			if got := strings.Contains(stderr.String(), "jev requests"); got != tt.want {
-				t.Fatalf("summary %q", stderr.String())
-			}
 		})
 	}
 }
@@ -470,5 +467,25 @@ func TestJevSummary(t *testing.T) {
 	want := "  jev requests 2 tokens 22/6\n"
 	if !strings.HasSuffix(stderr.String(), want) || strings.Count(stderr.String(), "jev requests") != 1 {
 		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestSetJevSeesKeyAddedDuringSession(t *testing.T) {
+	env, _, _, home := keyTestEnv(t, nil, nil)
+	env = applyKeyFile(env)
+	env.NewJev = func(getenv func(string) string) (*jev.Client, error) {
+		c, err := jev.FromEnv(getenv)
+		return &c, err
+	}
+	a := &sessionAgent{env: env, tools: openToolset(env, nil, nil)}
+	if err := a.SetJev(true); err == nil {
+		t.Fatal("jev on without a key")
+	}
+	keyTestFile(t, home, "TYPESAFE_API_KEY=k\n", 0o600)
+	if err := a.SetJev(true); err != nil {
+		t.Fatal(err)
+	}
+	if !a.Jev() {
+		t.Fatal("jev still off")
 	}
 }

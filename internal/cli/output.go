@@ -117,6 +117,9 @@ func (p *printer) jevSummary() string {
 		return ""
 	}
 	s := p.jev.Spent()
+	if s.Requests == 0 {
+		return ""
+	}
 	return fmt.Sprintf("  jev requests %d tokens %d/%d", s.Requests, s.InputTokens, s.OutputTokens)
 }
 

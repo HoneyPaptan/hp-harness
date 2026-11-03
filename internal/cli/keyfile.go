@@ -147,6 +147,11 @@ func keyListNames(kf keyFile, getenv func(string) string) []string {
 	return slices.Sorted(maps.Keys(seen))
 }
 
+func reloadKeyFile(env Env) Env {
+	env.Getenv = rawGetenv(env)
+	return applyKeyFile(env)
+}
+
 func applyKeyFile(env Env) Env {
 	real := env.Getenv
 	if real == nil {
