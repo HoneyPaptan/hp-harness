@@ -74,8 +74,13 @@ func (rv reviewer) ask(ctx context.Context, ctxText string) (reviewReply, error)
 	if s == "" {
 		return reviewReply{}, errors.New("no JSON in reply")
 	}
+	if strings.Count(strings.ToLower(s), `"hold"`) != 1 {
+		return reviewReply{}, errors.New("reply must name hold once")
+	}
 	var r reviewReply
-	if err := json.Unmarshal([]byte(s), &r); err != nil {
+	dec := json.NewDecoder(strings.NewReader(s))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&r); err != nil {
 		return reviewReply{}, err
 	}
 	return r, nil

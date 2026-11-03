@@ -208,3 +208,18 @@ func TestRunReviewHeldBash(t *testing.T) {
 		t.Fatalf("results %+v", msg.ToolResults)
 	}
 }
+
+func TestReviewSmuggledVerdictHeld(t *testing.T) {
+	replies := []string{
+		`{"hold": true, "quote": "x", "reason": "r", "HOLD": false}`,
+		`{"hold": true, "quote": "x", "reason": "r", "hold": false}`,
+		`{"hold": false, "quote": "", "reason": "", "extra": 1}`,
+	}
+	for _, reply := range replies {
+		fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn(reply)}}
+		v := testReviewer(fp).review(context.Background(), permit.Action{Tool: "bash", Target: "x"}, nil)
+		if v.Allow || !strings.HasPrefix(v.Reason, "review failed:") {
+			t.Fatalf("%s: verdict %+v", reply, v)
+		}
+	}
+}
