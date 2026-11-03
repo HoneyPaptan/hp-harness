@@ -137,6 +137,6 @@ func TestSessionDoesNotPreconnectDuringATurn(t *testing.T) {
 	h.play([]step{{keys: "x"}})
 	expectWarm(t, a, false)
 	close(gate)
-	h.play([]step{{wait: "m  steps"}})
+	h.play([]step{{wait: "0 steps"}})
 	expectWarm(t, a, false)
 }

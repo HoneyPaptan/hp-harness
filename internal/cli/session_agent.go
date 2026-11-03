@@ -197,6 +197,10 @@ func (a *sessionAgent) Model() string {
 	return endpointSpec(a.ep)
 }
 
+func (a *sessionAgent) Jev() bool {
+	return a.client != nil
+}
+
 func (a *sessionAgent) SetModel(spec string) error {
 	ep, ok := a.bySpec[spec]
 	if !ok {

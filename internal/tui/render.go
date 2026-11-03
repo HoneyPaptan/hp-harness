@@ -29,7 +29,9 @@ func DisableBracketedPaste(w io.Writer) error {
 type Renderer struct {
 	w         io.Writer
 	width     int
+	color     bool
 	cursorRow int
+	promptRow int
 	lastRow   int
 }
 
@@ -46,30 +48,43 @@ func (r *Renderer) SetWidth(width int) {
 	r.width = width
 }
 
-func (r *Renderer) Draw(prompt string, buf []rune, cursor int) error {
+func (r *Renderer) SetColor(color bool) {
+	r.color = color
+}
+
+func (r *Renderer) Draw(prompt string, buf []rune, cursor int, footer string) error {
 	head := []rune(prompt)
 	view := layOut(slices.Concat(head, buf), len(head)+cursor, r.width)
+	frame := view.rows
+	if footer != "" {
+		frame = append(slices.Clone(view.rows), "", r.footerRow(footer))
+	}
 	var out strings.Builder
 	moveUp(&out, r.cursorRow)
 	out.WriteString("\r" + eraseBelow)
-	out.WriteString(strings.Join(view.rows, rowSeparator))
-	moveUp(&out, len(view.rows)-1-view.row)
+	out.WriteString(strings.Join(frame, rowSeparator))
+	moveUp(&out, len(frame)-1-view.row)
 	out.WriteString("\r")
 	if view.col > 0 {
 		fmt.Fprintf(&out, "\x1b[%dC", view.col)
 	}
-	r.cursorRow = view.row
-	r.lastRow = len(view.rows) - 1
+	r.cursorRow, r.promptRow, r.lastRow = view.row, len(view.rows)-1, len(frame)-1
 	_, err := io.WriteString(r.w, out.String())
 	return err
 }
 
+func (r *Renderer) footerRow(text string) string {
+	return paint(r.color, sgrDim, fitRow(text, r.width))
+}
+
 func (r *Renderer) Finish() error {
 	var out strings.Builder
-	moveDown(&out, r.lastRow-r.cursorRow)
+	moveDown(&out, r.promptRow-r.cursorRow)
 	out.WriteString(rowSeparator)
-	r.cursorRow = 0
-	r.lastRow = 0
+	if r.lastRow > r.promptRow {
+		out.WriteString(eraseBelow)
+	}
+	r.cursorRow, r.promptRow, r.lastRow = 0, 0, 0
 	_, err := io.WriteString(r.w, out.String())
 	return err
 }
@@ -78,8 +93,7 @@ func (r *Renderer) Clear() error {
 	var out strings.Builder
 	moveUp(&out, r.cursorRow)
 	out.WriteString("\r" + eraseBelow)
-	r.cursorRow = 0
-	r.lastRow = 0
+	r.cursorRow, r.promptRow, r.lastRow = 0, 0, 0
 	_, err := io.WriteString(r.w, out.String())
 	return err
 }
@@ -94,6 +108,32 @@ func moveDown(out *strings.Builder, rows int) {
 	if rows > 0 {
 		fmt.Fprintf(out, "\x1b[%dB", rows)
 	}
+}
+
+func fitRow(text string, width int) string {
+	if rowWidth(text) <= width {
+		return text
+	}
+	var out strings.Builder
+	col := 0
+	for _, c := range text {
+		cells := RuneWidth(c)
+		if col+cells > width-1 {
+			break
+		}
+		out.WriteRune(c)
+		col += cells
+	}
+	out.WriteString("…")
+	return out.String()
+}
+
+func rowWidth(text string) int {
+	col := 0
+	for _, c := range text {
+		col += RuneWidth(c)
+	}
+	return col
 }
 
 type layout struct {

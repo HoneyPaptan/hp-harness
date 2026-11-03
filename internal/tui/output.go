@@ -28,7 +28,11 @@ func (o *output) write(s string) {
 }
 
 func (o *output) paint(sgr, s string) string {
-	if !o.color {
+	return paint(o.color, sgr, s)
+}
+
+func paint(color bool, sgr, s string) string {
+	if !color {
 		return s
 	}
 	return sgr + s + sgrReset
@@ -122,11 +126,11 @@ func isControl(r rune) bool {
 }
 
 func statusLine(o Outcome) string {
-	line := fmt.Sprintf("%s  steps %d  tokens %d/%d  ttft %dms",
-		o.Model, o.Steps, o.InputTokens, o.OutputTokens, o.TTFT.Milliseconds())
+	line := fmt.Sprintf("%d in · %d out · ttft %d ms · %d steps",
+		o.InputTokens, o.OutputTokens, o.TTFT.Milliseconds(), o.Steps)
 	for _, extra := range []string{o.Jev, o.Note} {
 		if extra != "" {
-			line += "  " + extra
+			line += " · " + extra
 		}
 	}
 	return line

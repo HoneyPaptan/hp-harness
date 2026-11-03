@@ -20,6 +20,7 @@ type Config struct {
 	Width  func() int
 	Color  bool
 	Agent  Agent
+	Header string
 	Resume bool
 	Intro  string
 	Now    func() time.Time
@@ -54,9 +55,11 @@ type Session struct {
 }
 
 func NewSession(cfg Config) *Session {
+	renderer := NewRenderer(cfg.Out, cfg.Width())
+	renderer.SetColor(cfg.Color)
 	return &Session{
 		cfg:      withClock(cfg),
-		renderer: NewRenderer(cfg.Out, cfg.Width()),
+		renderer: renderer,
 		out:      output{w: cfg.Out, color: cfg.Color},
 		input:    make(chan []byte),
 		events:   make(chan Event),
@@ -99,15 +102,26 @@ func (s *Session) rewarm(ctx context.Context) {
 
 func (s *Session) begin(ctx context.Context) {
 	s.preconnect(ctx)
-	if s.cfg.Intro != "" {
-		s.note(s.cfg.Intro)
-	}
+	s.greet()
 	if s.cfg.Resume {
 		s.startTurn(ctx, s.cfg.Agent.Resume)
 		return
 	}
 	s.dirty = true
 	s.redraw()
+}
+
+func (s *Session) greet() {
+	if s.cfg.Header == "" && s.cfg.Intro == "" {
+		return
+	}
+	if s.cfg.Header != "" {
+		s.note(s.cfg.Header)
+	}
+	if s.cfg.Intro != "" {
+		s.note(s.cfg.Intro)
+	}
+	s.out.gap()
 }
 
 func (s *Session) readInput() {
@@ -275,7 +289,15 @@ func (s *Session) redraw() {
 	s.dirty = false
 	s.drawn = true
 	s.renderer.SetWidth(s.cfg.Width())
-	_ = s.renderer.Draw(promptGlyph, s.editor.Runes(), s.editor.Cursor())
+	_ = s.renderer.Draw(promptGlyph, s.editor.Runes(), s.editor.Cursor(), footerLine(s.cfg.Agent))
+}
+
+func footerLine(a Agent) string {
+	line := a.Model() + " · jev"
+	if !a.Jev() {
+		line += " off"
+	}
+	return line
 }
 
 func (s *Session) endPrompt() {

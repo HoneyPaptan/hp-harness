@@ -146,12 +146,16 @@ func runSession(ctx context.Context, env Env, a tui.Agent, resume bool, intro st
 	_ = tui.EnableBracketedPaste(t)
 	tui.NewSession(tui.Config{
 		In: t, Out: t, Width: t.Width, Color: colorOn(env.Getenv),
-		Agent: a, Resume: resume, Intro: intro,
+		Agent: a, Header: sessionHeader(env.Version), Resume: resume, Intro: intro,
 	}).Run(ctx)
 	if ctx.Err() != nil {
 		return 130
 	}
 	return 0
+}
+
+func sessionHeader(version string) string {
+	return "hp " + version + " · /help for commands"
 }
 
 func restoreTerminal(t Terminal, restore func() error) {

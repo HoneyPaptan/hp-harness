@@ -48,7 +48,7 @@ func TestDraw(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var out strings.Builder
-			if err := NewRenderer(&out, tc.width).Draw("> ", []rune(tc.text), tc.cursor); err != nil {
+			if err := NewRenderer(&out, tc.width).Draw("> ", []rune(tc.text), tc.cursor, ""); err != nil {
 				t.Fatal(err)
 			}
 			want := "\r\x1b[J" + tc.want
@@ -59,10 +59,113 @@ func TestDraw(t *testing.T) {
 	}
 }
 
+func TestDrawFooter(t *testing.T) {
+	tests := []struct {
+		name   string
+		width  int
+		text   string
+		cursor int
+		footer string
+		want   string
+	}{
+		{"width 100", 100, "hi", 2, "groq/openai/gpt-oss-120b · jev off",
+			"> hi\r\n\r\ngroq/openai/gpt-oss-120b · jev off\x1b[2A\r\x1b[4C"},
+		{"width 40", 40, "hi", 2, "xai/grok · jev",
+			"> hi\r\n\r\nxai/grok · jev\x1b[2A\r\x1b[4C"},
+		{"footer cut", 10, "", 0, "abc · jev off",
+			"> \r\n\r\nabc · jev…\x1b[2A\r\x1b[2C"},
+		{"footer at width", 10, "", 0, "abc defghi",
+			"> \r\n\r\nabc defghi\x1b[2A\r\x1b[2C"},
+		{"multi row input", 80, "ab\ncd", 5, "m · jev",
+			"> ab\r\ncd\r\n\r\nm · jev\x1b[2A\r\x1b[2C"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var out strings.Builder
+			if err := NewRenderer(&out, tc.width).Draw("> ", []rune(tc.text), tc.cursor, tc.footer); err != nil {
+				t.Fatal(err)
+			}
+			want := "\r\x1b[J" + tc.want
+			if got := out.String(); got != want {
+				t.Fatalf("got  %q\nwant %q", got, want)
+			}
+		})
+	}
+}
+
+func TestDrawFooterIsDim(t *testing.T) {
+	var out strings.Builder
+	r := NewRenderer(&out, 80)
+	r.SetColor(true)
+	if err := r.Draw("> ", []rune("hi"), 2, "m · jev"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := out.String(), "\r\x1b[J> hi\r\n\r\n"+sgrDim+"m · jev"+sgrReset+"\x1b[2A\r\x1b[4C"; got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestFinishErasesFooter(t *testing.T) {
+	tests := []struct {
+		name   string
+		text   string
+		cursor int
+		want   string
+	}{
+		{"single row", "a", 1, "\r\n\x1b[J"},
+		{"cursor above last row", "a\nb\nc", 1, "\x1b[2B\r\n\x1b[J"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var out strings.Builder
+			r := NewRenderer(&out, 80)
+			r.Draw("> ", []rune(tc.text), tc.cursor, "m · jev")
+			out.Reset()
+			if err := r.Finish(); err != nil {
+				t.Fatal(err)
+			}
+			if got := out.String(); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+			out.Reset()
+			r.Draw("> ", nil, 0, "")
+			if got, want := out.String(), "\r\x1b[J> \r\x1b[2C"; got != want {
+				t.Fatalf("after finish got %q want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestClearErasesFooter(t *testing.T) {
+	tests := []struct {
+		name   string
+		text   string
+		cursor int
+		want   string
+	}{
+		{"cursor on first row", "a", 1, "\r\x1b[J"},
+		{"cursor on last prompt row", "a\nb", 2, "\x1b[1A\r\x1b[J"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var out strings.Builder
+			r := NewRenderer(&out, 80)
+			r.Draw("> ", []rune(tc.text), tc.cursor, "m · jev")
+			out.Reset()
+			if err := r.Clear(); err != nil {
+				t.Fatal(err)
+			}
+			if got := out.String(); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDrawOutputIsInline(t *testing.T) {
 	var out strings.Builder
 	r := NewRenderer(&out, 4)
-	r.Draw("> ", []rune("abc\ndef"), 1)
+	r.Draw("> ", []rune("abc\ndef"), 1, "")
 	r.Finish()
 	for _, banned := range []string{"\x1b[?1049", "\x1b[?47", "\x1b[2J", "\x1b[H"} {
 		if strings.Contains(out.String(), banned) {
@@ -87,9 +190,9 @@ func TestRedraw(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var out strings.Builder
 			r := NewRenderer(&out, 4)
-			r.Draw("> ", []rune(tc.text), tc.cursor)
+			r.Draw("> ", []rune(tc.text), tc.cursor, "")
 			out.Reset()
-			r.Draw("> ", []rune(tc.second), len(tc.second))
+			r.Draw("> ", []rune(tc.second), len(tc.second), "")
 			if got := out.String(); got != tc.want {
 				t.Fatalf("got  %q\nwant %q", got, tc.want)
 			}
@@ -112,7 +215,7 @@ func TestFinish(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var out strings.Builder
 			r := NewRenderer(&out, 80)
-			r.Draw("> ", []rune(tc.text), tc.cursor)
+			r.Draw("> ", []rune(tc.text), tc.cursor, "")
 			out.Reset()
 			if err := r.Finish(); err != nil {
 				t.Fatal(err)
@@ -121,7 +224,7 @@ func TestFinish(t *testing.T) {
 				t.Fatalf("got %q want %q", got, tc.want)
 			}
 			out.Reset()
-			r.Draw("> ", nil, 0)
+			r.Draw("> ", nil, 0, "")
 			if got, want := out.String(), "\r\x1b[J> \r\x1b[2C"; got != want {
 				t.Fatalf("after finish got %q want %q", got, want)
 			}
@@ -133,7 +236,7 @@ func TestSetWidth(t *testing.T) {
 	var out strings.Builder
 	r := NewRenderer(&out, 80)
 	r.SetWidth(4)
-	r.Draw("> ", []rune("abc"), 3)
+	r.Draw("> ", []rune("abc"), 3, "")
 	if got, want := out.String(), "\r\x1b[J> ab\r\nc\r\x1b[1C"; got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}

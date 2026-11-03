@@ -34,6 +34,7 @@ type fakeAgent struct {
 	mu      sync.Mutex
 	prompts []string
 	model   string
+	jevOn   bool
 	resets  int
 	resumed int
 	runs    []string
@@ -68,6 +69,8 @@ func (a *fakeAgent) Resume(ctx context.Context, emit func(Event)) (Outcome, erro
 }
 
 func (a *fakeAgent) Model() string { return a.model }
+
+func (a *fakeAgent) Jev() bool { return a.jevOn }
 
 func (a *fakeAgent) SetModel(spec string) error {
 	if !strings.Contains(spec, "/") {
@@ -124,11 +127,18 @@ type harness struct {
 
 func startSession(t *testing.T, a *fakeAgent, color, resume bool) *harness {
 	t.Helper()
+	return startSessionWith(t, a, Config{Color: color, Resume: resume})
+}
+
+func startSessionWith(t *testing.T, a *fakeAgent, cfg Config) *harness {
+	t.Helper()
 	r, w := io.Pipe()
 	h := &harness{t: t, agent: a, out: &screen{}, writer: w, exited: make(chan struct{})}
-	s := NewSession(Config{
-		In: r, Out: h.out, Width: func() int { return 80 }, Color: color, Agent: a, Resume: resume,
-	})
+	cfg.In, cfg.Out, cfg.Agent = r, h.out, a
+	if cfg.Width == nil {
+		cfg.Width = func() int { return 80 }
+	}
+	s := NewSession(cfg)
 	go func() {
 		defer close(h.exited)
 		s.Run(context.Background())
@@ -195,7 +205,7 @@ func (h *harness) waitExit() {
 }
 
 func TestSessionScripts(t *testing.T) {
-	status := "xai/grok  steps 1  tokens 8/4  ttft 7ms"
+	status := "8 in · 4 out · ttft 7 ms · 1 steps"
 	cases := []struct {
 		name    string
 		script  []func(context.Context, func(Event)) (Outcome, error)
@@ -215,7 +225,7 @@ func TestSessionScripts(t *testing.T) {
 			script: scriptOf(replyTurn("ok"), func(context.Context, func(Event)) (Outcome, error) {
 				return Outcome{Model: "second"}, nil
 			}),
-			steps:   []step{{keys: "one\r"}, {turn: true}, {wait: status}, {keys: "two\r"}, {turn: true}, {wait: "second  steps"}, {keys: "\x04"}},
+			steps:   []step{{keys: "one\r"}, {turn: true}, {wait: status}, {keys: "two\r"}, {turn: true}, {wait: "0 steps"}, {keys: "\x04"}},
 			prompts: []string{"one", "two"},
 			want:    []string{"› one", "› two"},
 		},
@@ -306,7 +316,7 @@ func TestSessionScripts(t *testing.T) {
 			}),
 			steps:   []step{{keys: "go\r"}, {wait: "step limit"}, {keys: "\x04"}},
 			prompts: []string{"go"},
-			want:    []string{"  read a.go", "  no such file", "limited on xai/grok", "bad[2Jout\r\nnext", "jev requests 1 tokens 2/3  step limit"},
+			want:    []string{"  read a.go", "  no such file", "limited on xai/grok", "bad[2Jout\r\nnext", "jev requests 1 tokens 2/3 · step limit"},
 			reject:  []string{"\x1b[2J"},
 		},
 	}
@@ -335,6 +345,96 @@ func TestSessionScripts(t *testing.T) {
 	}
 }
 
+func TestStatusLine(t *testing.T) {
+	tests := []struct {
+		name string
+		in   Outcome
+		want string
+	}{
+		{
+			"plain",
+			Outcome{Model: "xai/grok", Steps: 1, InputTokens: 10, OutputTokens: 2, TTFT: 300 * time.Millisecond},
+			"10 in · 2 out · ttft 300 ms · 1 steps",
+		},
+		{
+			"jev",
+			Outcome{InputTokens: 1, OutputTokens: 2, TTFT: 3 * time.Millisecond, Jev: "jev requests 1"},
+			"1 in · 2 out · ttft 3 ms · 0 steps · jev requests 1",
+		},
+		{
+			"note",
+			Outcome{InputTokens: 1, OutputTokens: 2, TTFT: 3 * time.Millisecond, Note: "step limit"},
+			"1 in · 2 out · ttft 3 ms · 0 steps · step limit",
+		},
+		{
+			"jev and note",
+			Outcome{Steps: 2, Jev: "jev requests 1", Note: "step limit"},
+			"0 in · 0 out · ttft 0 ms · 2 steps · jev requests 1 · step limit",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := statusLine(tc.in); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSessionHeader(t *testing.T) {
+	header := "hp v0.0.2 · /help for commands"
+	h := startSessionWith(t, newFakeAgent(), Config{Header: header})
+	h.play([]step{{wait: header + "\r\n\r\n"}, {keys: "\x04"}})
+	h.waitExit()
+	if got := strings.Count(h.out.String(), header); got != 1 {
+		t.Fatalf("header printed %d times in %q", got, h.out.String())
+	}
+}
+
+func TestSessionHeaderThenIntro(t *testing.T) {
+	h := startSessionWith(t, newFakeAgent(), Config{Header: "hp v · /help", Intro: "continuing run-1"})
+	h.play([]step{{wait: "hp v · /help\r\ncontinuing run-1\r\n\r\n"}, {keys: "\x04"}})
+	h.waitExit()
+}
+
+func TestSessionFooter(t *testing.T) {
+	tests := []struct {
+		name   string
+		jevOn  bool
+		want   string
+		reject string
+	}{
+		{"jev on", true, "xai/grok · jev", "jev off"},
+		{"jev off", false, "xai/grok · jev off", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newFakeAgent()
+			a.jevOn = tc.jevOn
+			h := startSession(t, a, false, false)
+			h.play([]step{{wait: tc.want}, {keys: "\x04"}})
+			h.waitExit()
+			if tc.reject != "" && strings.Contains(h.out.String(), tc.reject) {
+				t.Fatalf("found %q in %q", tc.reject, h.out.String())
+			}
+		})
+	}
+}
+
+func TestSessionFooterStaysOutOfScrollback(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	footer := "xai/grok · jev off"
+	h.play([]step{{keys: "go\r"}, {wait: "1 steps"}, {keys: "\x04"}})
+	h.waitExit()
+	out := h.out.String()
+	if !strings.Contains(out, footer) {
+		t.Fatalf("footer never drawn: %q", out)
+	}
+	if strings.Contains(out, footer+rowSeparator) {
+		t.Fatalf("footer left in the transcript: %q", out)
+	}
+}
+
 func scriptOf(turns ...func(context.Context, func(Event)) (Outcome, error)) []func(context.Context, func(Event)) (Outcome, error) {
 	return turns
 }
@@ -349,7 +449,7 @@ func TestSessionActivityErasedByFirstText(t *testing.T) {
 	h := startSession(t, a, true, false)
 	h.play([]step{{keys: "go\r"}, {wait: activityText}})
 	close(gate)
-	h.play([]step{{wait: "m  steps"}, {keys: "\x04"}})
+	h.play([]step{{wait: "0 steps"}, {keys: "\x04"}})
 	h.waitExit()
 	if !strings.Contains(h.out.String(), activityText+sgrReset+eraseLine+"hi") {
 		t.Fatalf("output %q", h.out.String())

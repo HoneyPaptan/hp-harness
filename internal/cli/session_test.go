@@ -215,6 +215,19 @@ func TestSessionRestoresTerminal(t *testing.T) {
 	}
 }
 
+func TestSessionHeaderCarriesVersion(t *testing.T) {
+	fp := &fake.Provider{}
+	env, _, _ := testEnv(t, host.NewMemory(), fp, nil)
+	env.Version = "v9.9.9"
+	term := newFakeTerm(t)
+	env.Term = term
+	env.Args = []string{"-m", "xai/grok"}
+	code := startHP(t, env)
+	term.await(t, "hp v9.9.9 · /help for commands", 1)
+	term.send(t, "\x04")
+	awaitCode(t, code)
+}
+
 func TestSessionSecondTurnCarriesHistory(t *testing.T) {
 	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("one"), fake.TextTurn("two")}}
 	h := host.NewMemory()
@@ -224,12 +237,12 @@ func TestSessionSecondTurnCarriesHistory(t *testing.T) {
 	env.Args = []string{"-m", "xai/grok"}
 	code := startHP(t, env)
 	term.send(t, "first\r")
-	term.await(t, "xai/grok  steps 0", 1)
+	term.await(t, "0 steps", 1)
 	if ids, _ := sortedRunIDs(env, runsDir(env.Getenv)); len(ids) != 1 || !runAlive(withAlive(env), ids[0]) {
 		t.Fatalf("run not live: %v", ids)
 	}
 	term.send(t, "second\r")
-	term.await(t, "xai/grok  steps 0", 2)
+	term.await(t, "0 steps", 2)
 	term.send(t, "\x04")
 	awaitCode(t, code)
 	want := []string{"first", "one", "second"}
@@ -265,7 +278,7 @@ func TestSessionInterruptThenContinues(t *testing.T) {
 	term.await(t, "interrupted", 1)
 	term.await(t, "\r\n\r\n", 1)
 	term.send(t, "again\r")
-	term.await(t, "steps 0", 1)
+	term.await(t, "0 steps", 1)
 	term.send(t, "\x04")
 	awaitCode(t, code)
 	want := []string{"first", "again"}
@@ -335,7 +348,7 @@ func TestSessionContinuePicksMatchingDir(t *testing.T) {
 	code := startHP(t, env)
 	term.await(t, "continuing 20260102-000000-bbbb", 1)
 	term.send(t, "next\r")
-	term.await(t, "xai/grok  steps", 1)
+	term.await(t, "0 steps", 1)
 	term.send(t, "\x04")
 	awaitCode(t, code)
 	want := []string{"old 20260102-000000-bbbb", "answer", "next"}
@@ -393,11 +406,11 @@ func TestSessionModelSwitchSurvivesResume(t *testing.T) {
 	env.Args = []string{"-m", "xai/grok"}
 	code := startHP(t, env)
 	term.send(t, "first\r")
-	term.await(t, "xai/grok  steps", 1)
+	term.await(t, "0 steps", 1)
 	term.send(t, "/model groq/fast\r")
 	term.await(t, "model groq/fast", 1)
 	term.send(t, "second\r")
-	term.await(t, "groq/fast  steps", 1)
+	term.await(t, "0 steps", 2)
 	term.send(t, "\x04")
 	awaitCode(t, code)
 	if fp.Requests[1].Model != "fast" {
