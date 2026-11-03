@@ -78,10 +78,14 @@ func (c *Client) newStreamHTTPRequest(ctx context.Context, body []byte) (*http.R
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
-	if c.APIKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.APIKey)
-	}
+	c.setAuthorization(httpReq.Header)
 	return httpReq, nil
+}
+
+func (c *Client) setAuthorization(h http.Header) {
+	if c.APIKey != "" {
+		h.Set("Authorization", "Bearer "+c.APIKey)
+	}
 }
 
 func (c *Client) Preconnect(ctx context.Context) {
