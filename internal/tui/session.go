@@ -60,6 +60,7 @@ type Session struct {
 	pending   string
 	complete  *completion
 	fileCache []string
+	approval  *approval
 }
 
 func NewSession(cfg Config) *Session {
@@ -195,6 +196,12 @@ func (s *Session) showEvent(ev Event) {
 		s.out.activity()
 		return
 	}
+	if ev.Kind == EventApprove {
+		if ev.Reply != nil && !s.stopping {
+			s.openApproval(ev)
+		}
+		return
+	}
 	if !s.stopping {
 		s.out.apply(ev)
 	}
@@ -252,6 +259,7 @@ func (s *Session) finishTurn(ctx context.Context, res turnResult) {
 }
 
 func (s *Session) settle(res turnResult) {
+	s.dropApproval()
 	s.cancel()
 	s.cancel = nil
 	if res.panicked != nil {
@@ -301,6 +309,10 @@ func (s *Session) fail(err error) {
 }
 
 func (s *Session) redraw() {
+	if s.approval != nil {
+		s.drawApproval()
+		return
+	}
 	if !s.dirty || s.quit || s.busy() {
 		return
 	}

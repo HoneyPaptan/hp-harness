@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -168,5 +169,122 @@ func TestSessionAgentModelsKeepsCurrentEndpoint(t *testing.T) {
 	}
 	if stub.ep.BaseURL != cur.BaseURL {
 		t.Fatalf("current preset base URL = %q", stub.ep.BaseURL)
+	}
+}
+
+func askModeAgent(t *testing.T, fp *fake.Provider) *sessionAgent {
+	t.Helper()
+	h := host.NewMemory()
+	env, _, _ := testEnv(t, h, fp, map[string]string{"HP_PERMISSION_MODE": "ask"})
+	ep := Endpoint{Preset: "xai", Model: "grok", BaseURL: presets["xai"].baseURL, KeyEnv: "XAI_API_KEY"}
+	spec := endpointSpec(ep)
+	a, err := newSessionAgent(env, runOpts{}, ep, map[string]Endpoint{spec: ep}, nil, "/proj")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { a.release() })
+	return a
+}
+
+func writeCall(id string) provider.ToolCall {
+	return provider.ToolCall{ID: id, Name: "write", Args: json.RawMessage(`{"path":".env","contents":"x"}`)}
+}
+
+func TestSessionAgentAskWriteApprove(t *testing.T) {
+	fp := &fake.Provider{Turns: []fake.Turn{
+		fake.ToolTurn(writeCall("1")),
+		fake.TextTurn("done"),
+	}}
+	a := askModeAgent(t, fp)
+	approved := make(chan struct{}, 1)
+	_, err := a.Send(context.Background(), "go", func(ev tui.Event) {
+		if ev.Kind == tui.EventApprove {
+			if ev.Text != "write: .env" {
+				t.Errorf("action %q", ev.Text)
+			}
+			approved <- struct{}{}
+			ev.Reply <- tui.ApproveYes
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-approved:
+	default:
+		t.Fatal("no approval event")
+	}
+}
+
+func TestSessionAgentAskAlwaysSkipsSecond(t *testing.T) {
+	fp := &fake.Provider{Turns: []fake.Turn{
+		fake.ToolTurn(writeCall("1"), writeCall("2")),
+		fake.TextTurn("done"),
+	}}
+	a := askModeAgent(t, fp)
+	var n int
+	_, err := a.Send(context.Background(), "go", func(ev tui.Event) {
+		if ev.Kind == tui.EventApprove {
+			n++
+			ev.Reply <- tui.ApproveAlways
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("approvals %d", n)
+	}
+}
+
+func TestSessionAgentAskNoHeld(t *testing.T) {
+	fp := &fake.Provider{Turns: []fake.Turn{
+		fake.ToolTurn(writeCall("1")),
+		fake.TextTurn("done"),
+	}}
+	a := askModeAgent(t, fp)
+	_, err := a.Send(context.Background(), "go", func(ev tui.Event) {
+		if ev.Kind == tui.EventApprove {
+			ev.Reply <- tui.ApproveNo
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fp.Requests) < 2 {
+		t.Fatalf("requests %d", len(fp.Requests))
+	}
+	if text := toolResults(fp.Requests[1])[0].Text; text != "held: declined by the user" {
+		t.Fatalf("result %q", text)
+	}
+}
+
+func TestSessionAgentAskCancelWaiting(t *testing.T) {
+	fp := &fake.Provider{Turns: []fake.Turn{
+		fake.ToolTurn(writeCall("1")),
+		fake.TextTurn("done"),
+	}}
+	a := askModeAgent(t, fp)
+	ctx, cancel := context.WithCancel(context.Background())
+	waiting := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		_, _ = a.Send(ctx, "go", func(ev tui.Event) {
+			if ev.Kind == tui.EventApprove {
+				close(waiting)
+			}
+		})
+		close(done)
+	}()
+	<-waiting
+	start := time.Now()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("stuck waiting for cancel")
+	}
+	if time.Since(start) > 800*time.Millisecond {
+		t.Fatalf("slow cancel")
 	}
 }

@@ -36,6 +36,7 @@ type sessionAgent struct {
 	permMode   permit.Mode
 	permRules  []permit.Rule
 	permGrants *permit.Grants
+	turnEmit   func(tui.Event)
 }
 
 func newSessionAgent(env Env, o runOpts, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, dir string) (*sessionAgent, error) {
@@ -80,12 +81,18 @@ func (a *sessionAgent) Send(ctx context.Context, prompt string, emit func(tui.Ev
 	}
 	prompt = expandMentions(a.env.Host, a.dir, prompt)
 	deps := a.begin(a.observer(emit))
-	return a.finish(a.dispatch(ctx, deps, prompt))
+	a.turnEmit = emit
+	out, err := a.dispatch(ctx, deps, prompt)
+	a.turnEmit = nil
+	return a.finish(out, err)
 }
 
 func (a *sessionAgent) Resume(ctx context.Context, emit func(tui.Event)) (tui.Outcome, error) {
 	deps := a.begin(a.observer(emit))
-	return a.finish(core.Resume(ctx, deps, a.jpath))
+	a.turnEmit = emit
+	out, err := core.Resume(ctx, deps, a.jpath)
+	a.turnEmit = nil
+	return a.finish(out, err)
 }
 
 func (a *sessionAgent) dispatch(ctx context.Context, deps core.Deps, prompt string) (core.Outcome, error) {
@@ -129,7 +136,7 @@ func (a *sessionAgent) begin(obs core.Observer) core.Deps {
 		rules: a.permRules, grants: a.permGrants, dir: a.dir,
 	}
 	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, a.tracked(obs), a.client, rp)
-	d.Gate = newGate(a.env.Host, rp.mode, rp.rules, rp.grants, rp.dir, a.env.Getenv("HOME"), nil, newReviewer(a.env, func() Endpoint { return a.ep }))
+	d.Gate = newGate(a.env.Host, rp.mode, rp.rules, rp.grants, rp.dir, a.env.Getenv("HOME"), a.permissionAsk, newReviewer(a.env, func() Endpoint { return a.ep }))
 	d.Providers = providerFactory(a.env, a.bySpec)
 	return d
 }
@@ -147,6 +154,28 @@ func (a *sessionAgent) initPerm(fullAccess bool, journalMode string) error {
 
 func (a *sessionAgent) PermissionMode() string {
 	return modeString(a.permMode)
+}
+
+func (a *sessionAgent) permissionAsk(ctx context.Context, action permit.Action) askAnswer {
+	emit := a.turnEmit
+	if emit == nil {
+		return askNo
+	}
+	ch := make(chan tui.ApproveAnswer, 1)
+	emit(tui.Event{Kind: tui.EventApprove, Text: action.String(), Reply: ch})
+	select {
+	case ans := <-ch:
+		switch ans {
+		case tui.ApproveYes:
+			return askYes
+		case tui.ApproveAlways:
+			return askAlways
+		default:
+			return askNo
+		}
+	case <-ctx.Done():
+		return askNo
+	}
 }
 
 func (a *sessionAgent) SetPermissionMode(raw string) error {

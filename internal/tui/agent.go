@@ -15,11 +15,21 @@ const (
 	EventToolError
 	EventNote
 	EventThinking
+	EventApprove
+)
+
+type ApproveAnswer int
+
+const (
+	ApproveYes ApproveAnswer = iota
+	ApproveAlways
+	ApproveNo
 )
 
 type Event struct {
-	Kind EventKind
-	Text string
+	Kind  EventKind
+	Text  string
+	Reply chan<- ApproveAnswer
 }
 
 type Outcome struct {

@@ -16,6 +16,10 @@ func (s *Session) handleKeys(ctx context.Context, keys []Key) {
 
 func (s *Session) handleKey(ctx context.Context, k Key) {
 	if s.busy() {
+		if s.approval != nil {
+			s.approvalKey(k)
+			return
+		}
 		s.turnKey(k)
 		return
 	}
