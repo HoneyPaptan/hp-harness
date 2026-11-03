@@ -44,13 +44,26 @@ func parseSessionFlags(env Env, args []string) (runOpts, bool, error) {
 }
 
 func freshSession(ctx context.Context, env Env, o runOpts) int {
-	if strings.TrimSpace(o.model) == "" && strings.TrimSpace(env.Getenv("HP_MODEL")) == "" {
-		return exitUsage(env, modelExampleUsage("no model set: use e.g. %s or set HP_MODEL"))
+	noModel := strings.TrimSpace(o.model) == "" && strings.TrimSpace(env.Getenv("HP_MODEL")) == ""
+	if noModel {
+		if len(o.fallbacks) > 0 {
+			return exitUsage(env, usagef("fallback requires a primary model"))
+		}
+		return startEmptySession(ctx, env, o)
 	}
 	ep, bySpec, err := resolveRunSpecs(o, env.Getenv)
 	if err != nil {
 		return exitUsage(env, err)
 	}
+	return openFreshSession(ctx, env, o, ep, bySpec, false)
+}
+
+func startEmptySession(ctx context.Context, env Env, o runOpts) int {
+	bySpec := make(map[string]Endpoint)
+	return openFreshSession(ctx, env, o, Endpoint{}, bySpec, true)
+}
+
+func openFreshSession(ctx context.Context, env Env, o runOpts, ep Endpoint, bySpec map[string]Endpoint, pickModel bool) int {
 	client, err := openJev(env, o.jev)
 	if err != nil {
 		return exitUsage(env, err)
@@ -64,7 +77,7 @@ func freshSession(ctx context.Context, env Env, o runOpts) int {
 		return exitErr(env, "", "", err)
 	}
 	defer a.release()
-	return runSession(ctx, env, a, false, "")
+	return runSession(ctx, env, a, false, "", pickModel)
 }
 
 func continueSession(ctx context.Context, env Env, o runOpts) int {
@@ -89,7 +102,7 @@ func continueSession(ctx context.Context, env Env, o runOpts) int {
 			return exitUsage(env, err)
 		}
 	}
-	return runSession(ctx, env, a, unfinished, "continuing "+id)
+	return runSession(ctx, env, a, unfinished, "continuing "+id, false)
 }
 
 func openRun(env Env, o runOpts, id string) (*sessionAgent, bool, int) {
@@ -133,7 +146,7 @@ func resolveStored(env Env, st journal.State, jpath string) (storedWiring, error
 	return storedWiring{ep: ep, bySpec: bySpec, client: client}, nil
 }
 
-func runSession(ctx context.Context, env Env, a tui.Agent, resume bool, intro string) int {
+func runSession(ctx context.Context, env Env, a tui.Agent, resume bool, intro string, pickModel bool) int {
 	t := env.Term
 	ctx, stop := t.Signals(ctx)
 	defer stop()
@@ -147,6 +160,7 @@ func runSession(ctx context.Context, env Env, a tui.Agent, resume bool, intro st
 	tui.NewSession(tui.Config{
 		In: t, Out: t, Width: t.Width, Color: colorOn(env.Getenv),
 		Agent: a, Header: sessionHeader(env.Version), Resume: resume, Intro: intro,
+		PickModel: pickModel,
 	}).Run(ctx)
 	if ctx.Err() != nil {
 		return 130

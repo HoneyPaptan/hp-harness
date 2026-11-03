@@ -63,6 +63,9 @@ func optsFromStart(st journal.RunStart) runOpts {
 }
 
 func (a *sessionAgent) Send(ctx context.Context, prompt string, emit func(tui.Event)) (tui.Outcome, error) {
+	if a.ep.Preset == "" {
+		return tui.Outcome{}, tui.NoModelError{}
+	}
 	deps := a.begin(a.observer(emit))
 	return a.finish(a.dispatch(ctx, deps, prompt))
 }
@@ -192,11 +195,17 @@ func (a *sessionAgent) toolResult(r provider.ToolResult, emit func(tui.Event)) {
 }
 
 func (a *sessionAgent) Preconnect(ctx context.Context) {
+	if a.ep.Preset == "" {
+		return
+	}
 	p := a.env.NewProvider(a.ep)
 	go provider.Preconnect(ctx, p)
 }
 
 func (a *sessionAgent) Model() string {
+	if a.ep.Preset == "" {
+		return ""
+	}
 	return endpointSpec(a.ep)
 }
 

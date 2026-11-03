@@ -60,6 +60,9 @@ func newFakeAgent(script ...func(context.Context, func(Event)) (Outcome, error))
 }
 
 func (a *fakeAgent) Send(ctx context.Context, prompt string, emit func(Event)) (Outcome, error) {
+	if a.model == "" {
+		return Outcome{}, NoModelError{}
+	}
 	a.mu.Lock()
 	a.prompts = append(a.prompts, prompt)
 	var turn func(context.Context, func(Event)) (Outcome, error)
@@ -796,6 +799,60 @@ func TestSessionKeyEntry(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSessionPickModelAtStart(t *testing.T) {
+	a := newFakeAgent()
+	a.model = ""
+	h := startSessionWith(t, a, Config{PickModel: true})
+	h.play([]step{{wait: providerPrompt}, {keys: "\x1b"}, {keys: "\x04"}})
+	h.waitExit()
+}
+
+func TestSessionFooterNoModel(t *testing.T) {
+	a := newFakeAgent()
+	a.model = ""
+	h := startSessionWith(t, a, Config{})
+	h.play([]step{{wait: "no model · /model"}, {keys: "\x04"}})
+	h.waitExit()
+}
+
+func TestSessionPromptWithoutModelRestoresAfterPick(t *testing.T) {
+	a := newFakeAgent()
+	a.model = ""
+	a.models = []string{"fast"}
+	h := startSessionWith(t, a, Config{})
+	h.play([]step{
+		{wait: "no model · /model"},
+		{keys: "hello\r"},
+		{wait: "pick a model first"},
+		{wait: providerPrompt},
+		{keys: "gr\r"},
+		{wait: "model for groq: "},
+		{keys: "fast\r"},
+		{wait: "model groq/fast"},
+		{wait: "› hello"},
+		{keys: "\x15\x04"},
+	})
+	h.waitExit()
+	if got := a.Model(); got != "groq/fast" {
+		t.Fatalf("model %q", got)
+	}
+}
+
+func TestSessionPromptWithoutModelRestoresOnCancel(t *testing.T) {
+	a := newFakeAgent()
+	a.model = ""
+	h := startSessionWith(t, a, Config{})
+	h.play([]step{
+		{keys: "hello\r"},
+		{wait: "pick a model first"},
+		{wait: providerPrompt},
+		{keys: "\x1b"},
+		{wait: "› hello"},
+		{keys: "\x15\x04"},
+	})
+	h.waitExit()
 }
 
 func TestSessionJevMissingKeyOffersKeyCommand(t *testing.T) {

@@ -205,7 +205,7 @@ func TestSessionAgentPreconnectsItsCurrentEndpoint(t *testing.T) {
 	h := host.NewMemory()
 	env, _, _ := testEnv(t, h, &fake.Provider{}, nil)
 	env.NewProvider = func(Endpoint) provider.Provider { return p }
-	(&sessionAgent{env: env}).Preconnect(context.Background())
+	(&sessionAgent{env: env, ep: Endpoint{Preset: "xai", Model: "g"}}).Preconnect(context.Background())
 	deadline := time.Now().Add(5 * time.Second)
 	for p.calls.Load() == 0 && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)

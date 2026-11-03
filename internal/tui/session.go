@@ -15,15 +15,16 @@ const (
 )
 
 type Config struct {
-	In     io.Reader
-	Out    io.Writer
-	Width  func() int
-	Color  bool
-	Agent  Agent
-	Header string
-	Resume bool
-	Intro  string
-	Now    func() time.Time
+	In        io.Reader
+	Out       io.Writer
+	Width     func() int
+	Color     bool
+	Agent     Agent
+	Header    string
+	Resume    bool
+	Intro     string
+	PickModel bool
+	Now       func() time.Time
 }
 
 type turnResult struct {
@@ -56,6 +57,7 @@ type Session struct {
 	drawn    bool
 	dirty    bool
 	quit     bool
+	pending  string
 }
 
 func NewSession(cfg Config) *Session {
@@ -111,6 +113,9 @@ func (s *Session) begin(ctx context.Context) {
 	if s.cfg.Resume {
 		s.startTurn(ctx, s.cfg.Agent.Resume)
 		return
+	}
+	if s.cfg.PickModel {
+		s.startPicker()
 	}
 	s.dirty = true
 	s.redraw()
@@ -232,7 +237,11 @@ func (s *Session) finishTurn(ctx context.Context, res turnResult) {
 	case ctx.Err() != nil:
 		return
 	case res.err != nil:
-		s.fail(res.err)
+		if IsNoModel(res.err) {
+			s.pickModelFirst("")
+		} else {
+			s.fail(res.err)
+		}
 	default:
 		s.note(statusLine(res.outcome))
 	}
@@ -327,6 +336,9 @@ func (s *Session) prompt() string {
 }
 
 func footerLine(a Agent) string {
+	if a.Model() == "" {
+		return "no model · /model"
+	}
 	line := a.Model() + " · jev"
 	if !a.Jev() {
 		line += " off"

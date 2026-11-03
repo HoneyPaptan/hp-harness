@@ -171,7 +171,6 @@ func TestSessionUsageErrors(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "no model", want: "hp -m groq/openai/gpt-oss-120b"},
 		{name: "prompt", args: []string{"-m", "xai/grok", "hi"}, want: "use hp run"},
 		{name: "detach", args: []string{"-m", "xai/grok", "-d"}, want: "use hp run -d"},
 		{name: "no run to continue", args: []string{"-c"}, want: "no run to continue in /proj"},
@@ -192,6 +191,67 @@ func TestSessionUsageErrors(t *testing.T) {
 				t.Fatal("entered raw mode")
 			}
 		})
+	}
+}
+
+func TestSessionOpensWithoutModel(t *testing.T) {
+	fp := &fake.Provider{}
+	env, _, stderr := testEnv(t, host.NewMemory(), fp, nil)
+	term := newFakeTerm(t)
+	env.Term = term
+	env.Args = nil
+	code := startHP(t, env)
+	term.await(t, "provider: ", 1)
+	term.send(t, "\x1b")
+	term.send(t, "\x04")
+	if c := awaitCode(t, code); c != 0 {
+		t.Fatalf("code %d", c)
+	}
+	if strings.Contains(stderr.String(), "no model set") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestSessionPromptBeforeModelCreatesNoRun(t *testing.T) {
+	fp := &fake.Provider{}
+	env, _, _ := testEnv(t, host.NewMemory(), fp, nil)
+	term := newFakeTerm(t)
+	env.Term = term
+	env.Args = nil
+	code := startHP(t, env)
+	term.await(t, "provider: ", 1)
+	term.send(t, "\x1b")
+	term.send(t, "hi\r")
+	term.await(t, "pick a model first", 1)
+	term.send(t, "\x1b")
+	term.send(t, "\x15\x04")
+	awaitCode(t, code)
+	if ids, _ := sortedRunIDs(env, runsDir(env.Getenv)); len(ids) != 0 {
+		t.Fatalf("runs %v", ids)
+	}
+}
+
+func TestSessionFallbackWithoutModel(t *testing.T) {
+	env, _, stderr := testEnv(t, host.NewMemory(), nil, nil)
+	term := newFakeTerm(t)
+	env.Term = term
+	env.Args = []string{"--fallback", "groq/x"}
+	if code := Main(context.Background(), env); code != 2 {
+		t.Fatalf("code %d", code)
+	}
+	if !strings.Contains(stderr.String(), "fallback requires a primary model") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
+func TestRunWithoutModel(t *testing.T) {
+	env, _, stderr := testEnv(t, host.NewMemory(), nil, nil)
+	env.Args = []string{"run", "hi"}
+	if code := Main(context.Background(), env); code != 2 {
+		t.Fatalf("code %d", code)
+	}
+	if !strings.Contains(stderr.String(), "hp -m groq/openai/gpt-oss-120b") {
+		t.Fatalf("stderr %q", stderr.String())
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/fake"
+	"github.com/HoneyPaptan/hp-harness/internal/tui"
 )
 
 type listingStub struct {
@@ -51,7 +52,28 @@ func sessionAgentWithLister(t *testing.T, ep Endpoint, stub *listingStub, extra 
 		stub.ep = got
 		return stub
 	}
-	return &sessionAgent{env: env, ep: ep}
+	return &sessionAgent{env: env, ep: ep, bySpec: make(map[string]Endpoint)}
+}
+
+func TestSessionAgentNoModel(t *testing.T) {
+	stub := &listingStub{ids: []string{"fast"}}
+	a := sessionAgentWithLister(t, Endpoint{}, stub, map[string]string{"GROQ_API_KEY": "k"})
+	if a.Model() != "" {
+		t.Fatalf("model %q", a.Model())
+	}
+	_, err := a.Send(context.Background(), "hi", func(tui.Event) {})
+	if !errors.Is(err, tui.NoModelError{}) {
+		t.Fatalf("err = %v", err)
+	}
+	if a.id != "" || a.jpath != "" {
+		t.Fatalf("run started id=%q jpath=%q", a.id, a.jpath)
+	}
+	if err := a.SetModel("groq/fast"); err != nil {
+		t.Fatal(err)
+	}
+	if a.Model() != "groq/fast" {
+		t.Fatalf("model %q", a.Model())
+	}
 }
 
 func TestSessionAgentModelsGroqWithKey(t *testing.T) {

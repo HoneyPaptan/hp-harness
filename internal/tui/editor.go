@@ -42,6 +42,11 @@ func (e *Editor) Clear() {
 	e.position = len(e.history)
 }
 
+func (e *Editor) SetText(text string) {
+	e.buf = []rune(text)
+	e.cursor = len(e.buf)
+}
+
 func (e *Editor) Take() string {
 	text := e.Text()
 	if text != "" && (len(e.history) == 0 || e.history[len(e.history)-1] != text) {

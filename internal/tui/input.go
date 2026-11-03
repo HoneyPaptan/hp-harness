@@ -114,7 +114,21 @@ func (s *Session) closePicker() {
 	s.cancelModelFetch()
 	s.picker = nil
 	s.editor.Clear()
+	if s.pending != "" {
+		s.editor.SetText(s.pending)
+		s.pending = ""
+	}
 	s.clearDrawn()
+}
+
+func (s *Session) pickModelFirst(text string) {
+	if text != "" {
+		s.pending = promptText(text)
+		s.editor.Clear()
+	}
+	s.note((NoModelError{}).Error())
+	s.startPicker()
+	s.dirty = true
 }
 
 func (s *Session) turnKey(k Key) {
@@ -200,6 +214,10 @@ func (s *Session) submit(ctx context.Context) {
 	if strings.TrimSpace(s.editor.Text()) == "" {
 		s.editor.Clear()
 		s.dirty = true
+		return
+	}
+	if s.cfg.Agent.Model() == "" {
+		s.pickModelFirst(s.editor.Text())
 		return
 	}
 	s.dirty = true

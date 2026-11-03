@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -46,6 +47,15 @@ type Agent interface {
 type KeyMissingError struct{ Hint string }
 
 func (e KeyMissingError) Error() string { return e.Hint }
+
+type NoModelError struct{}
+
+func (NoModelError) Error() string { return "pick a model first" }
+
+func IsNoModel(err error) bool {
+	var target NoModelError
+	return errors.As(err, &target)
+}
 
 type Preconnector interface {
 	Preconnect(ctx context.Context)
