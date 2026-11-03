@@ -59,6 +59,8 @@ func dispatch(ctx context.Context, env Env, args []string) int {
 		return cmdRemove(env, args[1:])
 	case "key":
 		return cmdKey(env, args[1:])
+	case "permissions":
+		return cmdPermissions(env, args[1:])
 	case "version":
 		return cmdVersion(env, args[1:])
 	case "help", "-h", "--help":
@@ -86,5 +88,5 @@ func printVersion(env Env) {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|recover|autostart|providers|web|add|list|remove|key|version> ...")
+	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|recover|autostart|providers|web|add|list|remove|key|permissions|version> ...")
 }

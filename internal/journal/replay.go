@@ -13,16 +13,17 @@ type Pending struct {
 }
 
 type State struct {
-	Start     RunStart
-	Messages  []provider.Message
-	Pending   []Pending
-	Steps     int
-	Current   string
-	Jev       bool
-	Finished  bool
-	EndReason string
-	Detached  bool
-	Stopped   bool
+	Start      RunStart
+	Messages   []provider.Message
+	Pending    []Pending
+	Steps      int
+	Current    string
+	Jev        bool
+	Permission string
+	Finished   bool
+	EndReason  string
+	Detached   bool
+	Stopped    bool
 }
 
 type replayer struct {
@@ -77,6 +78,8 @@ func (r *replayer) apply(rec Record, i int) error {
 		return r.applyModelSwitch(rec)
 	case TypeJevSwitch:
 		return r.applyJevSwitch(rec)
+	case TypePermissionSwitch:
+		return r.applyPermissionSwitch(rec)
 	case TypeRunEnd:
 		return r.applyRunEnd(rec)
 	default:
@@ -94,6 +97,7 @@ func (r *replayer) applyRunStart(rec Record, i int) error {
 	}
 	r.st.Start = start
 	r.st.Jev = start.Jev
+	r.st.Permission = start.Permission
 	return nil
 }
 
@@ -164,6 +168,15 @@ func (r *replayer) applyJevSwitch(rec Record) error {
 		return err
 	}
 	r.st.Jev = sw.On
+	return nil
+}
+
+func (r *replayer) applyPermissionSwitch(rec Record) error {
+	sw, err := decode[PermissionSwitch](rec)
+	if err != nil {
+		return err
+	}
+	r.st.Permission = sw.Mode
 	return nil
 }
 

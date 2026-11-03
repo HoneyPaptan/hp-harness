@@ -194,10 +194,10 @@ func TestRunDepsChooser(t *testing.T) {
 	h := host.NewMemory()
 	env, _, _ := testEnv(t, h, &fake.Provider{}, nil)
 	pr := newPrinter(env, "id", nil)
-	if d := runDeps(env, Endpoint{}, nil, tool.NewRegistry(), pr.observer(), nil); d.ToolChooser != nil {
+	if d := runDeps(env, Endpoint{}, nil, tool.NewRegistry(), pr.observer(), nil, emptyRunPerm("/w")); d.ToolChooser != nil {
 		t.Fatal("chooser set with jev off")
 	}
-	if d := runDeps(env, Endpoint{}, nil, tool.NewRegistry(), pr.observer(), &jev.Client{}); d.ToolChooser == nil {
+	if d := runDeps(env, Endpoint{}, nil, tool.NewRegistry(), pr.observer(), &jev.Client{}, emptyRunPerm("/w")); d.ToolChooser == nil {
 		t.Fatal("chooser missing with jev on")
 	}
 }

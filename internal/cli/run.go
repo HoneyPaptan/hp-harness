@@ -12,6 +12,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/core"
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
+	"github.com/HoneyPaptan/hp-harness/internal/permit"
 	"github.com/HoneyPaptan/hp-harness/internal/skill"
 	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
@@ -36,7 +37,7 @@ type runOpts struct {
 	steps, maxTokens            int
 	fallbacks                   []string
 	switchAfter, maxWait        time.Duration
-	detach, jev                 bool
+	detach, jev, fullAccess     bool
 }
 
 type stringList []string
@@ -73,6 +74,7 @@ func runFlagSet(env Env, name string) (*flag.FlagSet, *runOpts, *stringList) {
 	fs.DurationVar(&o.maxWait, "max-wait", 6*time.Hour, "max limit wait")
 	fs.BoolVar(&o.detach, "d", false, "detach")
 	fs.BoolVar(&o.jev, "jev", env.Getenv("HP_JEV") == "1", "use Jev for search and tool choice")
+	fs.BoolVar(&o.fullAccess, "full-access", false, "skip permission checks")
 	return fs, o, fb
 }
 
@@ -99,36 +101,60 @@ func runAgent(ctx context.Context, env Env, o runOpts, prompt string) int {
 	return finishRun(ctx, env, id, jpath, pr, out, err)
 }
 
+type runPerm struct {
+	mode   func() permit.Mode
+	rules  []permit.Rule
+	grants *permit.Grants
+	dir    string
+}
+
 func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, dir, id, jpath string, o runOpts, prompt string) (core.Outcome, *printer, error) {
 	skills, err := discoverSkills(env, dir)
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
+	mode, rules, grants, _, err := effectivePermission(env, o.fullAccess, "")
+	if err != nil {
+		return core.Outcome{}, nil, err
+	}
 	pr := newPrinter(env, id, client)
-	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env)
+	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env, modeString(mode))
 	tools := openToolset(env, skills, client)
 	defer tools.close()
-	deps := runDeps(env, ep, bySpec, tools.reg, pr.observer(), client)
+	rp := runPerm{
+		mode:  func() permit.Mode { return mode },
+		rules: rules, grants: grants, dir: dir,
+	}
+	deps := runDeps(env, ep, bySpec, tools.reg, pr.observer(), client, rp)
 	out, err := core.Run(ctx, deps, cfg)
 	return out, pr, err
 }
 
-func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Registry, obs core.Observer, client *jev.Client) core.Deps {
+func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Registry, obs core.Observer, client *jev.Client, rp runPerm) core.Deps {
 	d := core.Deps{
 		Host: env.Host, Provider: env.NewProvider(ep), Tools: tools,
 		ToolChooser: jevChooser(client), Observer: obs,
+		Gate: newGate(env.Host, rp.mode, rp.rules, rp.grants, rp.dir, env.Getenv("HOME"), nil, nil),
 	}
 	d.Providers = limitProviders(env, bySpec)
 	return d
 }
 
-func runConfig(id string, ep Endpoint, dir, jpath string, o runOpts, prompt string, skills []skill.Skill, env Env) core.Config {
+func emptyRunPerm(dir string) runPerm {
+	m := permit.ModeAuto
+	return runPerm{
+		mode:   func() permit.Mode { return m },
+		grants: &permit.Grants{}, dir: dir,
+	}
+}
+
+func runConfig(id string, ep Endpoint, dir, jpath string, o runOpts, prompt string, skills []skill.Skill, env Env, perm string) core.Config {
 	return core.Config{
 		RunID: id, Model: ep.Model, System: buildSystem(env, dir, skills),
 		Dir: dir, JournalPath: jpath, Prompt: prompt, StepLimit: o.steps,
 		MaxTokens: o.maxTokens, Preset: ep.Preset, BaseURL: ep.BaseURL, KeyEnv: ep.KeyEnv,
 		Fallbacks: append([]string(nil), o.fallbacks...), SwitchAfter: o.switchAfter, MaxWait: o.maxWait,
-		Detached: o.detach, Jev: o.jev,
+		Detached: o.detach, Jev: o.jev, Permission: perm,
 	}
 }
 

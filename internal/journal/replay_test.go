@@ -289,6 +289,47 @@ func TestReplayJevSwitch(t *testing.T) {
 	}
 }
 
+func TestReplayPermissionSwitch(t *testing.T) {
+	h := host.NewMemory()
+	w, err := Create(h, "/j", RunStart{RunID: "r1", Model: "m", System: "s", Dir: "/w", StepLimit: 1, Permission: "auto"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.PermissionSwitch("ask"); err != nil {
+		t.Fatal(err)
+	}
+	recs, err := Read(h, "/j")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := Replay(recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Permission != "ask" {
+		t.Fatalf("permission %q", st.Permission)
+	}
+}
+
+func TestReplayOldRunStartNoPermission(t *testing.T) {
+	h := host.NewMemory()
+	line := `{"seq":0,"ts":"2026-01-01T00:00:00Z","type":"run_start","data":{"run_id":"r1","model":"m","system":"s","dir":"/w","step_limit":1}}`
+	if err := h.WriteFile("/j", []byte(line+"\n")); err != nil {
+		t.Fatal(err)
+	}
+	recs, err := Read(h, "/j")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := Replay(recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Permission != "" {
+		t.Fatalf("permission %q", st.Permission)
+	}
+}
+
 func TestReplayContinuation(t *testing.T) {
 	assistant := provider.Message{Role: provider.RoleAssistant, Text: "a"}
 	call := provider.ToolCall{ID: "same", Name: "read"}

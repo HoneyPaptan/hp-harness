@@ -10,6 +10,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/core"
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
+	"github.com/HoneyPaptan/hp-harness/internal/permit"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/skill"
 	"github.com/HoneyPaptan/hp-harness/internal/tui"
@@ -18,20 +19,23 @@ import (
 var modelListTimeout = 5 * time.Second
 
 type sessionAgent struct {
-	env      Env
-	opts     runOpts
-	client   *jev.Client
-	dir      string
-	skills   []skill.Skill
-	tools    *toolset
-	ep       Endpoint
-	bySpec   map[string]Endpoint
-	id       string
-	jpath    string
-	started  bool
-	open     bool
-	settling bool
-	clock    *printer
+	env        Env
+	opts       runOpts
+	client     *jev.Client
+	dir        string
+	skills     []skill.Skill
+	tools      *toolset
+	ep         Endpoint
+	bySpec     map[string]Endpoint
+	id         string
+	jpath      string
+	started    bool
+	open       bool
+	settling   bool
+	clock      *printer
+	permMode   permit.Mode
+	permRules  []permit.Rule
+	permGrants *permit.Grants
 }
 
 func newSessionAgent(env Env, o runOpts, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, dir string) (*sessionAgent, error) {
@@ -40,7 +44,12 @@ func newSessionAgent(env Env, o runOpts, ep Endpoint, bySpec map[string]Endpoint
 		return nil, err
 	}
 	tools := openToolset(env, skills, client)
-	return &sessionAgent{env: env, opts: o, client: client, dir: dir, skills: skills, tools: tools, ep: ep, bySpec: bySpec}, nil
+	a := &sessionAgent{env: env, opts: o, client: client, dir: dir, skills: skills, tools: tools, ep: ep, bySpec: bySpec}
+	if err := a.initPerm(false, ""); err != nil {
+		tools.close()
+		return nil, err
+	}
+	return a, nil
 }
 
 func restoredAgent(env Env, st journal.State, bySpec map[string]Endpoint, ep Endpoint, client *jev.Client, id, jpath string) (*sessionAgent, error) {
@@ -52,6 +61,9 @@ func restoredAgent(env Env, st journal.State, bySpec map[string]Endpoint, ep End
 		a.ep = cur
 	}
 	a.id, a.jpath, a.started = id, jpath, true
+	if err := a.initPerm(false, st.Permission); err != nil {
+		return nil, err
+	}
 	return a, nil
 }
 
@@ -91,7 +103,7 @@ func (a *sessionAgent) first(ctx context.Context, deps core.Deps, prompt string)
 	if err := a.register(); err != nil {
 		return core.Outcome{}, err
 	}
-	cfg := runConfig(a.id, a.ep, a.dir, a.jpath, a.opts, prompt, a.skills, a.env)
+	cfg := runConfig(a.id, a.ep, a.dir, a.jpath, a.opts, prompt, a.skills, a.env, modeString(a.permMode))
 	out, err := core.Run(ctx, deps, cfg)
 	a.started = journalExists(a.env, a.jpath)
 	return out, err
@@ -112,9 +124,49 @@ func (a *sessionAgent) register() error {
 
 func (a *sessionAgent) begin(obs core.Observer) core.Deps {
 	a.clock = newPrinter(a.env, a.id, a.client)
-	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, a.tracked(obs), a.client)
+	rp := runPerm{
+		mode:  func() permit.Mode { return a.permMode },
+		rules: a.permRules, grants: a.permGrants, dir: a.dir,
+	}
+	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, a.tracked(obs), a.client, rp)
 	d.Providers = providerFactory(a.env, a.bySpec)
 	return d
+}
+
+func (a *sessionAgent) initPerm(fullAccess bool, journalMode string) error {
+	mode, rules, grants, _, err := effectivePermission(a.env, fullAccess, journalMode)
+	if err != nil {
+		return err
+	}
+	a.permMode = mode
+	a.permRules = rules
+	a.permGrants = grants
+	return nil
+}
+
+func (a *sessionAgent) PermissionMode() string {
+	return modeString(a.permMode)
+}
+
+func (a *sessionAgent) SetPermissionMode(raw string) error {
+	mode, err := permit.ParseMode(raw)
+	if err != nil {
+		return err
+	}
+	if mode == a.permMode {
+		return nil
+	}
+	if a.started {
+		w, _, err := journal.Open(a.env.Host, a.jpath)
+		if err != nil {
+			return err
+		}
+		if err := w.PermissionSwitch(modeString(mode)); err != nil {
+			return err
+		}
+	}
+	a.permMode = mode
+	return nil
 }
 
 func (a *sessionAgent) finish(out core.Outcome, err error) (tui.Outcome, error) {

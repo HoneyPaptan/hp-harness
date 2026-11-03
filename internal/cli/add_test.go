@@ -44,7 +44,7 @@ func newAddEnv(t *testing.T, fp *fake.Provider) *addEnv {
 	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
 	vars := map[string]string{
 		"HOME": home, "XDG_STATE_HOME": filepath.Join(home, "state"), "PATH": os.Getenv("PATH"),
-		"XAI_API_KEY": "key",
+		"XAI_API_KEY": "key", "HP_PERMISSION_MODE": "full-access",
 	}
 	env := Env{
 		Getenv: func(k string) string { return vars[k] }, Cwd: home,

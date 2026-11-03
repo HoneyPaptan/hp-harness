@@ -10,17 +10,18 @@ import (
 type Type string
 
 const (
-	TypeRunStart    Type = "run_start"
-	TypeDetached    Type = "detached"
-	TypeRunStop     Type = "run_stop"
-	TypeUser        Type = "user"
-	TypeAssistant   Type = "assistant"
-	TypeToolStarted Type = "tool_started"
-	TypeToolResult  Type = "tool_result"
-	TypeLimitWait   Type = "limit_wait"
-	TypeModelSwitch Type = "model_switch"
-	TypeJevSwitch   Type = "jev_switch"
-	TypeRunEnd      Type = "run_end"
+	TypeRunStart         Type = "run_start"
+	TypeDetached         Type = "detached"
+	TypeRunStop          Type = "run_stop"
+	TypeUser             Type = "user"
+	TypeAssistant        Type = "assistant"
+	TypeToolStarted      Type = "tool_started"
+	TypeToolResult       Type = "tool_result"
+	TypeLimitWait        Type = "limit_wait"
+	TypeModelSwitch      Type = "model_switch"
+	TypeJevSwitch        Type = "jev_switch"
+	TypePermissionSwitch Type = "permission_switch"
+	TypeRunEnd           Type = "run_end"
 )
 
 type Record struct {
@@ -44,6 +45,7 @@ type RunStart struct {
 	SwitchAfter time.Duration `json:"switch_after,omitempty"`
 	MaxWait     time.Duration `json:"max_wait,omitempty"`
 	Jev         bool          `json:"jev,omitempty"`
+	Permission  string        `json:"permission,omitempty"`
 	Detached    bool          `json:"detached,omitempty"`
 }
 
@@ -65,6 +67,10 @@ type ModelSwitch struct {
 
 type JevSwitch struct {
 	On bool `json:"on"`
+}
+
+type PermissionSwitch struct {
+	Mode string `json:"mode"`
 }
 
 type User struct {

@@ -143,7 +143,7 @@ func (a *sessionAgent) seed(prompt string) error {
 	if err := a.register(); err != nil {
 		return err
 	}
-	cfg := runConfig(a.id, a.ep, a.dir, a.jpath, a.opts, prompt, a.skills, a.env)
+	cfg := runConfig(a.id, a.ep, a.dir, a.jpath, a.opts, prompt, a.skills, a.env, modeString(a.permMode))
 	if err := core.Seed(core.Deps{Host: a.env.Host}, cfg); err != nil {
 		return err
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/core"
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
+	"github.com/HoneyPaptan/hp-harness/internal/permit"
 )
 
 func cmdResume(ctx context.Context, env Env, args []string) int {
@@ -65,7 +66,7 @@ func resumeRun(ctx context.Context, env Env, id string) int {
 	if err != nil {
 		return exitUsage(env, err)
 	}
-	out, pr, err := execResume(ctx, env, ep, bySpec, client, st.Start, jpath, id)
+	out, pr, err := execResume(ctx, env, ep, bySpec, client, st, jpath, id)
 	return finishResume(ctx, env, id, jpath, pr, out, err)
 }
 
@@ -74,15 +75,24 @@ func endpointFromStart(st journal.RunStart, getenv func(string) string) (Endpoin
 	return applyKey(ep, getenv)
 }
 
-func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, start journal.RunStart, jpath, id string) (core.Outcome, *printer, error) {
+func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, st journal.State, jpath, id string) (core.Outcome, *printer, error) {
+	start := st.Start
 	skills, err := discoverSkills(env, start.Dir)
+	if err != nil {
+		return core.Outcome{}, nil, err
+	}
+	mode, rules, grants, _, err := effectivePermission(env, false, st.Permission)
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
 	pr := newPrinter(env, id, client)
 	tools := openToolset(env, skills, client)
 	defer tools.close()
-	deps := runDeps(env, ep, bySpec, tools.reg, pr.observer(), client)
+	rp := runPerm{
+		mode:  func() permit.Mode { return mode },
+		rules: rules, grants: grants, dir: start.Dir,
+	}
+	deps := runDeps(env, ep, bySpec, tools.reg, pr.observer(), client, rp)
 	out, err := core.Resume(ctx, deps, jpath)
 	return out, pr, err
 }
