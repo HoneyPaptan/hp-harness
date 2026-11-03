@@ -14,7 +14,9 @@ Description=hp recover
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/hp recover
+RemainAfterExit=yes
+KillMode=process
+ExecStart="/usr/local/bin/hp" recover
 EnvironmentFile=-%h/.config/hp/env
 
 [Install]
@@ -197,5 +199,32 @@ func TestAutostartBadArgs(t *testing.T) {
 				t.Fatalf("code %d", code)
 			}
 		})
+	}
+}
+
+func TestSystemdUnitQuotesExe(t *testing.T) {
+	got := systemdUnit(`/home/me/My 100% "tools"/hp`)
+	want := `ExecStart="/home/me/My 100%% \"tools\"/hp" recover`
+	if !strings.Contains(got, want+"\n") {
+		t.Fatalf("unit %q missing %q", got, want)
+	}
+}
+
+func TestLaunchdPlistEscapesExe(t *testing.T) {
+	got := launchdPlist("/a&b/<hp>", "l")
+	if !strings.Contains(got, "<string>/a&amp;b/&lt;hp&gt;</string>") {
+		t.Fatal(got)
+	}
+}
+
+func TestAutostartRejectsControlChars(t *testing.T) {
+	h := host.NewMemory()
+	env, _, _ := testEnv(t, h, nil, nil)
+	env.Os = "linux"
+	env.Exe = "/x\nExecStartPre=/bin/evil"
+	env.RunCtl = func([]string) error { return nil }
+	env.Args = []string{"autostart", "on"}
+	if code := Main(context.Background(), env); code != 2 {
+		t.Fatalf("code %d", code)
 	}
 }

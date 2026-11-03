@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"strings"
 )
 
 type autostartPaths struct {
@@ -45,6 +46,9 @@ func cmdAutostart(env Env, args []string) int {
 func autostartOn(env Env, p autostartPaths) int {
 	if env.Exe == "" {
 		return exitUsage(env, usagef("cannot resolve the hp binary path"))
+	}
+	if hasControlChar(env.Exe) {
+		return exitUsage(env, usagef("hp binary path %q has control characters", env.Exe))
 	}
 	if err := env.Host.WriteFile(p.unit, []byte(unitText(env.Os, env.Exe, p.label))); err != nil {
 		return exitErr(env, "", "", err)
@@ -132,7 +136,9 @@ func systemdUnit(exe string) string {
 		"\n" +
 		"[Service]\n" +
 		"Type=oneshot\n" +
-		"ExecStart=" + exe + " recover\n" +
+		"RemainAfterExit=yes\n" +
+		"KillMode=process\n" +
+		"ExecStart=" + systemdQuote(exe) + " recover\n" +
 		"EnvironmentFile=-%h/.config/hp/env\n" +
 		"\n" +
 		"[Install]\n" +
@@ -145,10 +151,10 @@ func launchdPlist(exe, label string) string {
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>` + label + `</string>
+  <string>` + xmlEscaper.Replace(label) + `</string>
   <key>ProgramArguments</key>
   <array>
-    <string>` + exe + `</string>
+    <string>` + xmlEscaper.Replace(exe) + `</string>
     <string>recover</string>
   </array>
   <key>RunAtLoad</key>
@@ -156,4 +162,16 @@ func launchdPlist(exe, label string) string {
 </dict>
 </plist>
 `
+}
+
+var xmlEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;", "'", "&apos;")
+
+var systemdEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "%", "%%")
+
+func systemdQuote(s string) string {
+	return `"` + systemdEscaper.Replace(s) + `"`
+}
+
+func hasControlChar(s string) bool {
+	return strings.ContainsFunc(s, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }
