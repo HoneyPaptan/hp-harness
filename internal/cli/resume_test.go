@@ -279,3 +279,47 @@ func TestForegroundResumeSkipsMark(t *testing.T) {
 		}
 	}
 }
+
+func TestRunTerminatedSkipsStopMark(t *testing.T) {
+	h := host.NewMemory()
+	cancelled := fake.Turn{Events: []provider.Event{{Kind: provider.EventText, Text: "par"}}, Err: context.Canceled}
+	fp := &fake.Provider{Turns: []fake.Turn{cancelled}}
+	env, _, stderr := testEnv(t, h, fp, nil)
+	env.Args = []string{"run", "-m", "xai/grok", "go"}
+	ctx, cancel := context.WithCancelCause(context.Background())
+	cancel(ErrTerminated)
+	if Main(ctx, env) != 130 {
+		t.Fatal(stderr.String())
+	}
+	id := parseResumeID(stderr.String())
+	recs, err := journal.Read(h, filepath.Join(runsDir(env.Getenv), id+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := journal.Replay(recs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Stopped {
+		t.Fatal("terminated run marked as a user stop")
+	}
+}
+
+func TestResumeOfLiveRunSkipsDetachMark(t *testing.T) {
+	h := host.NewMemory()
+	env, _, _ := testEnv(t, h, &fake.Provider{}, map[string]string{"HP_DETACHED": "1"})
+	env.Pid = 7
+	env.Alive = func(pid int) bool { return pid == 99 }
+	id := "busy"
+	seedRun(t, h, env.Getenv, id, "p", "", false)
+	_ = h.WriteFile(runPidPath(env.Getenv, id), []byte("99"))
+	before, _ := journal.Read(h, filepath.Join(runsDir(env.Getenv), id+".jsonl"))
+	env.Args = []string{"resume", id}
+	if code := Main(context.Background(), env); code != 1 {
+		t.Fatalf("code %d", code)
+	}
+	after, _ := journal.Read(h, filepath.Join(runsDir(env.Getenv), id+".jsonl"))
+	if len(after) != len(before) {
+		t.Fatalf("live run journal grew from %d to %d", len(before), len(after))
+	}
+}

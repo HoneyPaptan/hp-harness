@@ -141,7 +141,9 @@ func finishRun(ctx context.Context, env Env, id, jpath string, pr *printer, out 
 	}
 	pr.ensureOutNL()
 	if isInterrupt(ctx, err) {
-		markUserStop(env, jpath)
+		if !errors.Is(context.Cause(ctx), ErrTerminated) {
+			markUserStop(env, jpath)
+		}
 		fmt.Fprintf(env.Stderr, "interrupted, resume with: hp resume %s\n", id)
 		return 130
 	}
@@ -156,6 +158,8 @@ func finishRun(ctx context.Context, env Env, id, jpath string, pr *printer, out 
 	}
 	return 1
 }
+
+var ErrTerminated = errors.New("terminated")
 
 func isInterrupt(ctx context.Context, err error) bool {
 	if errors.Is(err, context.Canceled) {

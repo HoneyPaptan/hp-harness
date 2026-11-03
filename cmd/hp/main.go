@@ -24,14 +24,19 @@ func main() {
 }
 
 func run() int {
-	if os.Getenv("HP_DETACHED") == "1" {
+	detached := os.Getenv("HP_DETACHED") == "1"
+	if detached {
 		signal.Ignore(syscall.SIGHUP)
+		_ = os.Unsetenv("HP_DETACHED")
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalContext()
 	defer stop()
 	env, err := buildEnv()
 	if err != nil {
 		return 1
+	}
+	if detached {
+		env.Getenv = detachedGetenv
 	}
 	return cli.Main(ctx, env)
 }
@@ -46,7 +51,7 @@ func buildEnv() (cli.Env, error) {
 		Args: os.Args[1:], Getenv: os.Getenv, Cwd: cwd,
 		Stdout: os.Stdout, Stderr: os.Stderr, Host: host.Native{},
 		Rand: rand.Reader, Version: version, NewProvider: cli.SharedProviders(newProvider), NewJev: newJev,
-		Spawn: spawnDetached, Alive: processAlive, Signal: processSignal, Pid: os.Getpid(),
+		Spawn: spawnDetached, Alive: processAlive, ProcStart: processStart, Signal: processSignal, Pid: os.Getpid(),
 		Lock: hostLock, Exe: exe, Os: runtime.GOOS,
 		Term: stdTerminal{}, RunCtl: runCtl,
 	}, nil
@@ -68,4 +73,33 @@ func newProvider(ep cli.Endpoint) provider.Provider {
 		BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: transport.NewHTTPClient(),
 		DisableThinking: ep.Preset == "deepseek", NoStreamOptions: ep.Preset == "mistral",
 	}
+}
+
+func signalContext() (context.Context, func()) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		sig, ok := <-ch
+		if !ok {
+			return
+		}
+		if sig == syscall.SIGTERM {
+			cancel(cli.ErrTerminated)
+			return
+		}
+		cancel(context.Canceled)
+	}()
+	return ctx, func() {
+		signal.Stop(ch)
+		close(ch)
+		cancel(nil)
+	}
+}
+
+func detachedGetenv(key string) string {
+	if key == "HP_DETACHED" {
+		return "1"
+	}
+	return os.Getenv(key)
 }
