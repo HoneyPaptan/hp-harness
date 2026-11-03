@@ -39,3 +39,19 @@ func exeName() string {
 	}
 	return filepath.Base(exe)
 }
+
+func processStart(pid int) string {
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return ""
+	}
+	i := strings.LastIndexByte(string(data), ')')
+	if i < 0 {
+		return ""
+	}
+	fields := strings.Fields(string(data)[i+1:])
+	if len(fields) < 20 {
+		return ""
+	}
+	return fields[19]
+}

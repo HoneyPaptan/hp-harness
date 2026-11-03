@@ -22,6 +22,7 @@ type Env struct {
 	NewJev      func(getenv func(string) string) (*jev.Client, error)
 	Spawn       func(args []string, logPath string) (int, error)
 	Alive       func(pid int) bool
+	ProcStart   func(pid int) string
 	Signal      func(pid int) error
 	Lock        func(dir string) (func(), error)
 	Exe         string

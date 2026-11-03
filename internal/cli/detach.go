@@ -64,8 +64,18 @@ func spawnDetached(env Env, id string) int {
 }
 
 func writeRunPidFor(env Env, id string, pid int) error {
-	data := []byte(strconv.Itoa(pid))
-	return env.Host.WriteFile(runPidPath(env.Getenv, id), data)
+	data := strconv.Itoa(pid)
+	if start := procStart(env, pid); start != "" {
+		data += " " + start
+	}
+	return env.Host.WriteFile(runPidPath(env.Getenv, id), []byte(data))
+}
+
+func procStart(env Env, pid int) string {
+	if env.ProcStart == nil {
+		return ""
+	}
+	return env.ProcStart(pid)
 }
 
 func writeRunPid(env Env, id string) error {
@@ -86,8 +96,12 @@ func readRunPid(env Env, id string) (int, bool) {
 	if err != nil {
 		return 0, false
 	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	pidText, start, _ := strings.Cut(strings.TrimSpace(string(data)), " ")
+	pid, err := strconv.Atoi(pidText)
 	if err != nil {
+		return 0, false
+	}
+	if start != "" && procStart(env, pid) != start {
 		return 0, false
 	}
 	return pid, true

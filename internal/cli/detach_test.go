@@ -190,3 +190,40 @@ func TestResumeDetachSpawns(t *testing.T) {
 		t.Fatal(stderr.String())
 	}
 }
+
+func TestStopSkipsReusedPid(t *testing.T) {
+	h := host.NewMemory()
+	signalled := false
+	env, _, stderr := testEnv(t, h, nil, nil)
+	env.Alive = func(int) bool { return true }
+	env.ProcStart = func(int) string { return "999" }
+	env.Signal = func(int) error {
+		signalled = true
+		return nil
+	}
+	id := "reused"
+	_ = h.WriteFile(runPidPath(env.Getenv, id), []byte("88 123"))
+	env.Args = []string{"stop", id}
+	if code := Main(context.Background(), env); code != 1 {
+		t.Fatalf("code %d %s", code, stderr.String())
+	}
+	if signalled {
+		t.Fatal("signalled a reused pid")
+	}
+}
+
+func TestPidFileRecordsStart(t *testing.T) {
+	h := host.NewMemory()
+	env, _, _ := testEnv(t, h, nil, nil)
+	env.ProcStart = func(int) string { return "123" }
+	if err := writeRunPidFor(env, "r", 88); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := h.ReadFile(runPidPath(env.Getenv, "r"))
+	if string(data) != "88 123" {
+		t.Fatalf("pid file %q", data)
+	}
+	if pid, ok := readRunPid(env, "r"); !ok || pid != 88 {
+		t.Fatalf("pid %d ok %v", pid, ok)
+	}
+}

@@ -42,3 +42,13 @@ func TestProcessAliveGone(t *testing.T) {
 		t.Fatalf("pid %d should be gone", pid)
 	}
 }
+
+func TestProcessStartStable(t *testing.T) {
+	a := processStart(os.Getpid())
+	if a == "" || a != processStart(os.Getpid()) {
+		t.Fatalf("start %q", a)
+	}
+	if processStart(1<<30) != "" {
+		t.Fatal("start for missing pid")
+	}
+}
