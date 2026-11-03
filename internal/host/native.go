@@ -98,6 +98,7 @@ func (Native) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) {
 	}
 	cmd := exec.CommandContext(runCtx, "bash", "-c", req.Command)
 	cmd.Dir = req.Dir
+	cmd.Env = ToolExecEnv(req.Env)
 	cmd.WaitDelay = 100 * time.Millisecond
 	configureExecCmd(cmd)
 	var buf bytes.Buffer

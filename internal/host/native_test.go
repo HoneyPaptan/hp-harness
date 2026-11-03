@@ -194,6 +194,36 @@ func TestNativeExec(t *testing.T) {
 			t.Fatalf("got %v", err)
 		}
 	})
+
+	t.Run("explicit env", func(t *testing.T) {
+		res, err := n.Exec(context.Background(), ExecRequest{
+			Command: `printf '%s\n' "$FOO" "$AI_AGENT" "${HP_DETACHED:-}"`,
+			Env:     []string{"FOO=bar", "HP_DETACHED=1", "AI_AGENT=old"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(strings.TrimSuffix(string(res.Output), "\n"), "\n")
+		if len(lines) != 3 || lines[0] != "bar" || lines[1] != "hp" || lines[2] != "" {
+			t.Fatalf("lines %v output %q", lines, res.Output)
+		}
+	})
+
+	t.Run("nil env inherits and filters", func(t *testing.T) {
+		t.Setenv("HP_NATIVE_INHERIT", "yes")
+		t.Setenv("HP_DETACHED", "1")
+		t.Setenv("AI_AGENT", "nope")
+		res, err := n.Exec(context.Background(), ExecRequest{
+			Command: `printf '%s\n' "$HP_NATIVE_INHERIT" "$AI_AGENT" "${HP_DETACHED:-}"`,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(strings.TrimSuffix(string(res.Output), "\n"), "\n")
+		if len(lines) != 3 || lines[0] != "yes" || lines[1] != "hp" || lines[2] != "" {
+			t.Fatalf("lines %v output %q", lines, res.Output)
+		}
+	})
 }
 
 func TestNativeSleep(t *testing.T) {

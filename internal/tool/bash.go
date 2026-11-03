@@ -32,7 +32,7 @@ func runBash(ctx context.Context, env Env, raw json.RawMessage) (Result, error) 
 		return errorf("command is empty"), nil
 	}
 	timeout := bashTimeout(args.TimeoutMS)
-	req := host.ExecRequest{Command: args.Command, Dir: env.Dir, Timeout: timeout}
+	req := host.ExecRequest{Command: args.Command, Dir: env.Dir, Timeout: timeout, Env: env.Exec}
 	res, err := env.Host.Exec(ctx, req)
 	if err != nil {
 		return Result{}, err

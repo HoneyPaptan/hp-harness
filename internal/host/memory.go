@@ -21,6 +21,7 @@ type Memory struct {
 	links    map[string]string
 	locked   map[string]struct{}
 	ExecFunc func(ctx context.Context, req ExecRequest) (ExecResult, error)
+	LastExec ExecRequest
 	Clock    time.Time
 	Slept    time.Duration
 }
@@ -161,6 +162,9 @@ func (m *Memory) ReadDir(p string) ([]Entry, error) {
 }
 
 func (m *Memory) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) {
+	m.mu.Lock()
+	m.LastExec = req
+	m.mu.Unlock()
 	if m.ExecFunc == nil {
 		return ExecResult{}, errors.New("exec not configured")
 	}

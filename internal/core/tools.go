@@ -21,7 +21,7 @@ func (r *runner) turnTools(ctx context.Context) []provider.ToolDef {
 }
 
 func (r *runner) runTools(ctx context.Context, calls []provider.ToolCall) ([]provider.ToolResult, error) {
-	env := tool.Env{Host: r.deps.Host, Dir: r.cfg.Dir}
+	env := r.toolEnv()
 	out := make([]provider.ToolResult, 0, len(calls))
 	for _, call := range calls {
 		tr, err := r.execCall(ctx, env, call)
@@ -31,6 +31,14 @@ func (r *runner) runTools(ctx context.Context, calls []provider.ToolCall) ([]pro
 		out = append(out, tr)
 	}
 	return out, nil
+}
+
+func (r *runner) toolEnv() tool.Env {
+	env := tool.Env{Host: r.deps.Host, Dir: r.cfg.Dir}
+	if r.deps.ExecEnv != nil {
+		env.Exec = r.deps.ExecEnv()
+	}
+	return env
 }
 
 func (r *runner) execCall(ctx context.Context, env tool.Env, call provider.ToolCall) (provider.ToolResult, error) {

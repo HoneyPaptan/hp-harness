@@ -19,6 +19,7 @@ type ExecRequest struct {
 	Command string
 	Dir     string
 	Timeout time.Duration
+	Env     []string
 }
 
 type ExecResult struct {

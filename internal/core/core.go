@@ -31,6 +31,7 @@ type Deps struct {
 	ToolChooser ToolChooser
 	Observer    Observer
 	Gate        func(ctx context.Context, call provider.ToolCall, msgs []provider.Message) Verdict
+	ExecEnv     func() []string
 }
 
 type Config struct {

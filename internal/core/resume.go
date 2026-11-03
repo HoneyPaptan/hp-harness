@@ -74,7 +74,7 @@ func (r *runner) settlePending(ctx context.Context, pending []journal.Pending) e
 	if len(pending) == 0 {
 		return nil
 	}
-	env := tool.Env{Host: r.deps.Host, Dir: r.cfg.Dir}
+	env := r.toolEnv()
 	out := make([]provider.ToolResult, 0, len(pending))
 	for _, p := range pending {
 		tr, err := r.settleOne(ctx, env, p)

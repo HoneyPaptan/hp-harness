@@ -17,6 +17,7 @@ func TestBash(t *testing.T) {
 		name    string
 		exec    func(context.Context, host.ExecRequest) (host.ExecResult, error)
 		raw     string
+		execIn  []string
 		wantErr bool
 		hostErr bool
 		check   func(*testing.T, Result)
@@ -89,6 +90,18 @@ func TestBash(t *testing.T) {
 			raw: `{"command":"pwd"}`,
 		},
 		{
+			name: "exec env",
+			exec: func(ctx context.Context, req host.ExecRequest) (host.ExecResult, error) {
+				want := []string{"TOOL=1"}
+				if len(req.Env) != 1 || req.Env[0] != want[0] {
+					t.Fatalf("env %v", req.Env)
+				}
+				return host.ExecResult{ExitCode: 0}, nil
+			},
+			raw:   `{"command":"true"}`,
+			execIn: []string{"TOOL=1"},
+		},
+		{
 			name:    "empty",
 			raw:     `{"command":""}`,
 			wantErr: true,
@@ -123,7 +136,7 @@ func TestBash(t *testing.T) {
 			if tc.exec != nil {
 				h.ExecFunc = tc.exec
 			}
-			res, err := bashTool.Run(ctx, Env{Host: h, Dir: dir}, json.RawMessage(tc.raw))
+			res, err := bashTool.Run(ctx, Env{Host: h, Dir: dir, Exec: tc.execIn}, json.RawMessage(tc.raw))
 			if tc.hostErr {
 				if err == nil {
 					t.Fatal("expected error")

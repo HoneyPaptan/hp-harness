@@ -20,6 +20,7 @@ const (
 type Env struct {
 	Host host.Host
 	Dir  string
+	Exec []string
 }
 
 type Result struct {
