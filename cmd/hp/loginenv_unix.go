@@ -36,33 +36,24 @@ func startLoginEnv(env cli.Env, dir string) func() []string {
 	if shell == "" || !filepath.IsAbs(shell) {
 		return func() []string { return nil }
 	}
-	cap := &loginEnvCapture{}
-	wait := loginEnvWait
-	go cap.run(shell, dir, os.Environ(), wait)
+	cap := &loginEnvCapture{ready: make(chan struct{})}
+	go cap.run(shell, dir, os.Environ(), loginEnvWait)
 	return cap.get
 }
 
 type loginEnvCapture struct {
-	mu   sync.Mutex
-	done bool
-	env  []string
+	ready chan struct{}
+	env   []string
 }
 
 func (c *loginEnvCapture) get() []string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if !c.done {
-		return nil
-	}
+	<-c.ready
 	return c.env
 }
 
 func (c *loginEnvCapture) run(shell, dir string, procEnv []string, wait time.Duration) {
-	env := captureLoginEnv(shell, dir, procEnv, wait)
-	c.mu.Lock()
-	c.done = true
-	c.env = env
-	c.mu.Unlock()
+	c.env = captureLoginEnv(shell, dir, procEnv, wait)
+	close(c.ready)
 }
 
 func captureLoginEnv(shell, dir string, procEnv []string, wait time.Duration) []string {

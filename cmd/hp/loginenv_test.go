@@ -89,31 +89,17 @@ func TestStartLoginEnvDisabled(t *testing.T) {
 	}
 }
 
-func TestStartLoginEnvNoBlock(t *testing.T) {
-	old := loginEnvWait
-	loginEnvWait = 2 * time.Second
-	defer func() { loginEnvWait = old }()
+func TestStartLoginEnvWaitsForFirstUse(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "slow-ok")
-	body := "#!/bin/sh\n[ \"$1\" = \"-l\" ] && shift\n[ \"$1\" = \"-c\" ] && shift\nsleep 1\nprintf 'A=1\\0B=2\\0C=3\\0'\n"
+	body := "#!/bin/sh\n[ \"$1\" = \"-l\" ] && shift\n[ \"$1\" = \"-c\" ] && shift\nsleep 0.3\nprintf 'A=1\\0B=2\\0C=3\\0'\n"
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	env := cli.Env{Getenv: testGetenv(map[string]string{"SHELL": script})}
 	get := startLoginEnv(env, dir)
-	ch := make(chan []string, 1)
-	go func() { ch <- get() }()
-	select {
-	case v := <-ch:
-		if v != nil {
-			t.Fatalf("expected nil before ready, got %v", v)
-		}
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("get blocked")
-	}
-	waitLoginEnv(get, 3*time.Second)
-	if get() == nil {
-		t.Fatal("expected env")
+	if v := get(); len(v) != 3 {
+		t.Fatalf("first use got %v", v)
 	}
 }
 
