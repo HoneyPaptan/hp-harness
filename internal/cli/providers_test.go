@@ -110,8 +110,8 @@ func TestSessionAgentProviders(t *testing.T) {
 		want    []string
 	}{
 		{"current first", map[string]string{"GROQ_API_KEY": "g", "OPENAI_API_KEY": "o"}, "groq", []string{"groq", "ollama", "openai"}},
-		{"free preset only", nil, "xai", []string{"ollama"}},
-		{"current without a key is left out", nil, "openai", []string{"ollama"}},
+		{"free preset only", nil, "", []string{"ollama"}},
+		{"current without a default key stays first", nil, "openai", []string{"openai", "ollama"}},
 		{"free preset first", map[string]string{"GROQ_API_KEY": "g"}, "ollama", []string{"ollama", "groq"}},
 	}
 	for _, tc := range cases {
@@ -212,5 +212,16 @@ func TestSessionAgentPreconnectsItsCurrentEndpoint(t *testing.T) {
 	}
 	if p.calls.Load() != 1 {
 		t.Fatalf("calls = %d", p.calls.Load())
+	}
+}
+
+func TestCurrentFirstKeepsCurrentWithoutKey(t *testing.T) {
+	got := currentFirst([]string{"groq", "ollama"}, "openai")
+	if strings.Join(got, " ") != "openai groq ollama" {
+		t.Fatalf("%v", got)
+	}
+	got = currentFirst([]string{"groq", "ollama"}, "ollama")
+	if strings.Join(got, " ") != "ollama groq" {
+		t.Fatalf("%v", got)
 	}
 }
