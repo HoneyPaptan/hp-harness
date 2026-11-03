@@ -35,6 +35,7 @@ type Agent interface {
 	Model() string
 	Jev() bool
 	SetModel(spec string) error
+	SetJev(on bool) error
 	Reset() error
 	Runs() ([]string, error)
 }

@@ -30,11 +30,11 @@ func cmdResume(ctx context.Context, env Env, args []string) int {
 	}
 	if detach {
 		jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
-		start, err := journal.ReadStart(env.Host, jpath)
+		st, err := replayRun(env, jpath)
 		if err != nil {
 			return exitUsage(env, usagef("run %q not found", id))
 		}
-		if _, err := openJev(env, start.Jev); err != nil {
+		if _, err := openJev(env, st.Jev); err != nil {
 			return exitUsage(env, err)
 		}
 		return spawnDetached(env, id)
@@ -44,7 +44,7 @@ func cmdResume(ctx context.Context, env Env, args []string) int {
 
 func resumeRun(ctx context.Context, env Env, id string) int {
 	jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
-	start, err := journal.ReadStart(env.Host, jpath)
+	st, err := replayRun(env, jpath)
 	if err != nil {
 		return exitUsage(env, usagef("run %q not found", id))
 	}
@@ -54,18 +54,18 @@ func resumeRun(ctx context.Context, env Env, id string) int {
 	}
 	defer cleanup()
 	markDetachedResume(env, jpath)
-	ep, bySpec, err := resolveResumeSpecs(start, env.Getenv)
+	ep, bySpec, err := resolveResumeSpecs(st.Start, env.Getenv)
 	if err != nil {
 		return exitUsage(env, err)
 	}
 	if err := bindCurrent(env, jpath, ep, bySpec); err != nil {
 		return exitUsage(env, err)
 	}
-	client, err := openJev(env, start.Jev)
+	client, err := openJev(env, st.Jev)
 	if err != nil {
 		return exitUsage(env, err)
 	}
-	out, pr, err := execResume(ctx, env, ep, bySpec, client, start, jpath, id)
+	out, pr, err := execResume(ctx, env, ep, bySpec, client, st.Start, jpath, id)
 	return finishResume(ctx, env, id, jpath, pr, out, err)
 }
 

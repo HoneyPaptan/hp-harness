@@ -339,6 +339,101 @@ func TestDetachedRunKeepsJev(t *testing.T) {
 	}
 }
 
+func jevSwitches(recs []journal.Record) int {
+	n := 0
+	for _, rec := range recs {
+		if rec.Type == journal.TypeJevSwitch {
+			n++
+		}
+	}
+	return n
+}
+
+func TestSessionJevSwitchSurvivesResume(t *testing.T) {
+	h := host.NewMemory()
+	srv := newJevServer(t)
+	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("one"), fake.TextTurn("two"), fake.TextTurn("three")}}
+	env, _, stderr := testEnv(t, h, fp, map[string]string{"TYPESAFE_API_KEY": "k"})
+	srv.wire(&env)
+	term := newFakeTerm(t)
+	env.Term = term
+	env.Args = []string{"-m", "xai/grok"}
+	code := startHP(t, env)
+	term.send(t, "first\r")
+	term.await(t, "0 steps", 1)
+	if hasTool(fp.Requests[0], "search") {
+		t.Fatal("search before the switch")
+	}
+	term.send(t, "/jev on\r")
+	term.await(t, "jev on\r\n", 1)
+	term.send(t, "second\r")
+	term.await(t, "0 steps", 2)
+	if !hasTool(fp.Requests[1], "search") {
+		t.Fatal("search missing on the next turn")
+	}
+	term.send(t, "\x04")
+	awaitCode(t, code)
+	ids, _ := sortedRunIDs(env, runsDir(env.Getenv))
+	if len(ids) != 1 {
+		t.Fatalf("runs %v", ids)
+	}
+	jpath := filepath.Join(runsDir(env.Getenv), ids[0]+".jsonl")
+	recs, err := journal.Read(h, jpath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jevSwitches(recs) != 1 {
+		t.Fatalf("switches %d", jevSwitches(recs))
+	}
+	if _, ok := runStartFields(t, h, jpath)["jev"]; ok {
+		t.Fatal("run_start carries jev")
+	}
+	w, _, err := journal.Open(h, jpath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.User("open again"); err != nil {
+		t.Fatal(err)
+	}
+	env.Args = []string{"resume", ids[0]}
+	if c := Main(context.Background(), env); c != 0 {
+		t.Fatalf("code %d %s", c, stderr.String())
+	}
+	if !hasTool(fp.Requests[2], "search") {
+		t.Fatal("resume lost jev")
+	}
+}
+
+func TestSessionJevSwitchSameValueWritesNoRecord(t *testing.T) {
+	h := host.NewMemory()
+	fp := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("one")}}
+	env, _, stderr := testEnv(t, h, fp, nil)
+	term := newFakeTerm(t)
+	env.Term = term
+	env.Args = []string{"-m", "xai/grok"}
+	code := startHP(t, env)
+	term.send(t, "first\r")
+	term.await(t, "0 steps", 1)
+	term.send(t, "/jev off\r")
+	term.await(t, "jev off\r\n", 1)
+	term.send(t, "\x04")
+	awaitCode(t, code)
+	ids, _ := sortedRunIDs(env, runsDir(env.Getenv))
+	if len(ids) != 1 {
+		t.Fatalf("runs %v", ids)
+	}
+	recs, err := journal.Read(h, filepath.Join(runsDir(env.Getenv), ids[0]+".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := jevSwitches(recs); n != 0 {
+		t.Fatalf("switches %d", n)
+	}
+	if strings.Contains(stderr.String(), "jev") {
+		t.Fatalf("stderr %q", stderr.String())
+	}
+}
+
 func TestJevSummary(t *testing.T) {
 	h := host.NewMemory()
 	if err := h.WriteFile("/proj/a.go", []byte("package a\n")); err != nil {

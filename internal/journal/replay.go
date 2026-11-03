@@ -18,6 +18,7 @@ type State struct {
 	Pending   []Pending
 	Steps     int
 	Current   string
+	Jev       bool
 	Finished  bool
 	EndReason string
 	Detached  bool
@@ -74,6 +75,8 @@ func (r *replayer) apply(rec Record, i int) error {
 		return r.applyRunStop(rec)
 	case TypeModelSwitch:
 		return r.applyModelSwitch(rec)
+	case TypeJevSwitch:
+		return r.applyJevSwitch(rec)
 	case TypeRunEnd:
 		return r.applyRunEnd(rec)
 	default:
@@ -90,6 +93,7 @@ func (r *replayer) applyRunStart(rec Record, i int) error {
 		return err
 	}
 	r.st.Start = start
+	r.st.Jev = start.Jev
 	return nil
 }
 
@@ -151,6 +155,15 @@ func (r *replayer) applyModelSwitch(rec Record) error {
 		return err
 	}
 	r.st.Current = sw.To
+	return nil
+}
+
+func (r *replayer) applyJevSwitch(rec Record) error {
+	sw, err := decode[JevSwitch](rec)
+	if err != nil {
+		return err
+	}
+	r.st.Jev = sw.On
 	return nil
 }
 

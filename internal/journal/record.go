@@ -19,6 +19,7 @@ const (
 	TypeToolResult  Type = "tool_result"
 	TypeLimitWait   Type = "limit_wait"
 	TypeModelSwitch Type = "model_switch"
+	TypeJevSwitch   Type = "jev_switch"
 	TypeRunEnd      Type = "run_end"
 )
 
@@ -60,6 +61,10 @@ type LimitWait struct {
 type ModelSwitch struct {
 	From string `json:"from"`
 	To   string `json:"to"`
+}
+
+type JevSwitch struct {
+	On bool `json:"on"`
 }
 
 type User struct {

@@ -126,7 +126,7 @@ func resolveStored(env Env, st journal.State, jpath string) (storedWiring, error
 	if err := bindCurrent(env, jpath, ep, bySpec); err != nil {
 		return storedWiring{}, err
 	}
-	client, err := openJev(env, st.Start.Jev)
+	client, err := openJev(env, st.Jev)
 	if err != nil {
 		return storedWiring{}, err
 	}

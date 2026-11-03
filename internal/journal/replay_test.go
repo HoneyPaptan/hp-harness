@@ -249,6 +249,46 @@ func TestReplay(t *testing.T) {
 	})
 }
 
+func TestReplayJevSwitch(t *testing.T) {
+	tests := []struct {
+		name     string
+		start    bool
+		switches []bool
+		want     bool
+	}{
+		{"starts off", false, nil, false},
+		{"starts on", true, nil, true},
+		{"switch on", false, []bool{true}, true},
+		{"switch off", true, []bool{false}, false},
+		{"on then off", false, []bool{true, false}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := host.NewMemory()
+			w, err := Create(h, "/j", RunStart{RunID: "r1", Jev: tt.start})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, on := range tt.switches {
+				if err := w.JevSwitch(on); err != nil {
+					t.Fatal(err)
+				}
+			}
+			recs, err := Read(h, "/j")
+			if err != nil {
+				t.Fatal(err)
+			}
+			st, err := Replay(recs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if st.Jev != tt.want {
+				t.Fatalf("jev %v want %v", st.Jev, tt.want)
+			}
+		})
+	}
+}
+
 func TestReplayContinuation(t *testing.T) {
 	assistant := provider.Message{Role: provider.RoleAssistant, Text: "a"}
 	call := provider.ToolCall{ID: "same", Name: "read"}

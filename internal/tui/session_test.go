@@ -35,6 +35,7 @@ type fakeAgent struct {
 	prompts []string
 	model   string
 	jevOn   bool
+	jevErr  error
 	resets  int
 	resumed int
 	runs    []string
@@ -77,6 +78,14 @@ func (a *fakeAgent) SetModel(spec string) error {
 		return errors.New("bad model")
 	}
 	a.model = spec
+	return nil
+}
+
+func (a *fakeAgent) SetJev(on bool) error {
+	if a.jevErr != nil {
+		return a.jevErr
+	}
+	a.jevOn = on
 	return nil
 }
 
@@ -266,7 +275,7 @@ func TestSessionScripts(t *testing.T) {
 		{
 			name:  "help is local",
 			steps: []step{{keys: "/help\r"}, {wait: "/quit"}, {keys: "/quit\r"}},
-			want:  []string{"/model", "/new", "/runs", "//text"},
+			want:  []string{"/model", "/jev on|off", "/new", "/runs", "//text"},
 		},
 		{
 			name:  "model shows the current model",
@@ -416,6 +425,46 @@ func TestSessionFooter(t *testing.T) {
 			h.waitExit()
 			if tc.reject != "" && strings.Contains(h.out.String(), tc.reject) {
 				t.Fatalf("found %q in %q", tc.reject, h.out.String())
+			}
+		})
+	}
+}
+
+func TestSessionJevSwitch(t *testing.T) {
+	const onFooter = "xai/grok · jev"
+	const offFooter = "xai/grok · jev off"
+	tests := []struct {
+		name    string
+		jevOn   bool
+		jevErr  error
+		keys    string
+		note    string
+		wantOn  bool
+		footer  string
+		minDraw int
+	}{
+		{"on switches", false, nil, "/jev on\r", "jev on\r\n", true, onFooter, 1},
+		{"on without a key stays off", false, errors.New("no key"), "/jev on\r", jevKeyHint + "\r\n", false, offFooter, 2},
+		{"off switches", true, nil, "/jev off\r", "jev off\r\n", false, offFooter, 1},
+		{"status off", false, nil, "/jev\r", "jev off\r\n", false, offFooter, 2},
+		{"status on", true, nil, "/jev\r", "jev on\r\n", true, onFooter, 2},
+		{"bad argument", false, nil, "/jev maybe\r", jevUsage + "\r\n", false, offFooter, 2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newFakeAgent()
+			a.jevOn, a.jevErr = tc.jevOn, tc.jevErr
+			h := startSession(t, a, false, false)
+			h.play([]step{{keys: tc.keys}, {wait: tc.note}, {keys: "\x04"}})
+			h.waitExit()
+			if a.Jev() != tc.wantOn {
+				t.Fatalf("jev %v want %v", a.Jev(), tc.wantOn)
+			}
+			if got := footerLine(a); got != tc.footer {
+				t.Fatalf("footer %q want %q", got, tc.footer)
+			}
+			if got := strings.Count(h.out.String(), tc.footer+"\x1b[2A"); got < tc.minDraw {
+				t.Fatalf("footer drawn %d times, want %d: %q", got, tc.minDraw, h.out.String())
 			}
 		})
 	}

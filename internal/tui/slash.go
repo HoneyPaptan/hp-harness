@@ -10,12 +10,16 @@ const (
 	unknownHint   = "unknown command %s, /help lists them, // sends a literal /"
 	quitHint      = "press Ctrl-C again or Ctrl-D to quit"
 	literalPrefix = "//"
+	jevKeyHint    = "jev needs a key: hp key set TYPESAFE_API_KEY"
+	jevUsage      = "usage: /jev on|off"
 )
 
 var helpLines = []string{
 	"/help          this list",
 	"/model         show the model",
 	"/model p/name  switch the model for following turns",
+	"/jev           show the jev state",
+	"/jev on|off    switch jev for following turns",
 	"/new           start a fresh run",
 	"/runs          list recent runs",
 	"/quit          leave, also Ctrl-D",
@@ -44,6 +48,8 @@ func (s *Session) runSlash(name, arg string) {
 		s.showHelp()
 	case "/model":
 		s.switchModel(arg)
+	case "/jev":
+		s.switchJev(arg)
 	case "/new":
 		s.newRun()
 	case "/runs":
@@ -69,6 +75,32 @@ func (s *Session) switchModel(spec string) {
 		}
 	}
 	s.note("model " + s.cfg.Agent.Model())
+}
+
+func (s *Session) switchJev(arg string) {
+	switch arg {
+	case "":
+		s.note(jevLine(s.cfg.Agent.Jev()))
+	case "on", "off":
+		s.setJev(arg == "on")
+	default:
+		s.note(jevUsage)
+	}
+}
+
+func (s *Session) setJev(on bool) {
+	if err := s.cfg.Agent.SetJev(on); err != nil {
+		s.note(jevKeyHint)
+		return
+	}
+	s.note(jevLine(on))
+}
+
+func jevLine(on bool) string {
+	if on {
+		return "jev on"
+	}
+	return "jev off"
 }
 
 func (s *Session) newRun() {

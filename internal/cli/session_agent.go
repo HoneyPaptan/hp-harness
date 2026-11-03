@@ -218,6 +218,39 @@ func (a *sessionAgent) SetModel(spec string) error {
 	return nil
 }
 
+func (a *sessionAgent) SetJev(on bool) error {
+	if on == a.Jev() {
+		return nil
+	}
+	client, err := openJev(a.env, on)
+	if err != nil {
+		return err
+	}
+	if err := a.journalJev(on); err != nil {
+		return err
+	}
+	a.applyJev(client, on)
+	return nil
+}
+
+func (a *sessionAgent) journalJev(on bool) error {
+	if !a.started || on == a.Jev() {
+		return nil
+	}
+	w, _, err := journal.Open(a.env.Host, a.jpath)
+	if err != nil {
+		return err
+	}
+	return w.JevSwitch(on)
+}
+
+func (a *sessionAgent) applyJev(client *jev.Client, on bool) {
+	a.tools.close()
+	a.client = client
+	a.tools = openToolset(a.env, a.skills, client)
+	a.opts.jev = on
+}
+
 func (a *sessionAgent) journalSwitch(to string) error {
 	if !a.started || to == a.Model() {
 		return nil

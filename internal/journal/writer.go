@@ -62,6 +62,10 @@ func (w *Writer) ModelSwitch(from, to string) error {
 	return w.append(TypeModelSwitch, ModelSwitch{From: from, To: to})
 }
 
+func (w *Writer) JevSwitch(on bool) error {
+	return w.append(TypeJevSwitch, JevSwitch{On: on})
+}
+
 func (w *Writer) Detached() error {
 	return w.append(TypeDetached, DetachedMark{})
 }
