@@ -63,9 +63,13 @@ func (c *Client) newHTTPRequest(ctx context.Context, req provider.Request) (*htt
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
-	httpReq.Header.Set("anthropic-version", apiVersion)
-	httpReq.Header.Set("x-api-key", c.APIKey)
+	c.setAnthropicHeaders(httpReq.Header)
 	return httpReq, nil
+}
+
+func (c *Client) setAnthropicHeaders(h http.Header) {
+	h.Set("anthropic-version", apiVersion)
+	h.Set("x-api-key", c.APIKey)
 }
 
 func (c *Client) Preconnect(ctx context.Context) {
