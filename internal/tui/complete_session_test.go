@@ -85,3 +85,14 @@ func TestSessionHelpOutputUnchanged(t *testing.T) {
 		}
 	}
 }
+
+func TestSessionSlashExactMatchSubmits(t *testing.T) {
+	a := newFakeAgent()
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "/help\r"},
+		{wait: "this list"},
+		{keys: "\x04"},
+	})
+	h.waitExit()
+}

@@ -19,6 +19,7 @@ func (s *Session) updateCompletion() {
 		if s.fileCache == nil {
 			files, err := s.cfg.Agent.Files()
 			if err != nil {
+				s.fileCache = []string{}
 				s.fail(err)
 				s.closeCompletion()
 				return
@@ -89,6 +90,9 @@ func (s *Session) completionKey(k Key) (handled bool) {
 		s.applyCompletion()
 		return true
 	case KeyEnter:
+		if s.exactCompletion() {
+			return false
+		}
 		s.applyCompletion()
 		return true
 	case KeyEsc:
@@ -97,4 +101,16 @@ func (s *Session) completionKey(k Key) (handled bool) {
 		return true
 	}
 	return false
+}
+
+func (s *Session) exactCompletion() bool {
+	chosen, ok := s.complete.menu.chosen()
+	if !ok {
+		return false
+	}
+	word := string(s.editor.Runes()[s.complete.start:s.complete.end])
+	if s.complete.kind == completeSlash {
+		return word == "/"+chosen
+	}
+	return word == "@"+chosen
 }

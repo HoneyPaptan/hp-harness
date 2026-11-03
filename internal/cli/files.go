@@ -23,7 +23,7 @@ func listFiles(h host.Host, root string) ([]string, error) {
 		cur := queue[0]
 		queue = queue[1:]
 		ents, err := h.ReadDir(cur.abs)
-		if err != nil {
+		if err != nil && cur.rel == "" {
 			return nil, err
 		}
 		for _, e := range ents {

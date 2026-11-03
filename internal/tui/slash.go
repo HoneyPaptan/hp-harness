@@ -36,18 +36,17 @@ var slashCommands = []slashCommand{
 	{"/quit", "", "leave, also Ctrl-D"},
 }
 
-var helpLines = []string{
-	slashHelpLine(slashCommands[0]),
-	slashHelpLine(slashCommands[1]),
-	slashHelpLine(slashCommands[2]),
-	slashHelpLine(slashCommands[3]),
-	slashHelpLine(slashCommands[4]),
-	slashHelpLine(slashCommands[5]),
-	slashHelpLine(slashCommands[6]),
-	slashHelpLine(slashCommands[7]),
-	slashHelpLine(slashCommands[8]),
+var helpLines = append(commandHelpLines(),
 	"//text         send /text to the model",
 	"Ctrl-C or Esc stops a turn",
+)
+
+func commandHelpLines() []string {
+	lines := make([]string, 0, len(slashCommands))
+	for _, c := range slashCommands {
+		lines = append(lines, slashHelpLine(c))
+	}
+	return lines
 }
 
 func slashHelpLine(c slashCommand) string {
