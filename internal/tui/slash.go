@@ -241,6 +241,7 @@ func (s *Session) cyclePermissions() {
 		}
 	}
 	prev := cur
+	s.clearDrawn()
 	if err := s.cfg.Agent.SetPermissionMode(next); err != nil {
 		s.fail(err)
 		return

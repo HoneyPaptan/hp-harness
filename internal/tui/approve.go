@@ -35,6 +35,7 @@ func (s *Session) drawApproval() {
 		return
 	}
 	rows, sel := s.approval.menu.window()
+	s.drawn = true
 	_ = s.renderer.DrawMenu(approvePrompt, nil, 0, rows, sel, "", "", footerLine(s.cfg.Agent))
 }
 
