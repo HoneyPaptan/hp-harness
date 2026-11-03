@@ -31,7 +31,7 @@ func (b *webBackend) State() web.State {
 	if ep, _, err := resolveRunSpecs(b.opts, b.env.Getenv); err == nil {
 		st.Model = endpointSpec(ep)
 	}
-	if mode, _, _, _, err := effectivePermission(b.env, b.opts.fullAccess, ""); err == nil {
+	if mode, _, _, _, _, err := effectivePermission(b.env, b.opts.fullAccess, ""); err == nil {
 		st.Permission = modeString(mode)
 	}
 	return st
@@ -146,7 +146,7 @@ func (a *sessionAgent) seed(prompt string) error {
 	if err := a.register(); err != nil {
 		return err
 	}
-	cfg := runConfig(a.id, a.ep, a.dir, a.jpath, a.opts, prompt, a.skills, a.env, modeString(a.permMode))
+	cfg := runConfig(a.id, a.ep, a.dir, a.jpath, a.opts, prompt, a.skills, a.env, modeString(a.permMode), a.settings)
 	if err := core.Seed(core.Deps{Host: a.env.Host}, cfg); err != nil {
 		return err
 	}

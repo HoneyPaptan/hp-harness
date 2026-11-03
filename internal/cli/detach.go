@@ -41,11 +41,11 @@ func detachRun(_ context.Context, env Env, o runOpts, prompt string) int {
 	if err != nil {
 		return exitErr(env, id, jpath, err)
 	}
-	mode, _, _, _, err := effectivePermission(env, o.fullAccess, "")
+	mode, _, _, _, st, err := effectivePermission(env, o.fullAccess, "")
 	if err != nil {
 		return exitErr(env, id, jpath, err)
 	}
-	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env, modeString(mode))
+	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env, modeString(mode), st)
 	if err := core.Seed(core.Deps{Host: env.Host}, cfg); err != nil {
 		return exitErr(env, id, jpath, err)
 	}

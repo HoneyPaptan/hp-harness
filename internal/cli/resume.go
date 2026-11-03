@@ -84,7 +84,7 @@ func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]End
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
-	mode, rules, grants, _, err := effectivePermission(env, false, st.Permission)
+	mode, rules, grants, _, _, err := effectivePermission(env, false, st.Permission)
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}

@@ -16,6 +16,7 @@ const settingsFileName = "settings.json"
 type settings struct {
 	PermissionMode string          `json:"permission_mode"`
 	Permission     json.RawMessage `json:"permission"`
+	Context        *bool           `json:"context"`
 }
 
 func settingsPath(getenv func(string) string) (string, error) {

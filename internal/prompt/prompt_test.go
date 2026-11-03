@@ -21,6 +21,28 @@ func TestBuildNoSkills(t *testing.T) {
 	}
 }
 
+func TestBuildInstructionsSection(t *testing.T) {
+	fixed := time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC)
+	got := Build(Info{
+		Dir: "/proj", Date: fixed,
+		Instructions: []Instruction{
+			{Path: "~/.config/hp/AGENTS.md", Text: "be nice\n"},
+		},
+	})
+	want := baseText + "\nWorking directory: /proj\nDate: 2026-03-15\n\n\nProject instructions (from AGENTS.md files; the user's messages take priority, and a file closer to the working directory wins on conflicts):\n<instructions path=\"~/.config/hp/AGENTS.md\">\nbe nice\n\n</instructions>\n"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestBuildNoInstructionsSection(t *testing.T) {
+	fixed := time.Date(2026, 3, 15, 0, 0, 0, 0, time.UTC)
+	got := Build(Info{Dir: "/proj", Date: fixed, Instructions: nil})
+	if strings.Contains(got, "Project instructions") {
+		t.Fatal(got)
+	}
+}
+
 func TestBuildTwoSkills(t *testing.T) {
 	fixed := time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 	got := Build(Info{

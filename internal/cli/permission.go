@@ -34,16 +34,16 @@ func resolvePermissionMode(fullAccess bool, getenv func(string) string, journalM
 	return permit.ModeAuto, "default", nil
 }
 
-func effectivePermission(env Env, fullAccess bool, journalMode string) (permit.Mode, []permit.Rule, *permit.Grants, string, error) {
+func effectivePermission(env Env, fullAccess bool, journalMode string) (permit.Mode, []permit.Rule, *permit.Grants, string, settings, error) {
 	st, rules, err := loadSettingsAndRules(env)
 	if err != nil {
-		return "", nil, nil, "", err
+		return "", nil, nil, "", settings{}, err
 	}
 	mode, source, err := resolvePermissionMode(fullAccess, rawGetenv(env), journalMode, st)
 	if err != nil {
-		return "", nil, nil, "", err
+		return "", nil, nil, "", settings{}, err
 	}
-	return mode, rules, &permit.Grants{}, source, nil
+	return mode, rules, &permit.Grants{}, source, st, nil
 }
 
 func modeString(m permit.Mode) string {

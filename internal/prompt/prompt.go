@@ -8,10 +8,16 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/skill"
 )
 
+type Instruction struct {
+	Path string
+	Text string
+}
+
 type Info struct {
-	Dir    string
-	Date   time.Time
-	Skills []skill.Skill
+	Dir          string
+	Date         time.Time
+	Skills       []skill.Skill
+	Instructions []Instruction
 }
 
 func Build(in Info) string {
@@ -22,6 +28,12 @@ func Build(in Info) string {
 		b.WriteString("\nSkills (call the skill tool with a name before doing a task it covers):\n")
 		for _, sk := range in.Skills {
 			fmt.Fprintf(&b, "- %s: %s\n", sk.Name, cutDesc(sk.Description, 200))
+		}
+	}
+	if len(in.Instructions) > 0 {
+		b.WriteString("\n\nProject instructions (from AGENTS.md files; the user's messages take priority, and a file closer to the working directory wins on conflicts):\n")
+		for _, ins := range in.Instructions {
+			fmt.Fprintf(&b, "<instructions path=\"%s\">\n%s\n</instructions>\n", ins.Path, ins.Text)
 		}
 	}
 	return b.String()

@@ -32,8 +32,14 @@ func buildRegistry(skills []skill.Skill, extra, connected []tool.Tool, deferring
 	return tool.NewRegistry(append(direct, connected...)...)
 }
 
-func buildSystem(env Env, dir string, skills []skill.Skill) string {
-	return prompt.Build(prompt.Info{Dir: dir, Date: env.Host.Now(), Skills: skills})
+func buildSystem(env Env, dir string, skills []skill.Skill, st settings) string {
+	var instructions []prompt.Instruction
+	if contextEnabled(st) {
+		instructions = loadInstructions(env.Host, dir, env.Getenv("HOME"))
+	}
+	return prompt.Build(prompt.Info{
+		Dir: dir, Date: env.Host.Now(), Skills: skills, Instructions: instructions,
+	})
 }
 
 func resolveWorkDir(env Env, flagDir string) (string, error) {

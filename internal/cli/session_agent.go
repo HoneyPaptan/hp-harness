@@ -36,6 +36,7 @@ type sessionAgent struct {
 	permMode   permit.Mode
 	permRules  []permit.Rule
 	permGrants *permit.Grants
+	settings   settings
 	turnEmit   func(tui.Event)
 }
 
@@ -110,7 +111,7 @@ func (a *sessionAgent) first(ctx context.Context, deps core.Deps, prompt string)
 	if err := a.register(); err != nil {
 		return core.Outcome{}, err
 	}
-	cfg := runConfig(a.id, a.ep, a.dir, a.jpath, a.opts, prompt, a.skills, a.env, modeString(a.permMode))
+	cfg := runConfig(a.id, a.ep, a.dir, a.jpath, a.opts, prompt, a.skills, a.env, modeString(a.permMode), a.settings)
 	out, err := core.Run(ctx, deps, cfg)
 	a.started = journalExists(a.env, a.jpath)
 	return out, err
@@ -142,13 +143,14 @@ func (a *sessionAgent) begin(obs core.Observer) core.Deps {
 }
 
 func (a *sessionAgent) initPerm(fullAccess bool, journalMode string) error {
-	mode, rules, grants, _, err := effectivePermission(a.env, fullAccess, journalMode)
+	mode, rules, grants, _, st, err := effectivePermission(a.env, fullAccess, journalMode)
 	if err != nil {
 		return err
 	}
 	a.permMode = mode
 	a.permRules = rules
 	a.permGrants = grants
+	a.settings = st
 	return nil
 }
 

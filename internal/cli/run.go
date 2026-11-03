@@ -116,12 +116,12 @@ func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoi
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
-	mode, rules, grants, _, err := effectivePermission(env, o.fullAccess, "")
+	mode, rules, grants, _, st, err := effectivePermission(env, o.fullAccess, "")
 	if err != nil {
 		return core.Outcome{}, nil, err
 	}
 	pr := newPrinter(env, id, client)
-	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env, modeString(mode))
+	cfg := runConfig(id, ep, dir, jpath, o, prompt, skills, env, modeString(mode), st)
 	tools := openToolset(env, skills, client)
 	defer tools.close()
 	rp := runPerm{
@@ -151,9 +151,9 @@ func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Regis
 	return d
 }
 
-func runConfig(id string, ep Endpoint, dir, jpath string, o runOpts, prompt string, skills []skill.Skill, env Env, perm string) core.Config {
+func runConfig(id string, ep Endpoint, dir, jpath string, o runOpts, prompt string, skills []skill.Skill, env Env, perm string, st settings) core.Config {
 	return core.Config{
-		RunID: id, Model: ep.Model, System: buildSystem(env, dir, skills),
+		RunID: id, Model: ep.Model, System: buildSystem(env, dir, skills, st),
 		Dir: dir, JournalPath: jpath, Prompt: prompt, StepLimit: o.steps,
 		MaxTokens: o.maxTokens, Preset: ep.Preset, BaseURL: ep.BaseURL, KeyEnv: ep.KeyEnv,
 		Fallbacks: append([]string(nil), o.fallbacks...), SwitchAfter: o.switchAfter, MaxWait: o.maxWait,
