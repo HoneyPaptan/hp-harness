@@ -122,12 +122,18 @@ func (s *Session) closePicker() {
 }
 
 func (s *Session) pickModelFirst(text string) {
+	s.note((NoModelError{}).Error())
+	if !s.startPicker() {
+		if text != "" {
+			s.editor.SetText(text)
+		}
+		s.dirty = true
+		return
+	}
 	if text != "" {
 		s.pending = promptText(text)
 		s.editor.Clear()
 	}
-	s.note((NoModelError{}).Error())
-	s.startPicker()
 	s.dirty = true
 }
 
@@ -216,10 +222,6 @@ func (s *Session) submit(ctx context.Context) {
 		s.dirty = true
 		return
 	}
-	if s.cfg.Agent.Model() == "" {
-		s.pickModelFirst(s.editor.Text())
-		return
-	}
 	s.dirty = true
 	s.redraw()
 	text := s.editor.Take()
@@ -227,6 +229,10 @@ func (s *Session) submit(ctx context.Context) {
 	if name, arg, ok := splitSlash(text); ok {
 		s.runSlash(name, arg)
 		s.dirty = true
+		return
+	}
+	if s.cfg.Agent.Model() == "" {
+		s.pickModelFirst(text)
 		return
 	}
 	prompt := promptText(text)

@@ -855,6 +855,50 @@ func TestSessionPromptWithoutModelRestoresOnCancel(t *testing.T) {
 	h.waitExit()
 }
 
+func TestSessionSlashWorksWithoutModel(t *testing.T) {
+	a := newFakeAgent()
+	a.model = ""
+	h := startSessionWith(t, a, Config{})
+	h.play([]step{
+		{keys: "/help\r"},
+		{wait: "/model         pick a provider and model"},
+		{keys: "/quit\r"},
+	})
+	h.waitExit()
+}
+
+func TestSessionKeyWithoutModel(t *testing.T) {
+	a := newFakeAgent()
+	a.model = ""
+	h := startSessionWith(t, a, Config{})
+	h.play([]step{
+		{keys: "/key GROQ_API_KEY\r"},
+		{wait: "key GROQ_API_KEY: "},
+		{keys: "secret\r"},
+		{wait: "saved GROQ_API_KEY"},
+		{keys: "/quit\r"},
+	})
+	h.waitExit()
+	if got := strings.Join(a.keys, ","); got != "GROQ_API_KEY=secret" {
+		t.Fatalf("saved %q", got)
+	}
+}
+
+func TestSessionPromptKeptWhenNoProviders(t *testing.T) {
+	a := newFakeAgent()
+	a.model = ""
+	a.providers = nil
+	h := startSessionWith(t, a, Config{})
+	h.play([]step{
+		{keys: "hello\r"},
+		{wait: "pick a model first"},
+		{wait: pickerEmpty},
+		{wait: "› hello"},
+		{keys: "\x15/quit\r"},
+	})
+	h.waitExit()
+}
+
 func TestSessionJevMissingKeyOffersKeyCommand(t *testing.T) {
 	a := newFakeAgent()
 	a.jevErr = KeyMissingError{Hint: "jev needs a key: hp key set TYPESAFE_API_KEY"}

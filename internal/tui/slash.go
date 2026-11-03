@@ -84,14 +84,15 @@ func (s *Session) showHelp() {
 	}
 }
 
-func (s *Session) startPicker() {
+func (s *Session) startPicker() bool {
 	items := s.cfg.Agent.Providers()
 	if len(items) == 0 {
 		s.note(pickerEmpty)
-		return
+		return false
 	}
 	s.picker = newPicker(items)
 	s.dirty = true
+	return true
 }
 
 func (s *Session) switchModel(spec string) {
