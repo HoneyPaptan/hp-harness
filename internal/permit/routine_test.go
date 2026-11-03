@@ -29,7 +29,7 @@ func TestBashRoutine(t *testing.T) {
 func TestBashNotRoutine(t *testing.T) {
 	dir := "/w"
 	home := "/home/u"
-cmds := []string{
+	cmds := []string{
 		"go test ./... && rm -rf ~",
 		"ls | sh",
 		"cat x > y",
