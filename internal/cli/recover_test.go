@@ -363,3 +363,30 @@ func TestRecoverScanFailureFails(t *testing.T) {
 		t.Fatalf("code %d stderr %s", code, stderr.String())
 	}
 }
+
+func TestRecoverLockFailureFails(t *testing.T) {
+	h := host.NewMemory()
+	env, _, stderr := testEnv(t, h, nil, nil)
+	env.Lock = func(string) (func(), error) { return nil, errors.New("read-only file system") }
+	env.Args = []string{"recover"}
+	if code := Main(context.Background(), env); code != 1 {
+		t.Fatalf("code %d", code)
+	}
+	if strings.Contains(stderr.String(), "already running") {
+		t.Fatal(stderr.String())
+	}
+}
+
+func TestRecoverAllFinishedSaysNothing(t *testing.T) {
+	h := host.NewMemory()
+	env, _, stderr := testEnv(t, h, nil, nil)
+	seedDetachedRun(t, h, env.Getenv, recoverID)
+	markRunFinished(t, h, env.Getenv, recoverID)
+	env.Args = []string{"recover"}
+	if code := Main(context.Background(), env); code != 0 {
+		t.Fatalf("code %d", code)
+	}
+	if !strings.Contains(stderr.String(), "nothing to recover") {
+		t.Fatal(stderr.String())
+	}
+}

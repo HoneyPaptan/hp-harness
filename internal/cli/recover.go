@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 )
 
@@ -29,9 +30,13 @@ func cmdRecover(ctx context.Context, env Env, args []string) int {
 		return exitUsage(env, err)
 	}
 	unlock, lockErr := env.Lock(recoverLockPath(env.Getenv))
-	if lockErr != nil {
+	if errors.Is(lockErr, host.ErrLocked) {
 		fmt.Fprintln(env.Stderr, "hp recover is already running")
 		return 0
+	}
+	if lockErr != nil {
+		fmt.Fprintf(env.Stderr, "error: %v\n", lockErr)
+		return 1
 	}
 	defer unlock()
 	return runRecoverScan(env, o)
@@ -106,9 +111,10 @@ func recoverOne(env Env, id string, cutoff time.Time, o recoverOpts) (string, in
 }
 
 func skipNote(env Env, id string, why error) string {
-	if why != nil {
-		fmt.Fprintf(env.Stderr, "skipping %s: %v\n", id, why)
+	if why == nil {
+		return ""
 	}
+	fmt.Fprintf(env.Stderr, "skipping %s: %v\n", id, why)
 	return "skipped"
 }
 
@@ -119,8 +125,7 @@ func recoverSpawn(env Env, id string) int {
 		return 0
 	}
 	if err := writeRunPidFor(env, id, pid); err != nil {
-		fmt.Fprintf(env.Stderr, "error: %v\n", err)
-		return 0
+		fmt.Fprintf(env.Stderr, "note: %v\n", err)
 	}
 	return 1
 }

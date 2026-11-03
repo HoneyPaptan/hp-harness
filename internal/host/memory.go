@@ -37,7 +37,7 @@ func (m *Memory) Lock(p string) (func(), error) {
 	defer m.mu.Unlock()
 	p = cleanAbs(p)
 	if _, ok := m.locked[p]; ok {
-		return nil, fmt.Errorf("%s is locked", p)
+		return nil, fmt.Errorf("%s: %w", p, ErrLocked)
 	}
 	m.locked[p] = struct{}{}
 	return func() {

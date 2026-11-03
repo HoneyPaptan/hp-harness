@@ -2,8 +2,11 @@ package host
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+var ErrLocked = errors.New("locked by another process")
 
 type Entry struct {
 	Name   string
