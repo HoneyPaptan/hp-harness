@@ -18,24 +18,17 @@ const reviewMaxTokens = 300
 
 var reviewTimeout = 20 * time.Second
 
-var reviewEnv Env
-var reviewEp func() Endpoint
-
 type reviewer struct {
 	provider func() provider.Provider
 	model    func() string
 }
 
-type reviewBind struct{}
-
-func (reviewBind) provider() provider.Provider { return reviewEnv.NewProvider(reviewEp()) }
-func (reviewBind) model() string               { return reviewEp().Model }
-
 func newReviewer(env Env, epNow func() Endpoint) gateReview {
-	reviewEnv = env
-	reviewEp = epNow
-	b := reviewBind{}
-	return reviewer{provider: b.provider, model: b.model}.review
+	rv := reviewer{
+		provider: func() provider.Provider { return env.NewProvider(epNow()) },
+		model:    func() string { return epNow().Model },
+	}
+	return rv.review
 }
 
 type reviewReply struct {

@@ -125,7 +125,7 @@ func TestGateWriteDotDotThroughLinkReviewed(t *testing.T) {
 	mode := permit.ModeAuto
 	gate := newGate(h, func() permit.Mode { return mode }, nil, &permit.Grants{}, "/w", "/home/u", nil, nil)
 	call := provider.ToolCall{ID: "1", Name: "write", Args: json.RawMessage(`{"path":"link/../x.go"}`)}
-	v := gate(context.Background(), call)
+	v := gate(context.Background(), call, nil)
 	if v.Allow {
 		t.Fatalf("verdict %+v", v)
 	}
