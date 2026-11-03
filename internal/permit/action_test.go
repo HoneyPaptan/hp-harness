@@ -127,3 +127,16 @@ func TestActionString(t *testing.T) {
 		}
 	}
 }
+
+func TestStringArgIgnoresOtherFieldTypes(t *testing.T) {
+	cases := map[string]provider.ToolCall{
+		"x":              {Name: "web_search", Args: json.RawMessage(`{"query":"x","count":5}`)},
+		"y":              {Name: "search", Args: json.RawMessage(`{"query":"y","limit":3}`)},
+		"https://a.dev/": {Name: "web_fetch", Args: json.RawMessage(`{"url":"https://a.dev/","extra":true}`)},
+	}
+	for want, call := range cases {
+		if got := Describe(call, "/w").Target; got != want {
+			t.Errorf("%s: target %q", call.Name, got)
+		}
+	}
+}

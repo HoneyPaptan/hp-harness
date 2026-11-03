@@ -85,11 +85,15 @@ func webSearchAction(call provider.ToolCall) Action {
 }
 
 func stringArg(raw json.RawMessage, field string) string {
-	var args map[string]string
+	var args map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &args); err != nil {
 		return ""
 	}
-	return args[field]
+	var v string
+	if err := json.Unmarshal(args[field], &v); err != nil {
+		return ""
+	}
+	return v
 }
 
 func skillAction(call provider.ToolCall) Action {
