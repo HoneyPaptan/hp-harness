@@ -54,9 +54,6 @@ func endpointFor(cur Endpoint, spec string, getenv func(string) string) (Endpoin
 	if err != nil {
 		return Endpoint{}, err
 	}
-	if ep.Model == "" {
-		return Endpoint{}, usagef("model must be preset/name")
-	}
 	return ep, nil
 }
 

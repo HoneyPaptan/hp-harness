@@ -171,7 +171,7 @@ func TestSessionUsageErrors(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "no model", want: "use -m preset/model or set HP_MODEL"},
+		{name: "no model", want: "hp -m groq/openai/gpt-oss-120b"},
 		{name: "prompt", args: []string{"-m", "xai/grok", "hi"}, want: "use hp run"},
 		{name: "detach", args: []string{"-m", "xai/grok", "-d"}, want: "use hp run -d"},
 		{name: "no run to continue", args: []string{"-c"}, want: "no run to continue in /proj"},

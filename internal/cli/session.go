@@ -45,7 +45,7 @@ func parseSessionFlags(env Env, args []string) (runOpts, bool, error) {
 
 func freshSession(ctx context.Context, env Env, o runOpts) int {
 	if strings.TrimSpace(o.model) == "" && strings.TrimSpace(env.Getenv("HP_MODEL")) == "" {
-		return exitUsage(env, usagef("no model set: use -m preset/model or set HP_MODEL"))
+		return exitUsage(env, modelExampleUsage("no model set: use e.g. %s or set HP_MODEL"))
 	}
 	ep, bySpec, err := resolveRunSpecs(o, env.Getenv)
 	if err != nil {

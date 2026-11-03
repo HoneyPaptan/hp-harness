@@ -35,7 +35,7 @@ func resolveEndpoint(model, baseURL, keyEnv string, getenv func(string) string) 
 		model = strings.TrimSpace(getenv("HP_MODEL"))
 	}
 	if model == "" {
-		return Endpoint{}, usagef("model required: use -m preset/model")
+		return Endpoint{}, modelExampleUsage("model required: use e.g. %s")
 	}
 	ep, err := splitModel(model, baseURL, keyEnv)
 	if err != nil {
@@ -47,12 +47,31 @@ func resolveEndpoint(model, baseURL, keyEnv string, getenv func(string) string) 
 func splitModel(model, baseURL, keyEnv string) (Endpoint, error) {
 	preset, rest := splitFirstSlash(model)
 	if def, ok := presets[preset]; ok {
-		return mergePreset(preset, rest, def, baseURL, keyEnv), nil
+		ep := mergePreset(preset, rest, def, baseURL, keyEnv)
+		if err := rejectEmptyModel(preset, ep.Model); err != nil {
+			return Endpoint{}, err
+		}
+		return ep, nil
 	}
 	if baseURL != "" {
-		return Endpoint{Preset: customPreset, Model: strings.TrimPrefix(model, customPreset+"/"), BaseURL: baseURL, KeyEnv: keyEnv}, nil
+		ep := Endpoint{Preset: customPreset, Model: strings.TrimPrefix(model, customPreset+"/"), BaseURL: baseURL, KeyEnv: keyEnv}
+		if err := rejectEmptyModel(customPreset, ep.Model); err != nil {
+			return Endpoint{}, err
+		}
+		return ep, nil
 	}
 	return Endpoint{}, unknownPreset(preset)
+}
+
+func rejectEmptyModel(preset, model string) error {
+	if strings.TrimSpace(model) != "" {
+		return nil
+	}
+	return usagef(`model name missing after %q: use e.g. hp -m groq/openai/gpt-oss-120b`, preset+"/")
+}
+
+func modelExampleUsage(format string) error {
+	return usagef(format, "hp -m groq/openai/gpt-oss-120b")
 }
 
 func splitFirstSlash(s string) (string, string) {

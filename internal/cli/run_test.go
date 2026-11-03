@@ -245,7 +245,7 @@ func TestRunNoModel(t *testing.T) {
 	if Main(context.Background(), env) != 2 {
 		t.Fatal(stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "preset/model") {
+	if !strings.Contains(stderr.String(), "hp -m groq/openai/gpt-oss-120b") {
 		t.Fatal(stderr.String())
 	}
 }

@@ -44,7 +44,27 @@ func TestResolveEndpoint(t *testing.T) {
 			want: Endpoint{Preset: "xai", Model: "grok", BaseURL: "https://api.x.ai/v1", KeyEnv: "XAI_API_KEY", APIKey: "k"},
 		},
 		{
-			name: "no model", model: "", getenv: getenvMap(nil), wantErr: "model required",
+			name: "no model", model: "", getenv: getenvMap(nil), wantErr: "hp -m groq/openai/gpt-oss-120b",
+		},
+		{
+			name: "preset only groq", model: "groq", getenv: env, wantErr: "hp -m groq/openai/gpt-oss-120b",
+		},
+		{
+			name: "preset slash only", model: "groq/", getenv: env, wantErr: "hp -m groq/openai/gpt-oss-120b",
+		},
+		{
+			name: "preset slash spaces", model: "groq/   ", getenv: env, wantErr: "hp -m groq/openai/gpt-oss-120b",
+		},
+		{
+			name: "preset with model", model: "groq/x", getenv: env,
+			want: Endpoint{Preset: "groq", Model: "x", BaseURL: "https://api.groq.com/openai/v1", KeyEnv: "GROQ_API_KEY", APIKey: "g"},
+		},
+		{
+			name: "custom empty model", model: "custom/", base: "https://ex.example/v1", getenv: env, wantErr: "hp -m groq/openai/gpt-oss-120b",
+		},
+		{
+			name: "custom with model", model: "custom/foo", base: "https://ex.example/v1", getenv: env,
+			want: Endpoint{Preset: "custom", Model: "foo", BaseURL: "https://ex.example/v1"},
 		},
 		{
 			name: "missing key", model: "xai/grok", getenv: getenvMap(nil), wantErr: "XAI_API_KEY",
@@ -92,5 +112,29 @@ func TestResolveEndpoint(t *testing.T) {
 				t.Fatalf("got %+v want %+v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestResolveRunSpecsRejectsEmptyPreset(t *testing.T) {
+	env := getenvMap(map[string]string{"GROQ_API_KEY": "g", "XAI_API_KEY": "k"})
+	_, _, err := resolveRunSpecs(runOpts{model: "xai/grok", fallbacks: []string{"groq"}}, env)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var ue usageError
+	if !errors.As(err, &ue) || !strings.Contains(ue.msg, "hp -m groq/openai/gpt-oss-120b") {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestEndpointForRejectsPresetOnly(t *testing.T) {
+	cur := Endpoint{Preset: "xai", Model: "g", BaseURL: presets["xai"].baseURL, KeyEnv: "XAI_API_KEY"}
+	_, err := endpointFor(cur, "groq", getenvMap(map[string]string{"GROQ_API_KEY": "g"}))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var ue usageError
+	if !errors.As(err, &ue) || !strings.Contains(ue.msg, "hp -m groq/openai/gpt-oss-120b") {
+		t.Fatalf("err %v", err)
 	}
 }
