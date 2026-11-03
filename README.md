@@ -90,7 +90,7 @@ The file uses the same syntax as a systemd `EnvironmentFile`, so `hp autostart` 
 
 ## Session
 
-Bare `hp` on a terminal opens a session. The conversation prints inline into normal scrollback, with one dim status line after each turn. Every follow-up continues the same journaled run, so a session survives like any other run.
+Bare `hp` on a terminal opens a session. A header line shows the version, the conversation prints inline into normal scrollback with one dim status line after each turn, and a footer under the prompt shows the model and whether Jev is on, for example `groq/openai/gpt-oss-120b · jev off`. Every follow-up continues the same journaled run, so a session survives like any other run.
 
 ```
 ./hp -m opencode/grok-4.6
@@ -101,7 +101,7 @@ Bare `hp` on a terminal opens a session. The conversation prints inline into nor
 
 Ctrl-C or Esc stops a turn and returns to the prompt; keys typed during a turn wait there as the next draft. At the prompt, Ctrl-C clears the text, twice on an empty prompt quits, and so does Ctrl-D.
 
-Commands stay local and send nothing to the model: `/help`, `/model` shows the model, `/model preset/name` switches it for following turns, `/new` starts a fresh run, `/runs`, `/quit`. `//text` sends a literal `/text`.
+Commands stay local and send nothing to the model: `/help`; `/model` opens a picker of providers that have a key, then asks for the model name; `/model preset/name` switches directly; `/jev on` and `/jev off` switch Jev for following turns and are kept on resume; `/key NAME` stores an API key with masked input, the same way as `hp key set`; `/new` starts a fresh run; `/runs`; `/quit`. `//text` sends a literal `/text`.
 
 A session opens its connection to the provider at start, and again on the first key after 60 seconds idle, so the first turn skips the TCP and TLS handshake. `hp web` does the same at page load. The probe is an unauthenticated `HEAD` on the base URL; if it fails, nothing shows and the turn connects as usual. On models that stream reasoning the activity line reads `thinking…`, time to first token stops there, and reasoning is neither printed nor journaled.
 
@@ -113,7 +113,7 @@ A session opens its connection to the provider at start, and again on the first 
 ./hp web -m groq/openai/gpt-oss-120b
 ```
 
-`hp web` serves a page from the binary and prints a URL with a one-time token to stderr. A run started there uses the same journal as `hp run`: closing the tab leaves it going, reopening replays the journal and rejoins live, and stopping the server leaves it resumable. Runs live in another process are shown but refused.
+`hp web` serves a page from the binary and prints a URL with a one-time token to stderr. The page looks like the terminal session: the same footer, and `/model preset/name`, `/new`, `/runs` and `/help` typed into the prompt. A run started there uses the same journal as `hp run`: closing the tab leaves it going, reopening replays the journal and rejoins live, and stopping the server leaves it resumable. Runs live in another process are shown but refused.
 
 `-m`, `--jev`, `-C` and the other `hp run` flags work here. `--port` picks the port (default 7878, or a free one with a note if it is taken). It binds 127.0.0.1 unless `--listen host:port` says otherwise. The token is sent without TLS, so a non-loopback `--listen` is only as private as that network. The agent can run shell commands: anyone with the URL can too. The server checks the token, `Host` and `Origin` on requests, and only `127.0.0.1`, `localhost` and the `--listen` host are accepted, so use a concrete host rather than `0.0.0.0`.
 
