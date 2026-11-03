@@ -17,6 +17,20 @@ func TestHTTPError(t *testing.T) {
 	}
 }
 
+func TestErrContextOverflowIs(t *testing.T) {
+	he := &HTTPError{Status: 400, Body: "long", Overflow: true}
+	if !errors.Is(he, ErrContextOverflow) {
+		t.Fatal("direct overflow")
+	}
+	if errors.Is(&HTTPError{Status: 400, Overflow: false}, ErrContextOverflow) {
+		t.Fatal("non-overflow")
+	}
+	wrapped := &TransientError{Err: he}
+	if !errors.Is(wrapped, ErrContextOverflow) {
+		t.Fatal("wrapped overflow")
+	}
+}
+
 func TestTransientError(t *testing.T) {
 	cause := errors.New("reset")
 	err := error(&TransientError{Err: cause})

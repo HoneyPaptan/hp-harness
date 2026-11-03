@@ -39,9 +39,9 @@ func errorFromResponse(resp *http.Response) error {
 	case status == statusOverloaded:
 		return &provider.RateLimitError{Overloaded: true, RetryAfter: retryDelay(resp.Header), Body: body}
 	case status == 408 || status == 409 || status >= 500:
-		return &provider.TransientError{Err: &provider.HTTPError{Status: status, Body: body}}
+		return &provider.TransientError{Err: httpError(status, body)}
 	default:
-		return &provider.HTTPError{Status: status, Body: body}
+		return httpError(status, body)
 	}
 }
 
@@ -67,7 +67,7 @@ func latestReset(h http.Header) time.Duration {
 
 func (e *wireEventError) asError() error {
 	if status, ok := permanentKinds[e.Type]; ok {
-		return &provider.HTTPError{Status: status, Body: e.Message}
+		return &provider.HTTPError{Status: status, Body: e.Message, Overflow: contextOverflow(e.Type, e.Message)}
 	}
 	switch e.Type {
 	case "rate_limit_error":

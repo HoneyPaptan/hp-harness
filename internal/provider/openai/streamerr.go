@@ -46,7 +46,7 @@ func (e *wireStreamError) UnmarshalJSON(b []byte) error {
 
 func (e *wireStreamError) asError() error {
 	if status, ok := e.permanentStatus(); ok {
-		return &provider.HTTPError{Status: status, Body: e.Message}
+		return &provider.HTTPError{Status: status, Body: e.Message, Overflow: contextOverflow(e.Code, e.Type, e.Message)}
 	}
 	overloaded := e.hasKind("overloaded", "503", "529")
 	if overloaded || e.hasKind("rate_limit_exceeded", "429") {

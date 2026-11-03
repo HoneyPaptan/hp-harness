@@ -78,6 +78,8 @@ func (r *replayer) apply(rec Record, i int) error {
 		return r.applyModelSwitch(rec)
 	case TypeJevSwitch:
 		return r.applyJevSwitch(rec)
+	case TypeCompact:
+		return r.applyCompact(rec)
 	case TypePermissionSwitch:
 		return r.applyPermissionSwitch(rec)
 	case TypeRunEnd:
@@ -168,6 +170,24 @@ func (r *replayer) applyJevSwitch(rec Record) error {
 		return err
 	}
 	r.st.Jev = sw.On
+	return nil
+}
+
+func (r *replayer) applyCompact(rec Record) error {
+	c, err := decode[Compact](rec)
+	if err != nil {
+		return err
+	}
+	if c.Keep < 0 {
+		return fmt.Errorf("compact seq %d: negative keep", rec.Seq)
+	}
+	msgs := r.st.Messages
+	keep := c.Keep
+	if keep > len(msgs) {
+		keep = len(msgs)
+	}
+	tail := msgs[len(msgs)-keep:]
+	r.st.Messages = append([]provider.Message{{Role: provider.RoleUser, Text: c.Handoff}}, tail...)
 	return nil
 }
 

@@ -1,17 +1,25 @@
 package provider
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
 
+var ErrContextOverflow = errors.New("context overflow")
+
 type HTTPError struct {
-	Status int
-	Body   string
+	Status   int
+	Body     string
+	Overflow bool
 }
 
 func (e *HTTPError) Error() string {
 	return fmt.Sprintf("http %d: %s", e.Status, e.Body)
+}
+
+func (e *HTTPError) Is(target error) bool {
+	return e.Overflow && target == ErrContextOverflow
 }
 
 type TransientError struct {

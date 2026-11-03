@@ -66,6 +66,10 @@ func (w *Writer) JevSwitch(on bool) error {
 	return w.append(TypeJevSwitch, JevSwitch{On: on})
 }
 
+func (w *Writer) Compact(handoff string, keep int) error {
+	return w.append(TypeCompact, Compact{Handoff: handoff, Keep: keep})
+}
+
 func (w *Writer) PermissionSwitch(mode string) error {
 	return w.append(TypePermissionSwitch, PermissionSwitch{Mode: mode})
 }

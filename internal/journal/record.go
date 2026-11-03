@@ -20,6 +20,7 @@ const (
 	TypeLimitWait        Type = "limit_wait"
 	TypeModelSwitch      Type = "model_switch"
 	TypeJevSwitch        Type = "jev_switch"
+	TypeCompact          Type = "compact"
 	TypePermissionSwitch Type = "permission_switch"
 	TypeRunEnd           Type = "run_end"
 )
@@ -67,6 +68,11 @@ type ModelSwitch struct {
 
 type JevSwitch struct {
 	On bool `json:"on"`
+}
+
+type Compact struct {
+	Handoff string `json:"handoff"`
+	Keep    int    `json:"keep"`
 }
 
 type PermissionSwitch struct {
