@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -37,6 +38,7 @@ var slashCommands = []slashCommand{
 	{"/runs", "", "list recent runs"},
 	{"/permissions", "", "show or set permission mode"},
 	{"/permissions", " ask|auto|full-access|reset", "switch mode or reset session grants"},
+	{"/compact", "", "compact the conversation now"},
 	{"/quit", "", "leave, also Ctrl-D"},
 }
 
@@ -81,7 +83,7 @@ func promptText(text string) string {
 	return text
 }
 
-func (s *Session) runSlash(name, arg string) {
+func (s *Session) runSlash(ctx context.Context, name, arg string) {
 	switch name {
 	case "/help":
 		s.showHelp()
@@ -107,6 +109,8 @@ func (s *Session) runSlash(name, arg string) {
 		s.showRuns()
 	case "/permissions":
 		s.switchPermissions(arg)
+	case "/compact":
+		s.runCompact(ctx)
 	case "/quit":
 		s.quit = true
 	default:
@@ -202,6 +206,22 @@ func (s *Session) showRuns() {
 	}
 	for _, line := range lines {
 		s.note(line)
+	}
+}
+
+func (s *Session) runCompact(ctx context.Context) {
+	if s.busy() {
+		return
+	}
+	ok, err := s.cfg.Agent.Compact(ctx)
+	if err != nil {
+		s.fail(err)
+		return
+	}
+	if ok {
+		s.note("compacted")
+	} else {
+		s.note("nothing to compact")
 	}
 }
 

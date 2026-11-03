@@ -56,6 +56,7 @@ type Agent interface {
 	PermissionMode() string
 	SetPermissionMode(string) error
 	PermissionInfo() string
+	Compact(ctx context.Context) (bool, error)
 }
 
 type KeyMissingError struct{ Hint string }

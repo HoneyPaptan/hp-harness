@@ -246,7 +246,7 @@ func (s *Session) submit(ctx context.Context) {
 	s.clearPromptCompletion()
 	s.endPrompt()
 	if name, arg, ok := splitSlash(text); ok {
-		s.runSlash(name, arg)
+		s.runSlash(ctx, name, arg)
 		s.dirty = true
 		return
 	}

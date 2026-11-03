@@ -235,5 +235,8 @@ func (r *run) observer() core.Observer {
 		OnRetry: func(d time.Duration, attempt, limit int) {
 			r.failedAttempt(Event{Kind: KindRetry, DelayMS: d.Milliseconds(), Attempt: attempt, Max: limit})
 		},
+		OnCompact: func(int) {
+			r.failedAttempt(Event{Kind: KindCompact})
+		},
 	}
 }

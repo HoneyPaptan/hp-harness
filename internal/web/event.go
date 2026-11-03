@@ -19,6 +19,7 @@ const (
 	KindWait       = "wait"
 	KindSwitch     = "switch"
 	KindRetry      = "retry"
+	KindCompact    = "compact"
 	KindError      = "error"
 	KindRunStatus  = "run_status"
 

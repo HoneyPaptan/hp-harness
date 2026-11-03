@@ -109,3 +109,71 @@ func TestLoadSettingsRuleOrder(t *testing.T) {
 		t.Fatalf("%+v", rules)
 	}
 }
+
+func TestLoadSettingsAutoCompactDefault(t *testing.T) {
+	env, _ := settingsTestEnv(t, "")
+	st, err := loadSettings(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.AutoCompactPercent != nil {
+		t.Fatal(st.AutoCompactPercent)
+	}
+	if got := compactPercent(st); got != 0 {
+		t.Fatalf("percent %d", got)
+	}
+}
+
+func TestLoadSettingsAutoCompactBounds(t *testing.T) {
+	for _, tc := range []struct {
+		raw  string
+		ok   bool
+		want int
+	}{
+		{`{"auto_compact_percent":10}`, true, 10},
+		{`{"auto_compact_percent":80}`, true, 80},
+		{`{"auto_compact_percent":9}`, false, 0},
+		{`{"auto_compact_percent":81}`, false, 0},
+	} {
+		env, file := settingsTestEnv(t, tc.raw)
+		st, err := loadSettings(env)
+		if tc.ok {
+			if err != nil {
+				t.Fatalf("%s: %v", tc.raw, err)
+			}
+			if st.AutoCompactPercent == nil || *st.AutoCompactPercent != tc.want {
+				t.Fatalf("%s: %+v", tc.raw, st.AutoCompactPercent)
+			}
+		} else if err == nil || !strings.Contains(err.Error(), file) {
+			t.Fatalf("%s: err %v", tc.raw, err)
+		}
+	}
+}
+
+func TestLoadSettingsAutoCompactNonInteger(t *testing.T) {
+	env, file := settingsTestEnv(t, `{"auto_compact_percent":"80"}`)
+	_, err := loadSettings(env)
+	if err == nil || !strings.Contains(err.Error(), file) {
+		t.Fatalf("err %v", err)
+	}
+}
+
+func TestLoadSettingsContextWindows(t *testing.T) {
+	env, file := settingsTestEnv(t, `{"context_windows":{"xai/grok":200000,"gpt-4":8192}}`)
+	st, err := loadSettings(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.ContextWindows["xai/grok"] != 200000 || st.ContextWindows["gpt-4"] != 8192 {
+		t.Fatalf("%+v", st.ContextWindows)
+	}
+	_ = file
+}
+
+func TestLoadSettingsContextWindowsZero(t *testing.T) {
+	env, file := settingsTestEnv(t, `{"context_windows":{"xai/grok":0}}`)
+	_, err := loadSettings(env)
+	if err == nil || !strings.Contains(err.Error(), file) {
+		t.Fatalf("err %v", err)
+	}
+}

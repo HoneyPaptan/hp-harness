@@ -14,6 +14,7 @@ func TestSlashHelpLinesUnchanged(t *testing.T) {
 		"/runs          list recent runs",
 		"/permissions   show or set permission mode",
 		"/permissions ask|auto|full-access|reset switch mode or reset session grants",
+		"/compact       compact the conversation now",
 		"/quit          leave, also Ctrl-D",
 		"//text         send /text to the model",
 		"Ctrl-C or Esc stops a turn",

@@ -519,6 +519,10 @@ export class Transcript {
     this.add(note("", "Stream failed, retrying in ", [seconds(ev.delay_ms)], ", attempt ", [attempt]));
   }
 
+  on_compact() {
+    this.add(note("", "compacted"));
+  }
+
   on_error(ev) {
     this.add(note("note-error", ev.text || "The turn failed."));
   }

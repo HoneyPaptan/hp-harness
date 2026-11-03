@@ -135,7 +135,7 @@ func (a *sessionAgent) begin(obs core.Observer) core.Deps {
 		mode:  func() permit.Mode { return a.permMode },
 		rules: a.permRules, grants: a.permGrants, dir: a.dir,
 	}
-	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, a.tracked(obs), a.client, rp)
+	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, a.tracked(obs), a.client, rp, a.settings)
 	d.Gate = newGate(a.env.Host, rp.mode, rp.rules, rp.grants, rp.dir, a.env.Getenv("HOME"), a.permissionAsk, newReviewer(a.env, func() Endpoint { return a.ep }))
 	d.Providers = providerFactory(a.env, a.bySpec)
 	return d
@@ -212,6 +212,20 @@ func (a *sessionAgent) PermissionInfo() string {
 	return "rules in " + file
 }
 
+func (a *sessionAgent) Compact(ctx context.Context) (bool, error) {
+	if !a.started {
+		return false, nil
+	}
+	rp := runPerm{
+		mode:  func() permit.Mode { return a.permMode },
+		rules: a.permRules, grants: a.permGrants, dir: a.dir,
+	}
+	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, core.Observer{}, a.client, rp, a.settings)
+	d.Gate = newGate(a.env.Host, rp.mode, rp.rules, rp.grants, rp.dir, a.env.Getenv("HOME"), a.permissionAsk, newReviewer(a.env, func() Endpoint { return a.ep }))
+	d.Providers = providerFactory(a.env, a.bySpec)
+	return core.Compact(ctx, d, a.jpath)
+}
+
 func (a *sessionAgent) finish(out core.Outcome, err error) (tui.Outcome, error) {
 	a.open = err != nil
 	if err != nil {
@@ -250,6 +264,7 @@ func (a *sessionAgent) observer(emit func(tui.Event)) core.Observer {
 		OnRetry: func(d time.Duration, attempt, max int) {
 			note(retryLine(d, attempt, max))
 		},
+		OnCompact: func(int) { note("compacted") },
 	}
 }
 

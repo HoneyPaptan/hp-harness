@@ -51,6 +51,7 @@ type fakeAgent struct {
 	filesCalls int
 	permMode   string
 	permInfo   string
+	compactFn  func(context.Context) (bool, error)
 	script     []func(context.Context, func(Event)) (Outcome, error)
 	started    chan struct{}
 }
@@ -181,6 +182,13 @@ func (a *fakeAgent) PermissionInfo() string {
 		return a.permInfo
 	}
 	return "rules in ~/.config/hp/settings.json"
+}
+
+func (a *fakeAgent) Compact(ctx context.Context) (bool, error) {
+	if a.compactFn != nil {
+		return a.compactFn(ctx)
+	}
+	return false, nil
 }
 
 func (a *fakeAgent) sent() []string {
@@ -947,5 +955,37 @@ func TestSessionJevMissingKeyOffersKeyCommand(t *testing.T) {
 	a.jevErr = KeyMissingError{Hint: "jev needs a key: hp key set TYPESAFE_API_KEY"}
 	h := startSession(t, a, false, false)
 	h.play([]step{{keys: "/jev on\r"}, {wait: keyAddHint}, {keys: "\x04"}})
+	h.waitExit()
+}
+
+func TestSessionSlashCompactNotes(t *testing.T) {
+	a := newFakeAgent()
+	a.compactFn = func(context.Context) (bool, error) { return true, nil }
+	h := startSession(t, a, false, false)
+	h.play([]step{{keys: "/compact\r"}, {wait: "compacted"}, {keys: "\x04"}})
+	h.waitExit()
+
+	a2 := newFakeAgent()
+	a2.compactFn = func(context.Context) (bool, error) { return false, nil }
+	h2 := startSession(t, a2, false, false)
+	h2.play([]step{{keys: "/compact\r"}, {wait: "nothing to compact"}, {keys: "\x04"}})
+	h2.waitExit()
+
+	a3 := newFakeAgent()
+	a3.compactFn = func(context.Context) (bool, error) { return false, errors.New("compact broke") }
+	h3 := startSession(t, a3, false, false)
+	h3.play([]step{{keys: "/compact\r"}, {wait: "error: compact broke"}, {keys: "\x04"}})
+	h3.waitExit()
+}
+
+func TestSessionCompactNoteDuringTurn(t *testing.T) {
+	a := newFakeAgent(func(_ context.Context, emit func(Event)) (Outcome, error) {
+		emit(Event{Kind: EventStep})
+		emit(Event{Kind: EventNote, Text: "compacted"})
+		emit(Event{Kind: EventText, Text: "ok\n"})
+		return Outcome{Model: "xai/grok", Steps: 1, InputTokens: 1, OutputTokens: 1, TTFT: time.Millisecond}, nil
+	})
+	h := startSession(t, a, true, false)
+	h.play([]step{{keys: "go\r"}, {wait: "compacted"}, {wait: "ok"}, {keys: "\x04"}})
 	h.waitExit()
 }
