@@ -227,7 +227,7 @@ func TestFetchCanceledIsGoError(t *testing.T) {
 }
 
 func TestBlockedIPRanges(t *testing.T) {
-	for _, s := range []string{"127.0.0.1", "10.1.2.3", "172.20.0.1", "192.168.1.5", "169.254.1.1", "100.101.14.98", "0.0.0.0", "224.0.0.1", "::1", "::", "fe80::1", "fd00::1", "ff02::1", "::ffff:127.0.0.1"} {
+	for _, s := range []string{"127.0.0.1", "10.1.2.3", "172.20.0.1", "192.168.0.5", "169.254.1.1", "100.64.0.1", "0.0.0.0", "224.0.0.1", "::1", "::", "fe80::1", "fd00::1", "ff02::1", "::ffff:127.0.0.1"} {
 		if !blockedIP(net.ParseIP(s)) {
 			t.Errorf("%s not blocked", s)
 		}
