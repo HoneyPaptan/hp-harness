@@ -46,8 +46,8 @@ func (m *manager) run(id string) (*run, error) {
 	return r, nil
 }
 
-func (m *manager) start(model, prompt string) (string, error) {
-	agent, err := m.b.Start(model, prompt)
+func (m *manager) start(model, prompt, effort string) (string, error) {
+	agent, err := m.b.Start(model, prompt, effort)
 	if err != nil {
 		return "", err
 	}
@@ -59,35 +59,36 @@ func (m *manager) start(model, prompt string) (string, error) {
 	m.mu.Lock()
 	m.runs[r.id] = r
 	m.mu.Unlock()
-	return r.id, m.launch(r, agent, "", agent.Resume)
+	_, err = m.launch(r, agent, "", agent.Resume)
+	return r.id, err
 }
 
-func (m *manager) send(id, prompt string) error {
+func (m *manager) send(id, prompt string) (int64, error) {
 	r, err := m.run(id)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := r.reserve(); err != nil {
-		return err
+		return 0, err
 	}
 	agent, err := m.b.Open(id)
 	if err != nil {
 		r.unreserve()
-		return err
+		return 0, err
 	}
 	return m.launch(r, agent, prompt, func(ctx context.Context, obs core.Observer) (Stats, error) {
 		return agent.Send(ctx, prompt, obs)
 	})
 }
 
-func (m *manager) launch(r *run, agent Agent, prompt string, turn turnFunc) error {
+func (m *manager) launch(r *run, agent Agent, prompt string, turn turnFunc) (int64, error) {
 	if !m.track() {
 		agent.Release()
 		r.unreserve()
-		return errClosed
+		return 0, errClosed
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
-	r.begin(prompt, cancel)
+	after := r.begin(prompt, cancel)
 	go func() {
 		defer m.wg.Done()
 		defer cancel()
@@ -95,7 +96,7 @@ func (m *manager) launch(r *run, agent Agent, prompt string, turn turnFunc) erro
 		agent.Release()
 		r.finish(ctx, s, err)
 	}()
-	return nil
+	return after, nil
 }
 
 func (m *manager) track() bool {
@@ -160,4 +161,21 @@ func (m *manager) close() {
 	m.mu.Unlock()
 	m.cancel()
 	m.wg.Wait()
+}
+
+func (m *manager) setEffort(id, effort string) error {
+	r, err := m.run(id)
+	if err != nil {
+		return err
+	}
+	if err := r.reserve(); err != nil {
+		return err
+	}
+	defer r.unreserve()
+	agent, err := m.b.Open(id)
+	if err != nil {
+		return err
+	}
+	defer agent.Release()
+	return agent.SetEffort(effort)
 }

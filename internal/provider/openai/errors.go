@@ -2,6 +2,8 @@ package openai
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
@@ -31,7 +33,25 @@ func retryAfterFromHeaders(h http.Header) time.Duration {
 			return d
 		}
 	}
+	if d := resetAt(h.Get("x-ratelimit-reset")); d > 0 {
+		return d
+	}
 	return maxResetDuration(h)
+}
+
+func resetAt(v string) time.Duration {
+	n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	switch {
+	case n > 1e12:
+		return time.UnixMilli(n).Sub(now())
+	case n > 1e9:
+		return time.Unix(n, 0).Sub(now())
+	default:
+		return time.Duration(n) * time.Second
+	}
 }
 
 func maxResetDuration(h http.Header) time.Duration {

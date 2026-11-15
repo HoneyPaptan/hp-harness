@@ -27,13 +27,13 @@ func openToolset(env Env, workDir string, skills []skill.Skill, client *jev.Clie
 	connected, clients := connectionTools(env)
 	nested := newNestedContext(contextEnabled(st), env.Host, workDir, attachedInstructionPaths(msgs))
 	return &toolset{
-		reg:       buildRegistry(skills, toolExtras(env, client, st), connected, client == nil, nested),
+		reg:       buildRegistry(builtinTools(env), skills, toolExtras(env, client, st), connected, client == nil, nested),
 		connected: connected, clients: clients, nested: nested, env: env, st: st,
 	}
 }
 
 func (t *toolset) setJev(skills []skill.Skill, client *jev.Client) {
-	t.reg = buildRegistry(skills, toolExtras(t.env, client, t.st), t.connected, client == nil, t.nested)
+	t.reg = buildRegistry(builtinTools(t.env), skills, toolExtras(t.env, client, t.st), t.connected, client == nil, t.nested)
 }
 
 func (t *toolset) close() {

@@ -27,29 +27,30 @@ const (
 )
 
 type Event struct {
-	ID           int64     `json:"id"`
-	Kind         string    `json:"kind"`
-	Text         string    `json:"text,omitempty"`
-	CallID       string    `json:"call_id,omitempty"`
-	Name         string    `json:"name,omitempty"`
-	Args         string    `json:"args,omitempty"`
-	IsError      bool      `json:"is_error,omitempty"`
-	Truncated    bool      `json:"truncated,omitempty"`
-	Discard      bool      `json:"discard,omitempty"`
-	Model        string    `json:"model,omitempty"`
-	From         string    `json:"from,omitempty"`
-	To           string    `json:"to,omitempty"`
-	Until        time.Time `json:"until,omitzero"`
-	DelayMS      int64     `json:"delay_ms,omitempty"`
-	Attempt      int       `json:"attempt,omitempty"`
-	Max          int       `json:"max,omitempty"`
-	Status       string    `json:"status,omitempty"`
-	Reason       string    `json:"reason,omitempty"`
-	Steps        *int      `json:"steps,omitempty"`
-	InputTokens  *int      `json:"input_tokens,omitempty"`
-	OutputTokens *int      `json:"output_tokens,omitempty"`
-	TTFTMS       *int64    `json:"ttft_ms,omitempty"`
-	Jev          *JevSpend `json:"jev,omitempty"`
+	ID            int64     `json:"id"`
+	Kind          string    `json:"kind"`
+	Text          string    `json:"text,omitempty"`
+	CallID        string    `json:"call_id,omitempty"`
+	Name          string    `json:"name,omitempty"`
+	Args          string    `json:"args,omitempty"`
+	IsError       bool      `json:"is_error,omitempty"`
+	Truncated     bool      `json:"truncated,omitempty"`
+	Discard       bool      `json:"discard,omitempty"`
+	Model         string    `json:"model,omitempty"`
+	From          string    `json:"from,omitempty"`
+	To            string    `json:"to,omitempty"`
+	Until         time.Time `json:"until,omitzero"`
+	DelayMS       int64     `json:"delay_ms,omitempty"`
+	Attempt       int       `json:"attempt,omitempty"`
+	Max           int       `json:"max,omitempty"`
+	Status        string    `json:"status,omitempty"`
+	Reason        string    `json:"reason,omitempty"`
+	Steps         *int      `json:"steps,omitempty"`
+	InputTokens   *int      `json:"input_tokens,omitempty"`
+	OutputTokens  *int      `json:"output_tokens,omitempty"`
+	ContextTokens *int      `json:"context_tokens,omitempty"`
+	TTFTMS        *int64    `json:"ttft_ms,omitempty"`
+	Jev           *JevSpend `json:"jev,omitempty"`
 }
 
 func capText(s string) (string, bool) {
@@ -78,7 +79,7 @@ func turnEndEvent(s Stats) Event {
 	return Event{
 		Kind: KindTurnEnd, Reason: s.Reason, Steps: &s.Steps,
 		InputTokens: &s.InputTokens, OutputTokens: &s.OutputTokens,
-		TTFTMS: &ttft, Jev: s.Jev,
+		ContextTokens: &s.ContextTokens, TTFTMS: &ttft, Jev: s.Jev,
 	}
 }
 

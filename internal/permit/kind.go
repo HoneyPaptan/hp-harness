@@ -13,7 +13,7 @@ const (
 
 func kindForTool(name string) Kind {
 	switch name {
-	case "read", "grep":
+	case "read", "grep", "list":
 		return KindRead
 	case "edit", "write":
 		return KindWrite

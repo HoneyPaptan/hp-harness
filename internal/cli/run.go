@@ -38,6 +38,7 @@ type runOpts struct {
 	fallbacks                   []string
 	switchAfter, maxWait        time.Duration
 	detach, jev, fullAccess     bool
+	effort                      string
 }
 
 type stringList []string
@@ -159,7 +160,7 @@ func runConfig(id string, ep Endpoint, dir, jpath string, o runOpts, prompt stri
 		Dir: dir, JournalPath: jpath, Prompt: prompt, StepLimit: o.steps,
 		MaxTokens: o.maxTokens, Preset: ep.Preset, BaseURL: ep.BaseURL, KeyEnv: ep.KeyEnv,
 		Fallbacks: append([]string(nil), o.fallbacks...), SwitchAfter: o.switchAfter, MaxWait: o.maxWait,
-		Detached: o.detach, Jev: o.jev, Permission: perm,
+		Detached: o.detach, Jev: o.jev, Permission: perm, Effort: o.effort,
 	}
 }
 

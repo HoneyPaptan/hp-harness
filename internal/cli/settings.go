@@ -36,7 +36,7 @@ func loadSettings(env Env) (settings, error) {
 	if err != nil {
 		return settings{}, err
 	}
-	data, err := os.ReadFile(file)
+	data, err := readConfigFile(env, file)
 	if errors.Is(err, fs.ErrNotExist) {
 		return settings{}, nil
 	}
@@ -143,4 +143,11 @@ func loadSettingsAndRules(env Env) (settings, []permit.Rule, error) {
 		return settings{}, nil, fmt.Errorf("%s: %w", file, err)
 	}
 	return st, rules, nil
+}
+
+func readConfigFile(env Env, file string) ([]byte, error) {
+	if env.Browser {
+		return env.Host.ReadFile(file)
+	}
+	return os.ReadFile(file)
 }

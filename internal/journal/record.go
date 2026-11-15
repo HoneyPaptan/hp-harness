@@ -22,6 +22,7 @@ const (
 	TypeJevSwitch        Type = "jev_switch"
 	TypeCompact          Type = "compact"
 	TypePermissionSwitch Type = "permission_switch"
+	TypeEffortSwitch     Type = "effort_switch"
 	TypeRunEnd           Type = "run_end"
 )
 
@@ -47,6 +48,7 @@ type RunStart struct {
 	MaxWait     time.Duration `json:"max_wait,omitempty"`
 	Jev         bool          `json:"jev,omitempty"`
 	Permission  string        `json:"permission,omitempty"`
+	Effort      string        `json:"effort,omitempty"`
 	Detached    bool          `json:"detached,omitempty"`
 }
 
@@ -64,6 +66,10 @@ type LimitWait struct {
 type ModelSwitch struct {
 	From string `json:"from"`
 	To   string `json:"to"`
+}
+
+type EffortSwitch struct {
+	Effort string `json:"effort"`
 }
 
 type JevSwitch struct {

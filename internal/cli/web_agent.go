@@ -118,11 +118,15 @@ func (b *webBackend) Busy(id string) bool {
 	return liveElsewhere(b.env, id)
 }
 
-func (b *webBackend) Start(model, prompt string) (web.Agent, error) {
+func (b *webBackend) Start(model, prompt, effort string) (web.Agent, error) {
 	o := b.opts
 	if model != "" {
 		o.model = model
 	}
+	if err := checkEffort(effort); err != nil {
+		return nil, invalid(err)
+	}
+	o.effort = effort
 	ep, bySpec, err := resolveRunSpecs(o, b.env.Getenv)
 	if err != nil {
 		return nil, invalid(err)
@@ -201,6 +205,15 @@ func (a *webAgent) SetModel(spec string) error {
 	return err
 }
 
+func (a *webAgent) SetEffort(effort string) error {
+	err := a.sessionAgent.SetEffort(effort)
+	var usage usageError
+	if errors.As(err, &usage) {
+		return invalid(err)
+	}
+	return err
+}
+
 func (a *webAgent) Send(ctx context.Context, prompt string, obs core.Observer) (web.Stats, error) {
 	deps := a.begin(obs)
 	return a.stats(a.dispatch(ctx, deps, prompt))
@@ -218,7 +231,7 @@ func (a *webAgent) stats(out core.Outcome, err error) (web.Stats, error) {
 	return web.Stats{
 		Reason: out.Reason, Steps: out.Steps,
 		InputTokens: out.Usage.InputTokens, OutputTokens: out.Usage.OutputTokens,
-		TTFT: a.clock.ttft, Jev: a.jevSpend(),
+		ContextTokens: out.ContextTokens, TTFT: a.clock.ttft, Jev: a.jevSpend(),
 	}, nil
 }
 

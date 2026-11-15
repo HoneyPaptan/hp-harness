@@ -31,6 +31,7 @@ type Env struct {
 	Pid         int
 	Term        Terminal
 	RunCtl      func(argv []string) error
+	Browser     bool
 	realGetenv  func(string) string
 }
 

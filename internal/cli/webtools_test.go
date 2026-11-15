@@ -36,6 +36,21 @@ func TestWebToolsInRegistry(t *testing.T) {
 	}
 }
 
+func TestBrowserGetsFreeSearch(t *testing.T) {
+	h := host.NewMemory()
+	env, _, _ := testEnv(t, h, nil, map[string]string{"EXA_API_KEY": "exa-key"})
+	env.Browser = true
+	names := toolsetNames(openToolset(env, "/proj", nil, nil, settings{}, nil))
+	if !hasName(names, "web_search") || !hasName(names, "wiki_read") || hasName(names, "web_fetch") {
+		t.Fatalf("browser: %v", names)
+	}
+	off := false
+	names = toolsetNames(openToolset(env, "/proj", nil, nil, settings{Web: &off}, nil))
+	if hasName(names, "web_search") || hasName(names, "wiki_read") {
+		t.Fatalf("browser web off: %v", names)
+	}
+}
+
 func toolsetNames(ts *toolset) []string {
 	var out []string
 	for _, d := range ts.reg.Defs() {

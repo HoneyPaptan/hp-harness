@@ -77,3 +77,10 @@ func TestBuildCutMultibyte(t *testing.T) {
 		t.Fatal("invalid utf8")
 	}
 }
+
+func TestBuildBrowser(t *testing.T) {
+	got := Build(Info{Dir: "/w", Date: time.Unix(0, 0), Browser: true})
+	if strings.Contains(got, "terminal") || !strings.Contains(got, "no shell") || !strings.Contains(got, "write it as a Markdown file") {
+		t.Fatalf("%s", got)
+	}
+}
