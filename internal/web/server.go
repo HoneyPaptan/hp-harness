@@ -71,6 +71,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/state", s.handleState)
 	mux.HandleFunc("GET /api/runs", s.handleRuns)
+	mux.HandleFunc("GET /api/models", s.handleModels)
 	mux.HandleFunc("POST /api/runs", s.handleStart)
 	mux.HandleFunc("POST /api/runs/{id}/messages", s.handleMessage)
 	mux.HandleFunc("POST /api/runs/{id}/stop", s.handleStop)
