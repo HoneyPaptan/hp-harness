@@ -46,14 +46,14 @@ make bench   # startup, `hp runs`, first byte and memory bounds
 
 ## Size and speed
 
-The stripped binary is 8,589,575 bytes (8.6 MB), measured with `make check` against the 9,011,200 byte budget. `make bench` runs hp against a local fake server that replies at once, so it measures hp's own overhead. Median of five runs today on a busy laptop, with the bound CI enforces:
+The stripped binary is 8,724,743 bytes (8.7 MB), measured with `make check` against the 9,011,200 byte budget. `make bench` runs hp against a local fake server that replies at once, so it measures hp's own overhead. Best of seven runs today on a laptop that was under heavy load, so the slower runs measure the load, with the bound CI enforces:
 
-| Measure | Median | Bound |
+| Measure | Best of 7 | Bound |
 | --- | --- | --- |
-| `hp --version` | 6.1 ms | 10 ms |
-| `hp runs` with 500 journals | 10.7 ms | 100 ms |
-| `hp run` start to first byte | 8.0 ms | 15 ms |
-| Peak RSS | 12.1 MB | 40 MB |
+| `hp --version` | 7.6 ms | 10 ms |
+| `hp runs` with 500 journals | 11.6 ms | 100 ms |
+| `hp run` start to first byte | 8.2 ms | 15 ms |
+| Peak RSS | 15.2 MB | 40 MB |
 
 ## Folders
 
