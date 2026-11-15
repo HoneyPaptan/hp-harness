@@ -45,6 +45,9 @@ func (e *wireStreamError) UnmarshalJSON(b []byte) error {
 }
 
 func (e *wireStreamError) asError() error {
+	if ut := unknownTool(e.Message); ut != nil {
+		return ut
+	}
 	if status, ok := e.permanentStatus(); ok {
 		return &provider.HTTPError{Status: status, Body: e.Message, Overflow: contextOverflow(e.Code, e.Type, e.Message)}
 	}

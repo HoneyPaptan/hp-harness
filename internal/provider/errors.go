@@ -22,6 +22,15 @@ func (e *HTTPError) Is(target error) bool {
 	return e.Overflow && target == ErrContextOverflow
 }
 
+type UnknownToolError struct {
+	Name string
+	Body string
+}
+
+func (e *UnknownToolError) Error() string {
+	return fmt.Sprintf("model called unknown tool %q: %s", e.Name, e.Body)
+}
+
 type TransientError struct {
 	Err error
 }
