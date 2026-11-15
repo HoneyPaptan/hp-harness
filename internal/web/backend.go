@@ -44,12 +44,13 @@ type JevSpend struct {
 }
 
 type Stats struct {
-	Reason       string
-	Steps        int
-	InputTokens  int
-	OutputTokens int
-	TTFT         time.Duration
-	Jev          *JevSpend
+	Reason        string
+	Steps         int
+	InputTokens   int
+	OutputTokens  int
+	ContextTokens int
+	TTFT          time.Duration
+	Jev           *JevSpend
 }
 
 type Backend interface {

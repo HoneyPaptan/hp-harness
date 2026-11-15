@@ -47,10 +47,11 @@ type Config struct {
 }
 
 type Outcome struct {
-	Text   string
-	Reason string
-	Steps  int
-	Usage  provider.Usage
+	Text          string
+	Reason        string
+	Steps         int
+	Usage         provider.Usage
+	ContextTokens int
 }
 
 func Run(ctx context.Context, d Deps, c Config) (Outcome, error) {

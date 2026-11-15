@@ -218,7 +218,7 @@ func (a *webAgent) stats(out core.Outcome, err error) (web.Stats, error) {
 	return web.Stats{
 		Reason: out.Reason, Steps: out.Steps,
 		InputTokens: out.Usage.InputTokens, OutputTokens: out.Usage.OutputTokens,
-		TTFT: a.clock.ttft, Jev: a.jevSpend(),
+		ContextTokens: out.ContextTokens, TTFT: a.clock.ttft, Jev: a.jevSpend(),
 	}, nil
 }
 

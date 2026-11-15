@@ -144,7 +144,7 @@ func (r *runner) finishFinal(text string) (Outcome, bool, error) {
 	if err := r.w.End(ReasonFinal); err != nil {
 		return Outcome{}, false, err
 	}
-	o := Outcome{Text: text, Reason: ReasonFinal, Steps: r.steps, Usage: r.usage}
+	o := Outcome{Text: text, Reason: ReasonFinal, Steps: r.steps, Usage: r.usage, ContextTokens: r.lastTurnTokens}
 	return o, true, nil
 }
 
@@ -152,6 +152,6 @@ func (r *runner) finishLimit() (Outcome, bool, error) {
 	if err := r.w.End(ReasonStepLimit); err != nil {
 		return Outcome{}, false, err
 	}
-	o := Outcome{Reason: ReasonStepLimit, Steps: r.steps, Usage: r.usage}
+	o := Outcome{Reason: ReasonStepLimit, Steps: r.steps, Usage: r.usage, ContextTokens: r.lastTurnTokens}
 	return o, true, nil
 }
