@@ -119,7 +119,7 @@ func (r *runner) recoverOverflow(ctx context.Context, err error) error {
 func (r *runner) streamTurn(ctx context.Context, tools []provider.ToolDef) (provider.Message, provider.Usage, error) {
 	req := provider.Request{
 		Model: r.reqModel, System: r.cfg.System, Messages: r.msgs,
-		Tools: tools, MaxTokens: r.cfg.MaxTokens,
+		Tools: tools, MaxTokens: r.cfg.MaxTokens, Effort: r.cfg.Effort,
 	}
 	r.deps.Observer.emitTurnStart()
 	raw := r.prov.Stream(ctx, req)
@@ -144,7 +144,7 @@ func (r *runner) finishFinal(text string) (Outcome, bool, error) {
 	if err := r.w.End(ReasonFinal); err != nil {
 		return Outcome{}, false, err
 	}
-	o := Outcome{Text: text, Reason: ReasonFinal, Steps: r.steps, Usage: r.usage}
+	o := Outcome{Text: text, Reason: ReasonFinal, Steps: r.steps, Usage: r.usage, ContextTokens: r.lastTurnTokens}
 	return o, true, nil
 }
 
@@ -152,6 +152,6 @@ func (r *runner) finishLimit() (Outcome, bool, error) {
 	if err := r.w.End(ReasonStepLimit); err != nil {
 		return Outcome{}, false, err
 	}
-	o := Outcome{Reason: ReasonStepLimit, Steps: r.steps, Usage: r.usage}
+	o := Outcome{Reason: ReasonStepLimit, Steps: r.steps, Usage: r.usage, ContextTokens: r.lastTurnTokens}
 	return o, true, nil
 }

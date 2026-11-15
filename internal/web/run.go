@@ -134,14 +134,16 @@ func (r *run) unreserve() {
 	r.busy = false
 }
 
-func (r *run) begin(prompt string, cancel context.CancelFunc) {
+func (r *run) begin(prompt string, cancel context.CancelFunc) int64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	after := r.log.last
 	if prompt != "" {
 		r.publish(Event{Kind: KindUser, Text: prompt})
 	}
 	r.cancel, r.done, r.musing = cancel, make(chan struct{}), false
 	r.setStatus(StatusRunning)
+	return after
 }
 
 func (r *run) finish(ctx context.Context, s Stats, err error) {

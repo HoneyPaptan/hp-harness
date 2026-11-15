@@ -6,13 +6,19 @@ import (
 )
 
 type wireRequest struct {
-	Model         string             `json:"model"`
-	Messages      []wireMessage      `json:"messages"`
-	Tools         []wireTool         `json:"tools,omitempty"`
-	Stream        bool               `json:"stream"`
-	StreamOptions *wireStreamOptions `json:"stream_options,omitempty"`
-	MaxTokens     *int               `json:"max_tokens,omitempty"`
-	Thinking      *wireThinking      `json:"thinking,omitempty"`
+	Model           string             `json:"model"`
+	Messages        []wireMessage      `json:"messages"`
+	Tools           []wireTool         `json:"tools,omitempty"`
+	Stream          bool               `json:"stream"`
+	StreamOptions   *wireStreamOptions `json:"stream_options,omitempty"`
+	MaxTokens       *int               `json:"max_tokens,omitempty"`
+	Thinking        *wireThinking      `json:"thinking,omitempty"`
+	Reasoning       *wireReasoning     `json:"reasoning,omitempty"`
+	ReasoningEffort string             `json:"reasoning_effort,omitempty"`
+}
+
+type wireReasoning struct {
+	Effort string `json:"effort"`
 }
 
 type wireThinking struct {
@@ -65,6 +71,7 @@ type wireTool struct {
 }
 
 type wireStreamChunk struct {
+	done    bool
 	Choices []wireStreamChoice `json:"choices"`
 	Usage   *wireUsage         `json:"usage,omitempty"`
 	Error   *wireStreamError   `json:"error,omitempty"`
@@ -83,10 +90,10 @@ type wireStreamDelta struct {
 }
 
 type wireStreamToolCall struct {
-	Index        int             `json:"index"`
-	ID           string          `json:"id"`
-	Function     wireFunction    `json:"function"`
-	ExtraContent json.RawMessage `json:"extra_content"`
+	Index        int                `json:"index"`
+	ID           string             `json:"id"`
+	Function     wireStreamFunction `json:"function"`
+	ExtraContent json.RawMessage    `json:"extra_content"`
 }
 
 type wireUsage struct {
@@ -116,4 +123,25 @@ func joinTextChunks(b []byte) string {
 		out.WriteString(c.Text)
 	}
 	return out.String()
+}
+
+type wireStreamFunction struct {
+	Name      string   `json:"name"`
+	Arguments wireArgs `json:"arguments"`
+}
+
+type wireArgs string
+
+func (a *wireArgs) UnmarshalJSON(b []byte) error {
+	var s string
+	if json.Unmarshal(b, &s) == nil {
+		*a = wireArgs(s)
+		return nil
+	}
+	if string(b) == "null" {
+		*a = ""
+		return nil
+	}
+	*a = wireArgs(b)
+	return nil
 }

@@ -35,8 +35,21 @@ size_budget() {
 	[ "$size" -le "$budget" ] || fail "binary over size budget"
 }
 
+wasm_budget() {
+	local out size budget
+	out=$(mktemp)
+	GOOS=js GOARCH=wasm go vet ./cmd/hp-wasm
+	GOOS=js GOARCH=wasm go build -tags "$BUILD_TAGS" -trimpath -ldflags='-s -w' -o "$out" ./cmd/hp-wasm
+	size=$(gzip -9 -c "$out" | wc -c)
+	rm -f "$out"
+	budget=$(cat .wasm-size-budget)
+	printf 'wasm gzip size: %s bytes, budget %s\n' "$size" "$budget"
+	[ "$size" -le "$budget" ] || fail "wasm over size budget"
+}
+
 formatting
 go vet ./...
 go run ./tools/nocomments
 core_boundary
 size_budget
+wasm_budget

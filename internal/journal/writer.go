@@ -70,6 +70,10 @@ func (w *Writer) Compact(handoff string, keep int) error {
 	return w.append(TypeCompact, Compact{Handoff: handoff, Keep: keep})
 }
 
+func (w *Writer) EffortSwitch(effort string) error {
+	return w.append(TypeEffortSwitch, EffortSwitch{Effort: effort})
+}
+
 func (w *Writer) PermissionSwitch(mode string) error {
 	return w.append(TypePermissionSwitch, PermissionSwitch{Mode: mode})
 }

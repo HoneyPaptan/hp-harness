@@ -27,6 +27,8 @@ func Describe(call provider.ToolCall, dir string) Action {
 		return pathAction(call, dir, "read", KindRead)
 	case "grep":
 		return pathAction(call, dir, "grep", KindRead)
+	case "list":
+		return pathAction(call, dir, "list", KindRead)
 	case "edit":
 		return pathAction(call, dir, "edit", KindWrite)
 	case "write":
@@ -39,6 +41,8 @@ func Describe(call provider.ToolCall, dir string) Action {
 		return webFetchAction(call)
 	case "web_search":
 		return webSearchAction(call)
+	case "wiki_read":
+		return Action{Tool: "wiki_read", Target: stringArg(call.Args, "page"), Kind: KindExternal}
 	case "skill":
 		return skillAction(call)
 	case "tools":

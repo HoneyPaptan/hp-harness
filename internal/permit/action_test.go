@@ -15,6 +15,11 @@ func TestDescribeTools(t *testing.T) {
 		want Action
 	}{
 		{
+			name: "list dir",
+			call: provider.ToolCall{Name: "list", Args: json.RawMessage(`{"path":"src"}`)},
+			want: Action{Tool: "list", Target: "src", Kind: KindRead},
+		},
+		{
 			name: "read relative",
 			call: provider.ToolCall{Name: "read", Args: json.RawMessage(`{"path":"README.md"}`)},
 			want: Action{Tool: "read", Target: "README.md", Kind: KindRead},

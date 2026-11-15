@@ -108,7 +108,7 @@ func TestTurnEndAlwaysCarriesStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{`"steps":0`, `"input_tokens":0`, `"output_tokens":0`, `"ttft_ms":0`} {
+	for _, key := range []string{`"steps":0`, `"input_tokens":0`, `"output_tokens":0`, `"context_tokens":0`, `"ttft_ms":0`} {
 		if !strings.Contains(string(raw), key) {
 			t.Fatalf("no %s in %s", key, raw)
 		}

@@ -138,3 +138,28 @@ func TestEndpointForRejectsPresetOnly(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 }
+
+func TestCustomEndpointFromEnv(t *testing.T) {
+	env := getenvMap(map[string]string{"HP_BASE_URL": "https://llm.example/v1", "HP_API_KEY": "secret"})
+	ep, err := resolveEndpoint("custom/llama-3", "", "", env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ep.Preset != "custom" || ep.Model != "llama-3" || ep.BaseURL != "https://llm.example/v1" || ep.APIKey != "secret" {
+		t.Fatalf("custom endpoint: %+v", ep)
+	}
+	keyless, err := resolveEndpoint("custom/llama-3", "", "", getenvMap(map[string]string{"HP_BASE_URL": "http://127.0.0.1:11434/v1"}))
+	if err != nil || keyless.APIKey != "" || keyless.BaseURL != "http://127.0.0.1:11434/v1" {
+		t.Fatalf("keyless custom: %+v %v", keyless, err)
+	}
+	if _, err := resolveEndpoint("custom/llama-3", "", "", getenvMap(nil)); err == nil {
+		t.Fatal("custom without HP_BASE_URL must fail")
+	}
+	listed, err := presetEndpoint(Endpoint{}, "custom", env)
+	if err != nil || listed.BaseURL != "https://llm.example/v1" || listed.APIKey != "secret" {
+		t.Fatalf("custom listing endpoint: %+v %v", listed, err)
+	}
+	if _, err := presetEndpoint(Endpoint{}, "custom", getenvMap(nil)); err == nil {
+		t.Fatal("custom listing without HP_BASE_URL must fail")
+	}
+}

@@ -132,7 +132,7 @@ func (b *testBackend) Busy(id string) bool {
 	return b.foreign[id]
 }
 
-func (b *testBackend) Start(model, prompt string) (Agent, error) {
+func (b *testBackend) Start(model, prompt, effort string) (Agent, error) {
 	if model == "bad/model" {
 		return nil, fmt.Errorf("%w: unknown preset", ErrInvalid)
 	}
@@ -170,6 +170,17 @@ type testAgent struct {
 func (a *testAgent) ID() string    { return a.id }
 func (a *testAgent) Model() string { return a.model }
 func (a *testAgent) Release()      {}
+
+func (a *testAgent) SetEffort(effort string) error {
+	if effort == "loud" {
+		return fmt.Errorf("%w: unknown effort", ErrInvalid)
+	}
+	w, _, err := journal.Open(a.b.h, journalFile(a.id))
+	if err != nil {
+		return err
+	}
+	return w.EffortSwitch(effort)
+}
 
 func (a *testAgent) SetModel(spec string) error {
 	w, _, err := journal.Open(a.b.h, journalFile(a.id))

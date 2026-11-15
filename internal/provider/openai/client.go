@@ -18,6 +18,8 @@ type Client struct {
 	APIKey          string
 	HTTP            *http.Client
 	DisableThinking bool
+	NestedReasoning bool
+	Headers         map[string]string
 	NoStreamOptions bool
 }
 
@@ -67,6 +69,7 @@ func (c *Client) encodeStreamRequest(req provider.Request) ([]byte, error) {
 	if c.DisableThinking {
 		w.Thinking = &wireThinking{Type: "disabled"}
 	}
+	c.setEffort(&w, req.Effort)
 	return json.Marshal(w)
 }
 
@@ -86,6 +89,15 @@ func (c *Client) setAuthorization(h http.Header) {
 	if c.APIKey != "" {
 		h.Set("Authorization", "Bearer "+c.APIKey)
 	}
+	for k, v := range c.Headers {
+		h.Set(k, v)
+	}
+}
+
+var OpenRouterApp = map[string]string{
+	"HTTP-Referer":            "https://github.com/HoneyPaptan/hp-harness",
+	"X-OpenRouter-Title":      "hp",
+	"X-OpenRouter-Categories": "cli-agent",
 }
 
 func (c *Client) Preconnect(ctx context.Context) {
@@ -106,9 +118,13 @@ func (c *Client) readStream(ctx context.Context, body io.Reader) iter.Seq2[provi
 
 func chunkSeq(ctx context.Context, body io.Reader) iter.Seq2[wireStreamChunk, error] {
 	return func(yield func(wireStreamChunk, error) bool) {
-		for data, err := range transport.SSEData(body) {
+		for data, err := range transport.SSEPayloads(body) {
 			if err != nil {
 				yield(wireStreamChunk{}, transport.ReadFailure(ctx, err))
+				return
+			}
+			if data == transport.DoneMarker {
+				yield(wireStreamChunk{done: true}, nil)
 				return
 			}
 			chunk, err := decodeChunk(data)
@@ -125,4 +141,15 @@ func chunkSeq(ctx context.Context, body io.Reader) iter.Seq2[wireStreamChunk, er
 			}
 		}
 	}
+}
+
+func (c *Client) setEffort(w *wireRequest, effort string) {
+	if effort == "" {
+		return
+	}
+	if c.NestedReasoning {
+		w.Reasoning = &wireReasoning{Effort: effort}
+		return
+	}
+	w.ReasoningEffort = effort
 }

@@ -9,7 +9,19 @@ import (
 
 const MaxSSELine = 1024 * 1024
 
+const DoneMarker = "[DONE]"
+
 func SSEData(r io.Reader) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		for payload, err := range SSEPayloads(r) {
+			if payload == DoneMarker || !yield(payload, err) {
+				return
+			}
+		}
+	}
+}
+
+func SSEPayloads(r io.Reader) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		scan := bufio.NewScanner(r)
 		scan.Buffer(make([]byte, 0, 64*1024), MaxSSELine)
@@ -23,10 +35,7 @@ func SSEData(r io.Reader) iter.Seq2[string, error] {
 			if !ok {
 				continue
 			}
-			if payload == "[DONE]" {
-				return
-			}
-			if !yield(payload, nil) {
+			if !yield(payload, nil) || payload == DoneMarker {
 				return
 			}
 		}

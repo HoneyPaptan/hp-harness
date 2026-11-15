@@ -62,6 +62,7 @@ func restoredAgent(env Env, st journal.State, bySpec map[string]Endpoint, ep End
 		a.ep = cur
 	}
 	a.id, a.jpath, a.started = id, jpath, true
+	a.opts.effort = st.Effort
 	if err := a.initPerm(false, st.Permission); err != nil {
 		return nil, err
 	}
@@ -444,4 +445,33 @@ func (a *sessionAgent) releaseRun() {
 	if a.id != "" {
 		removeRunPid(a.env, a.id)
 	}
+}
+
+var efforts = map[string]bool{"": true, "none": true, "minimal": true, "low": true, "medium": true, "high": true, "xhigh": true, "max": true}
+
+func checkEffort(effort string) error {
+	if !efforts[effort] {
+		return usagef("unknown effort %q", effort)
+	}
+	return nil
+}
+
+func (a *sessionAgent) SetEffort(effort string) error {
+	if err := checkEffort(effort); err != nil {
+		return err
+	}
+	if effort == a.opts.effort {
+		return nil
+	}
+	if a.started {
+		w, _, err := journal.Open(a.env.Host, a.jpath)
+		if err != nil {
+			return err
+		}
+		if err := w.EffortSwitch(effort); err != nil {
+			return err
+		}
+	}
+	a.opts.effort = effort
+	return nil
 }

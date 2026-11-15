@@ -21,8 +21,8 @@ func discoverSkills(env Env, dir string) ([]skill.Skill, error) {
 	return skill.Discover(env.Host, skillDirs(dir, env.Getenv("HOME")))
 }
 
-func buildRegistry(skills []skill.Skill, extra, connected []tool.Tool, deferring bool, nested *nestedContext) *tool.Registry {
-	direct := wrapNestedTools(append(tool.Builtins(), extra...), nested)
+func buildRegistry(builtins []tool.Tool, skills []skill.Skill, extra, connected []tool.Tool, deferring bool, nested *nestedContext) *tool.Registry {
+	direct := wrapNestedTools(append(builtins, extra...), nested)
 	if len(skills) > 0 {
 		direct = append(direct, skill.NewTool(skills))
 	}
@@ -32,13 +32,20 @@ func buildRegistry(skills []skill.Skill, extra, connected []tool.Tool, deferring
 	return tool.NewRegistry(append(direct, connected...)...)
 }
 
+func builtinTools(env Env) []tool.Tool {
+	if env.Browser {
+		return tool.BrowserBuiltins()
+	}
+	return tool.Builtins()
+}
+
 func buildSystem(env Env, dir string, skills []skill.Skill, st settings) string {
 	var instructions []prompt.Instruction
 	if contextEnabled(st) {
 		instructions = loadInstructions(env.Host, dir, env.Getenv("HOME"))
 	}
 	return prompt.Build(prompt.Info{
-		Dir: dir, Date: env.Host.Now(), Skills: skills, Instructions: instructions,
+		Dir: dir, Date: env.Host.Now(), Skills: skills, Instructions: instructions, Browser: env.Browser,
 	})
 }
 

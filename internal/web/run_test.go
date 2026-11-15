@@ -191,13 +191,23 @@ func TestSSEReplayThenLive(t *testing.T) {
 	if !got[3].Truncated || len(got[3].Text) != toolTextCap || got[5].Reason != "final" {
 		t.Fatalf("%+v", got[3:6])
 	}
-	if code, body := restarted.post("/api/runs/"+id+"/messages", `{"prompt":"more"}`); code != 202 {
+	code, body := restarted.post("/api/runs/"+id+"/messages", `{"prompt":"more"}`)
+	if code != 202 {
 		t.Fatalf("%d %s", code, body)
+	}
+	var sent struct {
+		After int64 `json:"after"`
+	}
+	if err := json.Unmarshal([]byte(body), &sent); err != nil || sent.After != got[len(got)-1].ID {
+		t.Fatalf("after %d, last replayed %d: %s", sent.After, got[len(got)-1].ID, body)
 	}
 	close(gate)
 	live := c.until(statusIs(StatusFinished))
 	if kinds(live) != "user run_status text turn_end run_status" {
 		t.Fatalf("%s", kinds(live))
+	}
+	if live[0].ID <= sent.After {
+		t.Fatalf("user event %d not after %d", live[0].ID, sent.After)
 	}
 	checkIncreasing(t, append(got, live...))
 	end := live[3]
@@ -491,5 +501,20 @@ func TestPageLoadPreconnects(t *testing.T) {
 	resp.Body.Close()
 	if got := b.preconnects.Load(); got != 1 {
 		t.Fatalf("preconnects = %d", got)
+	}
+}
+
+func TestEffortEndpoint(t *testing.T) {
+	h := newHarness(t, newBackend(&scripted{turns: [][]step{{{text: "x"}}}}), nil)
+	id := h.start("first")
+	waitStatus(t, h, id, StatusFinished)
+	if code, body := h.post("/api/runs/"+id+"/effort", `{"effort":"loud"}`); code != http.StatusBadRequest {
+		t.Fatalf("bad effort %d %s", code, body)
+	}
+	if code, body := h.post("/api/runs/"+id+"/effort", `{"effort":"high"}`); code != http.StatusOK {
+		t.Fatalf("effort %d %s", code, body)
+	}
+	if got := recordTypes(t, h.b, id); !strings.HasSuffix(got, "effort_switch") {
+		t.Fatalf("journal %s", got)
 	}
 }

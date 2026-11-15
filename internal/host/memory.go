@@ -218,6 +218,18 @@ func parentDirs(p string) []string {
 	return dirs
 }
 
+func (m *Memory) mkdirAll(p string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p = cleanAbs(p)
+	if p != "/" {
+		m.dirs[p] = struct{}{}
+	}
+	for _, dir := range parentDirs(p) {
+		m.dirs[dir] = struct{}{}
+	}
+}
+
 func (m *Memory) isDirLocked(p string) bool { _, ok := m.dirs[p]; return p == "/" || ok }
 func childName(dir, full string) (string, bool) {
 	dir, full = cleanAbs(dir), cleanAbs(full)

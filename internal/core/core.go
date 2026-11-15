@@ -43,14 +43,15 @@ type Config struct {
 	Fallbacks                                      []string
 	SwitchAfter, MaxWait                           time.Duration
 	Detached, Jev                                  bool
-	Permission                                     string
+	Permission, Effort                             string
 }
 
 type Outcome struct {
-	Text   string
-	Reason string
-	Steps  int
-	Usage  provider.Usage
+	Text          string
+	Reason        string
+	Steps         int
+	Usage         provider.Usage
+	ContextTokens int
 }
 
 func Run(ctx context.Context, d Deps, c Config) (Outcome, error) {
@@ -74,7 +75,7 @@ func runStartFromConfig(c Config) journal.RunStart {
 		Preset: c.Preset, BaseURL: c.BaseURL, KeyEnv: c.KeyEnv, MaxTokens: c.MaxTokens,
 		Fallbacks:   append([]string(nil), c.Fallbacks...),
 		SwitchAfter: c.SwitchAfter, MaxWait: c.MaxWait, Jev: c.Jev,
-		Detached: c.Detached, Permission: c.Permission,
+		Detached: c.Detached, Permission: c.Permission, Effort: c.Effort,
 	}
 }
 

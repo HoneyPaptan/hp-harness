@@ -20,6 +20,7 @@ type State struct {
 	Current    string
 	Jev        bool
 	Permission string
+	Effort     string
 	Finished   bool
 	EndReason  string
 	Detached   bool
@@ -82,6 +83,8 @@ func (r *replayer) apply(rec Record, i int) error {
 		return r.applyCompact(rec)
 	case TypePermissionSwitch:
 		return r.applyPermissionSwitch(rec)
+	case TypeEffortSwitch:
+		return r.applyEffortSwitch(rec)
 	case TypeRunEnd:
 		return r.applyRunEnd(rec)
 	default:
@@ -100,6 +103,7 @@ func (r *replayer) applyRunStart(rec Record, i int) error {
 	r.st.Start = start
 	r.st.Jev = start.Jev
 	r.st.Permission = start.Permission
+	r.st.Effort = start.Effort
 	return nil
 }
 
@@ -188,6 +192,15 @@ func (r *replayer) applyCompact(rec Record) error {
 	}
 	tail := msgs[len(msgs)-keep:]
 	r.st.Messages = append([]provider.Message{{Role: provider.RoleUser, Text: c.Handoff}}, tail...)
+	return nil
+}
+
+func (r *replayer) applyEffortSwitch(rec Record) error {
+	sw, err := decode[EffortSwitch](rec)
+	if err != nil {
+		return err
+	}
+	r.st.Effort = sw.Effort
 	return nil
 }
 

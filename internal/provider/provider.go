@@ -46,6 +46,7 @@ type Request struct {
 	Messages  []Message
 	Tools     []ToolDef
 	MaxTokens int
+	Effort    string
 }
 
 type Usage struct {
