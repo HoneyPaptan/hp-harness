@@ -19,6 +19,7 @@ type Client struct {
 	HTTP            *http.Client
 	DisableThinking bool
 	NestedReasoning bool
+	Headers         map[string]string
 	NoStreamOptions bool
 }
 
@@ -88,6 +89,15 @@ func (c *Client) setAuthorization(h http.Header) {
 	if c.APIKey != "" {
 		h.Set("Authorization", "Bearer "+c.APIKey)
 	}
+	for k, v := range c.Headers {
+		h.Set(k, v)
+	}
+}
+
+var OpenRouterApp = map[string]string{
+	"HTTP-Referer":            "https://github.com/HoneyPaptan/hp-harness",
+	"X-OpenRouter-Title":      "hp",
+	"X-OpenRouter-Categories": "cli-agent",
 }
 
 func (c *Client) Preconnect(ctx context.Context) {

@@ -75,7 +75,7 @@ func newProvider(ep cli.Endpoint) provider.Provider {
 	return &openai.Client{
 		BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: transport.NewHTTPClient(),
 		DisableThinking: ep.Preset == "deepseek", NoStreamOptions: ep.Preset == "mistral",
-		NestedReasoning: ep.Preset == "openrouter",
+		NestedReasoning: ep.Preset == "openrouter", Headers: appHeaders(ep.Preset),
 	}
 }
 
@@ -113,4 +113,11 @@ func privateRunsDir(getenv func(string) string) {
 	if err := os.MkdirAll(dir, 0o700); err == nil {
 		_ = os.Chmod(dir, 0o700)
 	}
+}
+
+func appHeaders(preset string) map[string]string {
+	if preset == "openrouter" {
+		return openai.OpenRouterApp
+	}
+	return nil
 }

@@ -130,7 +130,7 @@ func newProvider(ep cli.Endpoint) provider.Provider {
 	return &openai.Client{
 		BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: transport.NewHTTPClient(),
 		DisableThinking: ep.Preset == "deepseek", NoStreamOptions: ep.Preset == "mistral",
-		NestedReasoning: ep.Preset == "openrouter",
+		NestedReasoning: ep.Preset == "openrouter", Headers: appHeaders(ep.Preset),
 	}
 }
 
@@ -139,4 +139,11 @@ type console struct{ level string }
 func (c console) Write(p []byte) (int, error) {
 	js.Global().Get("console").Call(c.level, "[hp] "+string(p))
 	return len(p), nil
+}
+
+func appHeaders(preset string) map[string]string {
+	if preset == "openrouter" {
+		return openai.OpenRouterApp
+	}
+	return nil
 }

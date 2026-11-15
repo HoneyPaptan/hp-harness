@@ -37,3 +37,14 @@ func TestEffortWireShape(t *testing.T) {
 		})
 	}
 }
+
+func TestHeadersSentOnStreamRequest(t *testing.T) {
+	c := Client{BaseURL: "https://x", APIKey: "k", Headers: OpenRouterApp}
+	req, err := c.newStreamHTTPRequest(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.Header.Get("X-OpenRouter-Title") != "hp" || req.Header.Get("HTTP-Referer") == "" || req.Header.Get("Authorization") != "Bearer k" {
+		t.Fatalf("headers %v", req.Header)
+	}
+}
