@@ -191,13 +191,23 @@ func TestSSEReplayThenLive(t *testing.T) {
 	if !got[3].Truncated || len(got[3].Text) != toolTextCap || got[5].Reason != "final" {
 		t.Fatalf("%+v", got[3:6])
 	}
-	if code, body := restarted.post("/api/runs/"+id+"/messages", `{"prompt":"more"}`); code != 202 {
+	code, body := restarted.post("/api/runs/"+id+"/messages", `{"prompt":"more"}`)
+	if code != 202 {
 		t.Fatalf("%d %s", code, body)
+	}
+	var sent struct {
+		After int64 `json:"after"`
+	}
+	if err := json.Unmarshal([]byte(body), &sent); err != nil || sent.After != got[len(got)-1].ID {
+		t.Fatalf("after %d, last replayed %d: %s", sent.After, got[len(got)-1].ID, body)
 	}
 	close(gate)
 	live := c.until(statusIs(StatusFinished))
 	if kinds(live) != "user run_status text turn_end run_status" {
 		t.Fatalf("%s", kinds(live))
+	}
+	if live[0].ID <= sent.After {
+		t.Fatalf("user event %d not after %d", live[0].ID, sent.After)
 	}
 	checkIncreasing(t, append(got, live...))
 	end := live[3]

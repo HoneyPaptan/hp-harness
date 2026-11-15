@@ -126,11 +126,12 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.mgr.send(id, body.Prompt); err != nil {
+	after, err := s.mgr.send(id, body.Prompt)
+	if err != nil {
 		writeFailure(w, err)
 		return
 	}
-	writeJSON(w, http.StatusAccepted, map[string]string{"id": id})
+	writeJSON(w, http.StatusAccepted, map[string]any{"id": id, "after": after})
 }
 
 func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
