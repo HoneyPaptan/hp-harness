@@ -3,8 +3,10 @@ package openai
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"iter"
 	"sort"
+	"strings"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
@@ -22,6 +24,9 @@ type assembler struct {
 	tools        map[int]*pendingToolCall
 	finishReason string
 	usage        provider.Usage
+	done         bool
+	text         textCallFilter
+	output       bool
 }
 
 func newAssembler() *assembler {
@@ -42,7 +47,7 @@ func streamEvents(chunks iter.Seq2[wireStreamChunk, error]) iter.Seq2[provider.E
 				}
 			}
 		}
-		if a.finishReason == "" {
+		if !a.complete() {
 			yield(provider.Event{}, &provider.TransientError{Err: ErrTruncated})
 			return
 		}
@@ -54,7 +59,22 @@ func streamEvents(chunks iter.Seq2[wireStreamChunk, error]) iter.Seq2[provider.E
 	}
 }
 
+func (a *assembler) complete() bool {
+	if a.finishReason != "" {
+		return true
+	}
+	if a.done && (a.output || len(a.tools) > 0) {
+		a.finishReason = "stop"
+		return true
+	}
+	return false
+}
+
 func (a *assembler) feed(chunk wireStreamChunk) []provider.Event {
+	if chunk.done {
+		a.done = true
+		return nil
+	}
 	a.mergeUsage(chunk.Usage)
 	var out []provider.Event
 	for _, ch := range chunk.Choices {
@@ -62,10 +82,14 @@ func (a *assembler) feed(chunk wireStreamChunk) []provider.Event {
 			a.finishReason = *ch.FinishReason
 		}
 		if text := ch.Delta.reasoning(); text != "" {
+			a.output = true
 			out = append(out, provider.Event{Kind: provider.EventReasoning, Text: text})
 		}
 		if ch.Delta.Content != "" {
-			out = append(out, provider.Event{Kind: provider.EventText, Text: string(ch.Delta.Content)})
+			a.output = true
+			if text := a.text.push(string(ch.Delta.Content)); text != "" {
+				out = append(out, provider.Event{Kind: provider.EventText, Text: text})
+			}
 		}
 		for _, tc := range ch.Delta.ToolCalls {
 			a.mergeToolDelta(tc)
@@ -101,29 +125,47 @@ func (a *assembler) mergeToolDelta(tc wireStreamToolCall) {
 	if len(tc.ExtraContent) > 0 {
 		p.extra = tc.ExtraContent
 	}
-	p.args += tc.Function.Arguments
+	p.args += string(tc.Function.Arguments)
 }
 
 func (a *assembler) finish() []provider.Event {
+	var out []provider.Event
+	calls := a.structuredCalls()
+	rest, textCalls := a.text.flush(len(calls) == 0)
+	if rest != "" {
+		out = append(out, provider.Event{Kind: provider.EventText, Text: rest})
+	}
+	calls = append(calls, textCalls...)
+	stamp := now().UnixNano()
+	for i, c := range calls {
+		if c.ID == "" {
+			c.ID = fmt.Sprintf("call_%x_%d", stamp, i)
+		}
+		out = append(out, provider.Event{Kind: provider.EventToolCall, Call: c})
+	}
+	reason := a.finishReason
+	if len(textCalls) > 0 {
+		reason = "tool_calls"
+	}
+	return append(out, provider.Event{Kind: provider.EventDone, Usage: a.usage, StopReason: reason})
+}
+
+func (a *assembler) structuredCalls() []provider.ToolCall {
 	idxs := sortedToolIndexes(a.tools)
-	out := make([]provider.Event, 0, len(idxs)+1)
+	out := make([]provider.ToolCall, 0, len(idxs))
 	for _, i := range idxs {
 		p := a.tools[i]
-		args := p.args
-		if args == "" {
-			args = "{}"
-		}
-		out = append(out, provider.Event{
-			Kind: provider.EventToolCall,
-			Call: provider.ToolCall{ID: p.id, Name: p.name, Args: json.RawMessage(args), Extra: p.extra},
-		})
+		out = append(out, provider.ToolCall{ID: p.id, Name: p.name, Args: normalizeArgs(p.args), Extra: p.extra})
 	}
-	out = append(out, provider.Event{
-		Kind:       provider.EventDone,
-		Usage:      a.usage,
-		StopReason: a.finishReason,
-	})
 	return out
+}
+
+func normalizeArgs(args string) json.RawMessage {
+	args = strings.TrimSpace(args)
+	if args == "" || args == "null" {
+		return json.RawMessage("{}")
+	}
+	return json.RawMessage(args)
 }
 
 func sortedToolIndexes(m map[int]*pendingToolCall) []int {

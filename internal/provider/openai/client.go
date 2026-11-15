@@ -106,9 +106,13 @@ func (c *Client) readStream(ctx context.Context, body io.Reader) iter.Seq2[provi
 
 func chunkSeq(ctx context.Context, body io.Reader) iter.Seq2[wireStreamChunk, error] {
 	return func(yield func(wireStreamChunk, error) bool) {
-		for data, err := range transport.SSEData(body) {
+		for data, err := range transport.SSEPayloads(body) {
 			if err != nil {
 				yield(wireStreamChunk{}, transport.ReadFailure(ctx, err))
+				return
+			}
+			if data == transport.DoneMarker {
+				yield(wireStreamChunk{done: true}, nil)
 				return
 			}
 			chunk, err := decodeChunk(data)
