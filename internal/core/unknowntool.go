@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -19,8 +20,18 @@ func (r *runner) correctUnknownTool(err error, ut *provider.UnknownToolError, de
 	}
 	r.msgs = append(r.msgs, provider.Message{Role: provider.RoleUser, Text: note})
 	r.toolNotes++
-	r.deps.Observer.emitRetry(0, r.toolNotes, maxToolNotes)
+	r.showUnknownTool(ut.Name)
 	return nil
+}
+
+func (r *runner) showUnknownTool(name string) {
+	id := fmt.Sprintf("tool-note-%d", r.toolNotes)
+	r.deps.Observer.emitToolStart(provider.ToolCall{ID: id, Name: name, Args: json.RawMessage("{}")})
+	text := fmt.Sprintf("no tool named %s; asked the model to use a real one (%d/%d)", name, r.toolNotes, maxToolNotes)
+	if name == "" {
+		text = fmt.Sprintf("no such tool; asked the model to use a real one (%d/%d)", r.toolNotes, maxToolNotes)
+	}
+	r.deps.Observer.emitToolResult(provider.ToolResult{CallID: id, Text: text, IsError: true})
 }
 
 func unknownToolNote(name string, defs []provider.ToolDef) string {
@@ -28,5 +39,9 @@ func unknownToolNote(name string, defs []provider.ToolDef) string {
 	for i, d := range defs {
 		names[i] = d.Name
 	}
-	return fmt.Sprintf("Your last reply called a tool named %q, which does not exist, so it was discarded. Use only these tools: %s. Redo that step.", name, strings.Join(names, ", "))
+	called := "a tool that does not exist"
+	if name != "" {
+		called = fmt.Sprintf("a tool named %q, which does not exist", name)
+	}
+	return fmt.Sprintf("Your last reply called %s, so it was discarded. Use only these tools: %s. Redo that step.", called, strings.Join(names, ", "))
 }

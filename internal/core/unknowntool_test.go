@@ -47,11 +47,49 @@ func noteTexts(t *testing.T, h host.Host) []string {
 	return out
 }
 
+func journalTypes(t *testing.T, h host.Host) []journal.Type {
+	t.Helper()
+	recs, err := journal.Read(h, "/j")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make([]journal.Type, len(recs))
+	for i, rec := range recs {
+		out[i] = rec.Type
+	}
+	return out
+}
+
+func TestUnknownToolNote(t *testing.T) {
+	defs := []provider.ToolDef{{Name: "read"}, {Name: "grep"}}
+	tests := []struct {
+		name string
+		call string
+		want string
+	}{
+		{"named", "ls", `Your last reply called a tool named "ls", which does not exist, so it was discarded. Use only these tools: read, grep. Redo that step.`},
+		{"name could not be parsed", "", "Your last reply called a tool that does not exist, so it was discarded. Use only these tools: read, grep. Redo that step."},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := unknownToolNote(tc.call, defs); got != tc.want {
+				t.Fatalf("note %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestUnknownToolRecovers(t *testing.T) {
 	h := host.NewMemory()
 	fp := &fake.Provider{Turns: []fake.Turn{unknownToolTurn("ls"), fake.TextTurn("done")}}
-	var retries [][2]int
-	obs := Observer{OnRetry: func(_ time.Duration, attempt, max int) { retries = append(retries, [2]int{attempt, max}) }}
+	var starts []provider.ToolCall
+	var results []provider.ToolResult
+	retried := false
+	obs := Observer{
+		OnToolStart:  func(c provider.ToolCall) { starts = append(starts, c) },
+		OnToolResult: func(r provider.ToolResult) { results = append(results, r) },
+		OnRetry:      func(time.Duration, int, int) { retried = true },
+	}
 	out, err := Run(context.Background(), unknownToolDeps(h, fp, obs), unknownToolCfg())
 	if err != nil {
 		t.Fatal(err)
@@ -72,8 +110,31 @@ func TestUnknownToolRecovers(t *testing.T) {
 	if got := noteTexts(t, h); len(got) != 1 || got[0] != note.Text {
 		t.Fatalf("journal notes %q", got)
 	}
-	if len(retries) != 1 || retries[0] != [2]int{1, maxToolNotes} {
-		t.Fatalf("retries %v", retries)
+	if len(starts) != 1 || starts[0].Name != "ls" || len(results) != 1 || results[0].CallID != starts[0].ID {
+		t.Fatalf("starts %+v results %+v", starts, results)
+	}
+	want := "no tool named ls; asked the model to use a real one (1/2)"
+	if !results[0].IsError || results[0].Text != want || retried {
+		t.Fatalf("result %+v retried %v", results[0], retried)
+	}
+	for _, rec := range journalTypes(t, h) {
+		if rec == journal.TypeToolStarted {
+			t.Fatal("display only step was journaled as a tool call")
+		}
+	}
+}
+
+func TestUnknownToolWithoutNameShowsGenericLine(t *testing.T) {
+	h := host.NewMemory()
+	fp := &fake.Provider{Turns: []fake.Turn{unknownToolTurn(""), fake.TextTurn("done")}}
+	var results []provider.ToolResult
+	obs := Observer{OnToolResult: func(r provider.ToolResult) { results = append(results, r) }}
+	if _, err := Run(context.Background(), unknownToolDeps(h, fp, obs), unknownToolCfg()); err != nil {
+		t.Fatal(err)
+	}
+	want := "no such tool; asked the model to use a real one (1/2)"
+	if len(results) != 1 || results[0].Text != want {
+		t.Fatalf("results %+v", results)
 	}
 }
 
