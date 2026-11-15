@@ -119,7 +119,7 @@ func (r *runner) recoverOverflow(ctx context.Context, err error) error {
 func (r *runner) streamTurn(ctx context.Context, tools []provider.ToolDef) (provider.Message, provider.Usage, error) {
 	req := provider.Request{
 		Model: r.reqModel, System: r.cfg.System, Messages: r.msgs,
-		Tools: tools, MaxTokens: r.cfg.MaxTokens,
+		Tools: tools, MaxTokens: r.cfg.MaxTokens, Effort: r.cfg.Effort,
 	}
 	r.deps.Observer.emitTurnStart()
 	raw := r.prov.Stream(ctx, req)

@@ -76,6 +76,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/runs/{id}/messages", s.handleMessage)
 	mux.HandleFunc("POST /api/runs/{id}/stop", s.handleStop)
 	mux.HandleFunc("POST /api/runs/{id}/model", s.handleModel)
+	mux.HandleFunc("POST /api/runs/{id}/effort", s.handleEffort)
 	mux.HandleFunc("GET /api/runs/{id}/events", s.handleEvents)
 	mux.HandleFunc("GET /", s.handleStatic)
 	return s.guard(mux)

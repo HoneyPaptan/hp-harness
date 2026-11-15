@@ -46,8 +46,8 @@ func (m *manager) run(id string) (*run, error) {
 	return r, nil
 }
 
-func (m *manager) start(model, prompt string) (string, error) {
-	agent, err := m.b.Start(model, prompt)
+func (m *manager) start(model, prompt, effort string) (string, error) {
+	agent, err := m.b.Start(model, prompt, effort)
 	if err != nil {
 		return "", err
 	}
@@ -160,4 +160,21 @@ func (m *manager) close() {
 	m.mu.Unlock()
 	m.cancel()
 	m.wg.Wait()
+}
+
+func (m *manager) setEffort(id, effort string) error {
+	r, err := m.run(id)
+	if err != nil {
+		return err
+	}
+	if err := r.reserve(); err != nil {
+		return err
+	}
+	defer r.unreserve()
+	agent, err := m.b.Open(id)
+	if err != nil {
+		return err
+	}
+	defer agent.Release()
+	return agent.SetEffort(effort)
 }

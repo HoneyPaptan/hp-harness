@@ -75,6 +75,7 @@ func newProvider(ep cli.Endpoint) provider.Provider {
 	return &openai.Client{
 		BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: transport.NewHTTPClient(),
 		DisableThinking: ep.Preset == "deepseek", NoStreamOptions: ep.Preset == "mistral",
+		NestedReasoning: ep.Preset == "openrouter",
 	}
 }
 

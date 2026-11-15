@@ -493,3 +493,18 @@ func TestPageLoadPreconnects(t *testing.T) {
 		t.Fatalf("preconnects = %d", got)
 	}
 }
+
+func TestEffortEndpoint(t *testing.T) {
+	h := newHarness(t, newBackend(&scripted{turns: [][]step{{{text: "x"}}}}), nil)
+	id := h.start("first")
+	waitStatus(t, h, id, StatusFinished)
+	if code, body := h.post("/api/runs/"+id+"/effort", `{"effort":"loud"}`); code != http.StatusBadRequest {
+		t.Fatalf("bad effort %d %s", code, body)
+	}
+	if code, body := h.post("/api/runs/"+id+"/effort", `{"effort":"high"}`); code != http.StatusOK {
+		t.Fatalf("effort %d %s", code, body)
+	}
+	if got := recordTypes(t, h.b, id); !strings.HasSuffix(got, "effort_switch") {
+		t.Fatalf("journal %s", got)
+	}
+}

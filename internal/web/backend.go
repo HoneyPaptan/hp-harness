@@ -59,7 +59,7 @@ type Backend interface {
 	Runs() ([]Run, error)
 	Records(id string) ([]journal.Record, error)
 	Busy(id string) bool
-	Start(model, prompt string) (Agent, error)
+	Start(model, prompt, effort string) (Agent, error)
 	Open(id string) (Agent, error)
 }
 
@@ -67,6 +67,7 @@ type Agent interface {
 	ID() string
 	Model() string
 	SetModel(spec string) error
+	SetEffort(effort string) error
 	Send(ctx context.Context, prompt string, obs core.Observer) (Stats, error)
 	Resume(ctx context.Context, obs core.Observer) (Stats, error)
 	Release()

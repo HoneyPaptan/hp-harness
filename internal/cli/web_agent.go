@@ -118,11 +118,15 @@ func (b *webBackend) Busy(id string) bool {
 	return liveElsewhere(b.env, id)
 }
 
-func (b *webBackend) Start(model, prompt string) (web.Agent, error) {
+func (b *webBackend) Start(model, prompt, effort string) (web.Agent, error) {
 	o := b.opts
 	if model != "" {
 		o.model = model
 	}
+	if err := checkEffort(effort); err != nil {
+		return nil, invalid(err)
+	}
+	o.effort = effort
 	ep, bySpec, err := resolveRunSpecs(o, b.env.Getenv)
 	if err != nil {
 		return nil, invalid(err)
@@ -194,6 +198,15 @@ func (a *webAgent) Release() {
 
 func (a *webAgent) SetModel(spec string) error {
 	err := a.sessionAgent.SetModel(spec)
+	var usage usageError
+	if errors.As(err, &usage) {
+		return invalid(err)
+	}
+	return err
+}
+
+func (a *webAgent) SetEffort(effort string) error {
+	err := a.sessionAgent.SetEffort(effort)
 	var usage usageError
 	if errors.As(err, &usage) {
 		return invalid(err)

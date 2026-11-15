@@ -18,6 +18,7 @@ type Client struct {
 	APIKey          string
 	HTTP            *http.Client
 	DisableThinking bool
+	NestedReasoning bool
 	NoStreamOptions bool
 }
 
@@ -67,6 +68,7 @@ func (c *Client) encodeStreamRequest(req provider.Request) ([]byte, error) {
 	if c.DisableThinking {
 		w.Thinking = &wireThinking{Type: "disabled"}
 	}
+	c.setEffort(&w, req.Effort)
 	return json.Marshal(w)
 }
 
@@ -129,4 +131,15 @@ func chunkSeq(ctx context.Context, body io.Reader) iter.Seq2[wireStreamChunk, er
 			}
 		}
 	}
+}
+
+func (c *Client) setEffort(w *wireRequest, effort string) {
+	if effort == "" {
+		return
+	}
+	if c.NestedReasoning {
+		w.Reasoning = &wireReasoning{Effort: effort}
+		return
+	}
+	w.ReasoningEffort = effort
 }

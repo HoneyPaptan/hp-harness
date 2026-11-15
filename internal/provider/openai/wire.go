@@ -6,13 +6,19 @@ import (
 )
 
 type wireRequest struct {
-	Model         string             `json:"model"`
-	Messages      []wireMessage      `json:"messages"`
-	Tools         []wireTool         `json:"tools,omitempty"`
-	Stream        bool               `json:"stream"`
-	StreamOptions *wireStreamOptions `json:"stream_options,omitempty"`
-	MaxTokens     *int               `json:"max_tokens,omitempty"`
-	Thinking      *wireThinking      `json:"thinking,omitempty"`
+	Model           string             `json:"model"`
+	Messages        []wireMessage      `json:"messages"`
+	Tools           []wireTool         `json:"tools,omitempty"`
+	Stream          bool               `json:"stream"`
+	StreamOptions   *wireStreamOptions `json:"stream_options,omitempty"`
+	MaxTokens       *int               `json:"max_tokens,omitempty"`
+	Thinking        *wireThinking      `json:"thinking,omitempty"`
+	Reasoning       *wireReasoning     `json:"reasoning,omitempty"`
+	ReasoningEffort string             `json:"reasoning_effort,omitempty"`
+}
+
+type wireReasoning struct {
+	Effort string `json:"effort"`
 }
 
 type wireThinking struct {

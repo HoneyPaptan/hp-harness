@@ -72,6 +72,7 @@ func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 type promptBody struct {
 	Prompt string `json:"prompt"`
 	Model  string `json:"model"`
+	Effort string `json:"effort"`
 }
 
 func readPrompt(w http.ResponseWriter, r *http.Request) (promptBody, bool) {
@@ -108,7 +109,7 @@ func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	id, err := s.mgr.start(body.Model, body.Prompt)
+	id, err := s.mgr.start(body.Model, body.Prompt, body.Effort)
 	if err != nil {
 		writeFailure(w, err)
 		return
@@ -166,4 +167,22 @@ func (s *Server) handleModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"model": model})
+}
+
+func (s *Server) handleEffort(w http.ResponseWriter, r *http.Request) {
+	id, ok := runID(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Effort string `json:"effort"`
+	}
+	if !readJSON(w, r, &body) {
+		return
+	}
+	if err := s.mgr.setEffort(id, body.Effort); err != nil {
+		writeFailure(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"effort": body.Effort})
 }
