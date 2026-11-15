@@ -27,6 +27,8 @@ func Describe(call provider.ToolCall, dir string) Action {
 		return pathAction(call, dir, "read", KindRead)
 	case "grep":
 		return pathAction(call, dir, "grep", KindRead)
+	case "list":
+		return pathAction(call, dir, "list", KindRead)
 	case "edit":
 		return pathAction(call, dir, "edit", KindWrite)
 	case "write":
