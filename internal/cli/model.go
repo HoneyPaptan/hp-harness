@@ -7,8 +7,10 @@ type Endpoint struct {
 }
 
 const (
-	customPreset = "custom"
-	modelExample = "hp -m groq/openai/gpt-oss-120b"
+	customPreset  = "custom"
+	customBaseEnv = "HP_BASE_URL"
+	customKeyEnv  = "HP_API_KEY"
+	modelExample  = "hp -m groq/openai/gpt-oss-120b"
 )
 
 type presetDef struct {
@@ -40,11 +42,21 @@ func resolveEndpoint(model, baseURL, keyEnv string, getenv func(string) string) 
 	if model == "" {
 		return Endpoint{}, modelExampleUsage("model required: use e.g. %s")
 	}
+	if baseURL == "" && strings.HasPrefix(model, customPreset+"/") {
+		baseURL, keyEnv = customFromEnv(keyEnv, getenv)
+	}
 	ep, err := splitModel(model, baseURL, keyEnv)
 	if err != nil {
 		return Endpoint{}, err
 	}
 	return applyKey(ep, getenv)
+}
+
+func customFromEnv(keyEnv string, getenv func(string) string) (string, string) {
+	if keyEnv == "" && getenv(customKeyEnv) != "" {
+		keyEnv = customKeyEnv
+	}
+	return strings.TrimSpace(getenv(customBaseEnv)), keyEnv
 }
 
 func splitModel(model, baseURL, keyEnv string) (Endpoint, error) {
@@ -129,6 +141,16 @@ func applyKey(ep Endpoint, getenv func(string) string) (Endpoint, error) {
 }
 
 func presetEndpoint(cur Endpoint, preset string, getenv func(string) string) (Endpoint, error) {
+	if preset == customPreset && cur.Preset != customPreset {
+		baseURL, keyEnv := customFromEnv("", getenv)
+		if baseURL == "" {
+			return Endpoint{}, usagef("%s is not set", customBaseEnv)
+		}
+		return applyKey(Endpoint{Preset: customPreset, BaseURL: baseURL, KeyEnv: keyEnv}, getenv)
+	}
+	if preset == customPreset {
+		return applyKey(Endpoint{Preset: customPreset, BaseURL: cur.BaseURL, KeyEnv: cur.KeyEnv}, getenv)
+	}
 	def, ok := presets[preset]
 	if !ok {
 		return Endpoint{}, unknownPreset(preset)
