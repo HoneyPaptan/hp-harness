@@ -45,7 +45,7 @@ func buildSystem(env Env, dir string, skills []skill.Skill, st settings) string 
 		instructions = loadInstructions(env.Host, dir, env.Getenv("HOME"))
 	}
 	return prompt.Build(prompt.Info{
-		Dir: dir, Date: env.Host.Now(), Skills: skills, Instructions: instructions,
+		Dir: dir, Date: env.Host.Now(), Skills: skills, Instructions: instructions, Browser: env.Browser,
 	})
 }
 
