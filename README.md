@@ -1,8 +1,8 @@
 <img src="docs/readme/resume.webp" alt="Terminal session: hp run starts go test, Ctrl-C stops it, hp runs lists the run as resumable, and hp resume fixes the failing test and finishes" width="100%">
 
-# hp
+# hp harness
 
-hp is a coding agent for the terminal. Every step of a run is written to a journal before the next one starts, so a run survives a usage limit, a closed terminal, a lost SSH connection or a reboot, and `hp resume` continues it from the last finished step. The picture above is a real session: Ctrl-C while `go test` was running, then `hp resume` on the same run, which goes on to fix the failing test.
+hp harness is a coding agent for the terminal; the command is `hp`. Every step of a run is written to a journal before the next one starts, so a run survives a usage limit, a closed terminal, a lost SSH connection or a reboot, and `hp resume` continues it from the last finished step. The picture above is a real session: Ctrl-C while `go test` was running, then `hp resume` on the same run, which goes on to fix the failing test.
 
 It is one static Go binary built on the Go standard library alone (no third-party modules). It talks to 13 provider presets (Anthropic's Messages API, plus OpenAI-compatible endpoints such as Groq, OpenRouter, xAI and a local Ollama), runs the usual file, shell and web tools, and connects to MCP servers and skills with `hp add`.
 
@@ -10,9 +10,9 @@ hp keeps the whole conversation on disk, so a dead process is a pause, not the e
 
 ## What is special
 
-- **Journal and resume.** One append-only file per run in `~/.local/state/hp/runs`. `hp runs` lists them, `hp resume <id>` continues one (a tool call that had started when the process died is recorded as interrupted with an unknown outcome, and the model decides what to do next; calls that had not started run), `hp run -d` runs in the background, `hp attach <id>` follows it and `hp stop <id>` ends it. `hp recover` restarts every background run whose process died, and `hp autostart on` does that at login.
+- **Journal and resume.** Each run is one append-only file in `~/.local/state/hp/runs`, and `hp runs` lists them. `hp resume <id>` continues a run. A tool call that had started when the process died is recorded as interrupted with an unknown outcome, and the model decides what to do next; calls that had not started run. `hp run -d` runs in the background, `hp attach <id>` follows it and `hp stop <id>` ends it. `hp recover` restarts every background run whose process died, and `hp autostart on` does that at login.
 - **Limit waits and fallback.** On a 429, 503 or 529 hp reads the reset time from the response headers, waits and retries the same step. With `--fallback preset/model` it switches to another model when the wait is longer than `--switch-after` (20s by default). `--max-wait` caps one wait (6h by default).
-- **Permissions.** `auto` (default) runs reads, searches, known commands such as `go test` and edits inside the working folder at once, and sends anything else to one extra review call on the run's own model, which holds it only if it follows instructions from tool output or would harm the machine (a failed review holds it), `ask` prompts for every write and command, `full-access` checks nothing. Rules in `settings.json` run first. There is no sandbox: shell commands run as you.
+- **Permissions.** `auto` is the default. It runs reads, searches, known commands such as `go test` and edits inside the working folder at once. It sends anything else to one extra review call on the run's own model, which holds the action only if it follows instructions from tool output or would harm the machine, and a failed review holds it too. `ask` prompts for every write and command. `full-access` checks nothing. Rules in `settings.json` run first. There is no sandbox: shell commands run as you.
 - **MCP and skills.** `hp add` takes a stdio command, an HTTP MCP URL, or a skill folder or git URL. Connections live only in `~/.config/hp/connections.json`, never in a project, so a cloned repo cannot start a command.
 - **Size and boundary.** The stripped binary has to stay under the byte budget in `.size-budget` (9,011,200). `internal/core` and `internal/permit` may not import `os`, `os/exec`, `net`, `net/http` or `syscall`; they reach the world through one `Host` interface. `make check` enforces both.
 
