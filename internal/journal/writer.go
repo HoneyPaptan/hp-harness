@@ -42,6 +42,10 @@ func (w *Writer) User(text string) error {
 	return w.append(TypeUser, User{Text: text})
 }
 
+func (w *Writer) ToolNote(text string) error {
+	return w.append(TypeToolNote, ToolNote{Text: text})
+}
+
 func (w *Writer) Assistant(m provider.Message) error {
 	return w.append(TypeAssistant, Assistant{Message: m})
 }

@@ -23,6 +23,7 @@ type runner struct {
 	limited         map[string]time.Time
 	lastTurnTokens  int
 	overflowCompact bool
+	toolNotes       int
 }
 
 func newRunner(d Deps, w *journal.Writer, c Config, msgs []provider.Message, limit int) (*runner, error) {
@@ -78,15 +79,16 @@ func (r *runner) collectTurn(ctx context.Context) (provider.Message, error) {
 			r.usage.InputTokens += u.InputTokens
 			r.usage.OutputTokens += u.OutputTokens
 			r.lastTurnTokens = u.InputTokens + u.OutputTokens
+			r.toolNotes = 0
 			return msg, nil
 		}
-		if err := r.recoverTurn(ctx, err, &limitN, &failures); err != nil {
+		if err := r.recoverTurn(ctx, err, tools, &limitN, &failures); err != nil {
 			return provider.Message{}, err
 		}
 	}
 }
 
-func (r *runner) recoverTurn(ctx context.Context, err error, limitN, failures *int) error {
+func (r *runner) recoverTurn(ctx context.Context, err error, tools []provider.ToolDef, limitN, failures *int) error {
 	var rl *provider.RateLimitError
 	if errors.As(err, &rl) {
 		return r.handleRateLimit(ctx, rl, limitN)
@@ -94,6 +96,10 @@ func (r *runner) recoverTurn(ctx context.Context, err error, limitN, failures *i
 	var te *provider.TransientError
 	if errors.As(err, &te) {
 		return r.retryStream(ctx, err, failures)
+	}
+	var ut *provider.UnknownToolError
+	if errors.As(err, &ut) {
+		return r.correctUnknownTool(err, ut, tools)
 	}
 	if errors.Is(err, provider.ErrContextOverflow) {
 		return r.recoverOverflow(ctx, err)

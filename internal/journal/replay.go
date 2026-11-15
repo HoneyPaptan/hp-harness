@@ -17,6 +17,7 @@ type State struct {
 	Messages   []provider.Message
 	Pending    []Pending
 	Steps      int
+	ToolNotes  int
 	Current    string
 	Jev        bool
 	Permission string
@@ -64,6 +65,8 @@ func (r *replayer) apply(rec Record, i int) error {
 		return r.applyUser(rec)
 	case TypeAssistant:
 		return r.applyAssistant(rec)
+	case TypeToolNote:
+		return r.applyToolNote(rec)
 	case TypeToolStarted:
 		return r.applyToolStarted(rec)
 	case TypeToolResult:
@@ -114,6 +117,7 @@ func (r *replayer) applyUser(rec Record) error {
 	}
 	r.st.Messages = append(r.st.Messages, provider.Message{Role: provider.RoleUser, Text: u.Text})
 	r.st.Steps = 0
+	r.st.ToolNotes = 0
 	r.st.Finished = false
 	r.st.EndReason = ""
 	r.st.Stopped = false
@@ -127,8 +131,19 @@ func (r *replayer) applyAssistant(rec Record) error {
 	}
 	r.st.Messages = append(r.st.Messages, a.Message)
 	r.st.Steps++
+	r.st.ToolNotes = 0
 	clear(r.started)
 	clear(r.resultIDs)
+	return nil
+}
+
+func (r *replayer) applyToolNote(rec Record) error {
+	n, err := decode[ToolNote](rec)
+	if err != nil {
+		return err
+	}
+	r.st.Messages = append(r.st.Messages, provider.Message{Role: provider.RoleUser, Text: n.Text})
+	r.st.ToolNotes++
 	return nil
 }
 

@@ -15,6 +15,7 @@ const (
 	TypeRunStop          Type = "run_stop"
 	TypeUser             Type = "user"
 	TypeAssistant        Type = "assistant"
+	TypeToolNote         Type = "tool_note"
 	TypeToolStarted      Type = "tool_started"
 	TypeToolResult       Type = "tool_result"
 	TypeLimitWait        Type = "limit_wait"
@@ -86,6 +87,10 @@ type PermissionSwitch struct {
 }
 
 type User struct {
+	Text string `json:"text"`
+}
+
+type ToolNote struct {
 	Text string `json:"text"`
 }
 
