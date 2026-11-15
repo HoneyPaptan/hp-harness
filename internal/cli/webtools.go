@@ -14,11 +14,14 @@ func toolExtras(env Env, client *jev.Client, st settings) []tool.Tool {
 }
 
 func webTools(env Env, st settings) []tool.Tool {
-	if env.Browser || (st.Web != nil && !*st.Web) {
+	if st.Web != nil && !*st.Web {
 		return nil
 	}
-	allowPrivate := env.Getenv("HP_WEB_ALLOW_PRIVATE") == "1"
 	httpClient := &http.Client{Timeout: 20 * time.Second}
+	if env.Browser {
+		return webtools.FreeTools(webtools.FreeConfig{Client: httpClient, Wikipedia: webtools.WikipediaURL, DuckDuckGo: webtools.DuckDuckGoURL})
+	}
+	allowPrivate := env.Getenv("HP_WEB_ALLOW_PRIVATE") == "1"
 	out := []tool.Tool{webtools.FetchTool(webtools.NewClient(allowPrivate))}
 	if key := env.Getenv("EXA_API_KEY"); key != "" {
 		out = append(out, webtools.SearchTool(httpClient, webtools.ExaSearchURL, key))

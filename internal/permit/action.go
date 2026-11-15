@@ -41,6 +41,8 @@ func Describe(call provider.ToolCall, dir string) Action {
 		return webFetchAction(call)
 	case "web_search":
 		return webSearchAction(call)
+	case "wiki_read":
+		return Action{Tool: "wiki_read", Target: stringArg(call.Args, "page"), Kind: KindExternal}
 	case "skill":
 		return skillAction(call)
 	case "tools":
