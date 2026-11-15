@@ -51,6 +51,10 @@ func (a *app) newRequest(ctx context.Context, in js.Value) (*http.Request, error
 		return nil, err
 	}
 	req.Host = cli.EmbedHost
+	headers := in.Get("headers")
+	for _, k := range keys(headers) {
+		req.Header.Set(k, headers.Get(k).String())
+	}
 	req.Header.Set("Authorization", "Bearer "+a.embed.Token)
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
