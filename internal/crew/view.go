@@ -136,6 +136,9 @@ func (s Service) taskEnded(t *Task) bool {
 }
 
 func (s Service) trailer(st *State, t *Task, log string) []string {
+	if t.Discarded {
+		return []string{"discarded · its worktree and branch are gone"}
+	}
 	if t.Status == StatusFailed {
 		return []string{statusWord(t)}
 	}

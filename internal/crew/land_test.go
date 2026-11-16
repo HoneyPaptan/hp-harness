@@ -339,3 +339,22 @@ func TestViewShowsLandingAndDiscardAtOnce(t *testing.T) {
 		t.Fatalf("row %+v done %v", snap.Rows[0], snap.Done)
 	}
 }
+
+func TestFollowOfADiscardedTaskSaysSo(t *testing.T) {
+	f := newLandFixture(t, StatusFinished)
+	f.task().RunID = "r1"
+	seedEnd(t, f.getenv, "r1", "final")
+	if err := f.st.save(f.getenv); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.Discard("c1", "b"); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyControls(f.svc.Env, f.st); err != nil {
+		t.Fatal(err)
+	}
+	chunk, err := f.svc.Follow("c1", 0, 0)
+	if err != nil || len(chunk.Trailer) != 1 || !strings.HasPrefix(chunk.Trailer[0], "discarded") {
+		t.Fatalf("trailer %v %v", chunk.Trailer, err)
+	}
+}
