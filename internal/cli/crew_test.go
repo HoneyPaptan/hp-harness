@@ -6,25 +6,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/HoneyPaptan/hp-harness/internal/crewview"
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/fake"
 	"github.com/HoneyPaptan/hp-harness/internal/tui"
 )
 
-type startCall struct {
-	plan                   string
-	n                      int
-	model, baseURL, keyEnv string
-}
+type startCall = crewview.Start
 
 type fakeCrew struct {
-	titles   map[string][]string
-	saveErr  error
-	started  []startCall
-	startErr error
-	briefs   []string
-	done     bool
+	titles       map[string][]string
+	saveErr      error
+	started      []startCall
+	startErr     error
+	briefs       []string
+	done         bool
+	dirty        int
+	preflightErr error
 }
 
 func (f *fakeCrew) PlanTitles(plan string) ([]string, bool, error) {
@@ -42,12 +41,22 @@ func (f *fakeCrew) SavePlan(reply string) (string, string, error) {
 	return "/plans/p.md", strings.TrimSpace(reply), nil
 }
 
-func (f *fakeCrew) Start(plan string, n int, model, baseURL, keyEnv string) (string, error) {
+func (f *fakeCrew) Start(req crewview.Start) (string, error) {
 	if f.startErr != nil {
 		return "", f.startErr
 	}
-	f.started = append(f.started, startCall{plan, n, model, baseURL, keyEnv})
+	f.started = append(f.started, req)
 	return "c1", nil
+}
+
+func (f *fakeCrew) Preflight() (int, error) { return f.dirty, f.preflightErr }
+
+func (f *fakeCrew) View(id string) (crewview.Snapshot, bool, error) {
+	return crewview.Snapshot{ID: "view-" + id}, true, nil
+}
+
+func (f *fakeCrew) Follow(id string, index, offset int) (crewview.Chunk, error) {
+	return crewview.Chunk{Text: id, Offset: index + offset}, nil
 }
 
 func (f *fakeCrew) List() ([]string, error)            { return []string{"listed"}, nil }
@@ -94,6 +103,9 @@ func TestCrewUnavailable(t *testing.T) {
 			_, calls["status"] = a.CrewStatus("c")
 			_, calls["report"] = a.CrewReport("c")
 			_, _, calls["brief"] = a.CrewBrief("c")
+			_, calls["preflight"] = a.CrewPreflight()
+			_, _, calls["view"] = a.CrewView("c")
+			_, calls["follow"] = a.CrewFollow("c", 0, 0)
 			for name, err := range calls {
 				if err == nil || err.Error() != tc.want {
 					t.Fatalf("%s: err %v", name, err)
@@ -119,7 +131,7 @@ func TestCrewDraftSendsOneRequest(t *testing.T) {
 	if req.Model != "m" || req.System != "draft system" || len(req.Messages) != 1 || req.Messages[0].Text != "build a thing" || len(req.Tools) != 0 || req.SessionID == "" {
 		t.Fatalf("request %+v", req)
 	}
-	if plan.Path != "/plans/p.md" || plan.Text != "## a\nx\n## b\ny" || len(plan.Titles) != 2 {
+	if plan.Path != "/plans/p.md" || plan.Text != "## a\nx\n## b\ny" || plan.Goal != "build a thing" || len(plan.Titles) != 2 {
 		t.Fatalf("plan %+v", plan)
 	}
 	if len(dirs) == 0 || dirs[0] != "/work" {
@@ -158,11 +170,11 @@ func TestCrewDraftFailures(t *testing.T) {
 func TestCrewStartUsesSessionModel(t *testing.T) {
 	svc := &fakeCrew{titles: map[string][]string{}}
 	a := crewAgent(t, customEP, &fake.Provider{}, svc, nil)
-	id, err := a.CrewStart(tui.CrewPlan{Path: "plan.md"}, 3)
+	id, err := a.CrewStart(tui.CrewPlan{Path: "plan.md", Goal: "make it fast"}, 3)
 	if err != nil || id != "c1" {
 		t.Fatalf("%q %v", id, err)
 	}
-	want := startCall{"plan.md", 3, "custom/m", "http://x/v1", "K"}
+	want := startCall{Plan: "plan.md", Label: "make it fast", N: 3, Model: "custom/m", BaseURL: "http://x/v1", KeyEnv: "K"}
 	if len(svc.started) != 1 || svc.started[0] != want {
 		t.Fatalf("started %+v", svc.started)
 	}

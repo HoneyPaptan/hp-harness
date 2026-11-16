@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/HoneyPaptan/hp-harness/internal/crewview"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 	"github.com/HoneyPaptan/hp-harness/internal/tui"
 )
@@ -18,7 +19,10 @@ type CrewService interface {
 	PlanTitles(plan string) ([]string, bool, error)
 	DraftSystem() string
 	SavePlan(reply string) (path, text string, err error)
-	Start(plan string, n int, model, baseURL, keyEnv string) (string, error)
+	Start(req crewview.Start) (string, error)
+	Preflight() (int, error)
+	View(id string) (crewview.Snapshot, bool, error)
+	Follow(id string, index, offset int) (crewview.Chunk, error)
 	List() ([]string, error)
 	Status(id string) ([]string, error)
 	Report(id string) ([]string, error)
@@ -70,7 +74,7 @@ func (a *sessionAgent) CrewDraft(ctx context.Context, goal string) (tui.CrewPlan
 		return tui.CrewPlan{}, err
 	}
 	titles, _, err := svc.PlanTitles(path)
-	return tui.CrewPlan{Path: path, Text: text, Titles: titles}, err
+	return tui.CrewPlan{Path: path, Text: text, Titles: titles, Goal: goal}, err
 }
 
 func (a *sessionAgent) CrewStart(plan tui.CrewPlan, n int) (string, error) {
@@ -81,7 +85,34 @@ func (a *sessionAgent) CrewStart(plan tui.CrewPlan, n int) (string, error) {
 	if a.ep.Preset == "" {
 		return "", tui.NoModelError{}
 	}
-	return svc.Start(plan.Path, n, endpointSpec(a.ep), a.ep.BaseURL, a.ep.KeyEnv)
+	return svc.Start(crewview.Start{
+		Plan: plan.Path, Label: plan.Goal, N: n,
+		Model: endpointSpec(a.ep), BaseURL: a.ep.BaseURL, KeyEnv: a.ep.KeyEnv,
+	})
+}
+
+func (a *sessionAgent) CrewPreflight() (int, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return 0, err
+	}
+	return svc.Preflight()
+}
+
+func (a *sessionAgent) CrewView(id string) (crewview.Snapshot, bool, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return crewview.Snapshot{}, false, err
+	}
+	return svc.View(id)
+}
+
+func (a *sessionAgent) CrewFollow(id string, index, offset int) (crewview.Chunk, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return crewview.Chunk{}, err
+	}
+	return svc.Follow(id, index, offset)
 }
 
 func (a *sessionAgent) CrewList() ([]string, error) {

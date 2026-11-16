@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/HoneyPaptan/hp-harness/internal/crewview"
 )
 
 type briefStep struct {
@@ -33,10 +35,49 @@ type crewFake struct {
 	briefs    []briefStep
 	briefErr  error
 	asked     []string
+	dirty     int
+	preflight error
+	snaps     map[string]crewview.Snapshot
+	newest    string
+	chunks    map[int][]crewview.Chunk
+	follows   [][2]int
+}
+
+func (a *crewFake) CrewPreflight() (int, error) { return a.dirty, a.preflight }
+
+func (a *crewFake) CrewView(id string) (crewview.Snapshot, bool, error) {
+	a.cmu.Lock()
+	defer a.cmu.Unlock()
+	if id == "" {
+		id = a.newest
+	}
+	snap, ok := a.snaps[id]
+	return snap, ok, nil
+}
+
+func (a *crewFake) CrewFollow(_ string, index, offset int) (crewview.Chunk, error) {
+	a.cmu.Lock()
+	defer a.cmu.Unlock()
+	a.follows = append(a.follows, [2]int{index, offset})
+	queue := a.chunks[index]
+	if len(queue) == 0 {
+		return crewview.Chunk{Offset: offset}, nil
+	}
+	a.chunks[index] = queue[1:]
+	return queue[0], nil
+}
+
+func (a *crewFake) followed() [][2]int {
+	a.cmu.Lock()
+	defer a.cmu.Unlock()
+	return append([][2]int(nil), a.follows...)
 }
 
 func newCrewFake() *crewFake {
-	return &crewFake{fakeAgent: newFakeAgent(), files: map[string][]string{}}
+	return &crewFake{
+		fakeAgent: newFakeAgent(), files: map[string][]string{},
+		snaps: map[string]crewview.Snapshot{}, chunks: map[int][]crewview.Chunk{},
+	}
 }
 
 func (a *crewFake) CrewPlan(arg string) (CrewPlan, bool, error) {
@@ -240,7 +281,7 @@ func TestCrewShowCommands(t *testing.T) {
 		want  string
 		asked string
 	}{
-		{"list", "/crew\r", "c1  plan.md  1/2 done", ""},
+		{"list", "/crew list\r", "c1  plan.md  1/2 done", ""},
 		{"status", "/crew status c1\r", "task a  running", "status c1"},
 		{"report", "/crew report c1\r", "## task a", "report c1"},
 		{"status without id", "/crew status\r", crewUsage, ""},
