@@ -88,7 +88,7 @@ func TestUnknownToolRecovers(t *testing.T) {
 	obs := Observer{
 		OnToolStart:  func(c provider.ToolCall) { starts = append(starts, c) },
 		OnToolResult: func(r provider.ToolResult) { results = append(results, r) },
-		OnRetry:      func(time.Duration, int, int) { retried = true },
+		OnRetry:      func(time.Duration, int, int, error) { retried = true },
 	}
 	out, err := Run(context.Background(), unknownToolDeps(h, fp, obs), unknownToolCfg())
 	if err != nil {

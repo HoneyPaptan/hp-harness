@@ -143,7 +143,7 @@ func TestObserverNilSafe(t *testing.T) {
 	o.emitToolResult(provider.ToolResult{})
 	o.emitWait("x", 0, hNow())
 	o.emitSwitch("a", "b")
-	o.emitRetry(0, 1, 5)
+	o.emitRetry(0, 1, 5, nil)
 	o.emitCompact(1)
 }
 

@@ -234,7 +234,7 @@ func (r *run) observer() core.Observer {
 		OnSwitch: func(from, to string) {
 			r.failedAttempt(Event{Kind: KindSwitch, From: from, To: to})
 		},
-		OnRetry: func(d time.Duration, attempt, limit int) {
+		OnRetry: func(d time.Duration, attempt, limit int, _ error) {
 			r.failedAttempt(Event{Kind: KindRetry, DelayMS: d.Milliseconds(), Attempt: attempt, Max: limit})
 		},
 		OnCompact: func(int) {

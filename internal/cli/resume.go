@@ -15,7 +15,7 @@ import (
 
 func cmdResume(ctx context.Context, env Env, args []string) int {
 	fs := flag.NewFlagSet("resume", flag.ContinueOnError)
-	fs.SetOutput(env.Stderr)
+	setFlagUsage(fs, env, "resume")
 	var detach bool
 	fs.BoolVar(&detach, "d", false, "detach")
 	if err := fs.Parse(args); err != nil {
@@ -33,7 +33,7 @@ func cmdResume(ctx context.Context, env Env, args []string) int {
 		jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
 		st, err := replayRun(env, jpath)
 		if err != nil {
-			return exitUsage(env, usagef("run %q not found", id))
+			return exitNoRun(env, id)
 		}
 		if _, err := openJev(env, st.Jev); err != nil {
 			return exitUsage(env, err)
@@ -47,7 +47,7 @@ func resumeRun(ctx context.Context, env Env, id string) int {
 	jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
 	st, err := replayRun(env, jpath)
 	if err != nil {
-		return exitUsage(env, usagef("run %q not found", id))
+		return exitNoRun(env, id)
 	}
 	if env.LoginEnv != nil {
 		env.LoginEnv(st.Start.Dir)

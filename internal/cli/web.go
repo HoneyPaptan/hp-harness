@@ -9,7 +9,10 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/web"
 )
 
-const defaultWebPort = 7878
+const (
+	defaultWebPort = 7878
+	maxPort        = 65535
+)
 
 type webOpts struct {
 	run    runOpts
@@ -51,6 +54,9 @@ func parseWebFlags(env Env, args []string) (webOpts, error) {
 	}
 	if o.detach {
 		return webOpts{}, usagef("web cannot detach")
+	}
+	if *port < 0 || *port > maxPort {
+		return webOpts{}, usagef("invalid port %d, use a number from 0 to %d", *port, maxPort)
 	}
 	if *listen != "" && *port != defaultWebPort {
 		return webOpts{}, usagef("use --port or --listen, not both")

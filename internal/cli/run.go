@@ -61,7 +61,7 @@ func parseRunFlags(env Env, args []string) (runOpts, []string, error) {
 
 func runFlagSet(env Env, name string) (*flag.FlagSet, *runOpts, *stringList) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	fs.SetOutput(env.Stderr)
+	setFlagUsage(fs, env, name)
 	o := &runOpts{}
 	fb := &stringList{}
 	fs.StringVar(&o.model, "m", "", "preset/model")
@@ -213,8 +213,15 @@ func journalExists(env Env, path string) bool {
 }
 
 func exitUsage(env Env, err error) int {
+	if errors.Is(err, flag.ErrHelp) {
+		return 0
+	}
 	fmt.Fprintf(env.Stderr, "error: %v\n", err)
 	return 2
+}
+
+func exitNoRun(env Env, id string) int {
+	return exitUsage(env, usagef("run %q not found", id))
 }
 
 func exitErr(env Env, id, jpath string, err error) int {
