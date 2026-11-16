@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -80,6 +81,20 @@ func (Native) ReadDir(path string) ([]Entry, error) {
 		out = append(out, ent)
 	}
 	return out, nil
+}
+
+func (Native) ReadHead(path string, n int) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	buf := make([]byte, n)
+	got, err := io.ReadFull(f, buf)
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		err = nil
+	}
+	return buf[:got], err
 }
 
 func (Native) ListNames(path string) ([]Entry, error) {
