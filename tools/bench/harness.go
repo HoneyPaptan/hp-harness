@@ -50,11 +50,6 @@ func (h *harness) runArgs() []string {
 	return []string{"run", "-m", benchModel, "--base-url", h.url, benchPrompt}
 }
 
-func (h *harness) medianWall(state string, n int, args ...string) (time.Duration, error) {
-	t, err := h.wallSamples(state, n, args...)
-	return median(t.wall), err
-}
-
 type timed struct {
 	wall, cpu []time.Duration
 }
@@ -76,11 +71,6 @@ func (h *harness) wallSamples(state string, n int, args ...string) (timed, error
 		h.lastRSS = max(h.lastRSS, peakRSS(cmd))
 	}
 	return t, nil
-}
-
-func (h *harness) runOverhead(state string, n int) (time.Duration, int64, error) {
-	t, err := h.firstByteSamples(state, n)
-	return median(t.wall), h.lastRSS, err
 }
 
 func (h *harness) firstByteSamples(state string, n int) (timed, error) {

@@ -28,19 +28,27 @@ func TestMedian(t *testing.T) {
 	}
 }
 
+func steady(d time.Duration) timed {
+	return timed{wall: []time.Duration{d}, cpu: []time.Duration{d}}
+}
+
 func TestReportBudgets(t *testing.T) {
-	good := results{version: time.Millisecond, runs: time.Millisecond, overhead: time.Millisecond, peakRSS: bytesPerMB}
+	good := results{version: steady(time.Millisecond), runs: steady(time.Millisecond), overhead: steady(time.Millisecond), peakRSS: bytesPerMB}
 	cases := []struct {
 		name  string
 		tweak func(*results)
 		want  string
 	}{
 		{name: "all within", tweak: func(*results) {}},
-		{name: "at the limit", tweak: func(r *results) { r.version = versionLimit }},
-		{name: "version", tweak: func(r *results) { r.version = versionLimit + 1 }, want: "hp --version"},
-		{name: "runs", tweak: func(r *results) { r.runs = runsLimit + 1 }, want: "hp runs"},
-		{name: "overhead", tweak: func(r *results) { r.overhead = overheadLimit + 1 }, want: "hp run to"},
+		{name: "at the limit", tweak: func(r *results) { r.version = steady(versionCPULimit) }},
+		{name: "version cpu", tweak: func(r *results) { r.version.cpu = []time.Duration{versionCPULimit + 1} }, want: "hp --version"},
+		{name: "version wall", tweak: func(r *results) { r.version.wall = []time.Duration{versionWallLimit + 1} }, want: "hp --version"},
+		{name: "runs cpu", tweak: func(r *results) { r.runs.cpu = []time.Duration{runsCPULimit + 1} }, want: "hp runs"},
+		{name: "runs wall", tweak: func(r *results) { r.runs.wall = []time.Duration{runsWallLimit + 1} }, want: "hp runs"},
+		{name: "overhead cpu", tweak: func(r *results) { r.overhead.cpu = []time.Duration{overheadCPULimit + 1} }, want: "hp run to"},
+		{name: "overhead wall", tweak: func(r *results) { r.overhead.wall = []time.Duration{overheadWallLimit + 1} }, want: "hp run to"},
 		{name: "rss", tweak: func(r *results) { r.peakRSS = rssLimit + 1 }, want: "peak RSS"},
+		{name: "slow wall under the ceiling passes", tweak: func(r *results) { r.version.wall = []time.Duration{versionWallLimit} }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -63,5 +71,15 @@ func TestReportBudgets(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPercentile(t *testing.T) {
+	samples := []time.Duration{5, 1, 4, 2, 3, 9, 8, 7, 6, 10}
+	if got := percentile(samples, 0.9); got != 9 {
+		t.Fatalf("p90 = %v, want 9", got)
+	}
+	if got := percentile(nil, 0.9); got != 0 {
+		t.Fatalf("empty = %v", got)
 	}
 }

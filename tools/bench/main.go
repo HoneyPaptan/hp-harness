@@ -58,20 +58,20 @@ func measureAll(dir string) (results, error) {
 	}
 	defer srv.Close()
 	h := harness{bin: bin, dir: dir, url: srv.URL}
-	if res.version, err = h.medianWall(h.state("empty"), versionSamples, "--version"); err != nil {
+	if res.version, err = h.wallSamples(h.state("empty"), versionSamples, "--version"); err != nil {
 		return res, err
 	}
-	if res.overhead, res.peakRSS, err = h.runOverhead(h.state("run"), overheadSamples); err != nil {
+	if res.overhead, err = h.firstByteSamples(h.state("run"), overheadSamples); err != nil {
 		return res, err
 	}
 	state := h.state("runs")
 	if err := h.seedJournals(state, journalCount); err != nil {
 		return res, err
 	}
-	if res.runs, err = h.medianWall(state, runsSamples, "runs"); err != nil {
+	if res.runs, err = h.wallSamples(state, runsSamples, "runs"); err != nil {
 		return res, err
 	}
-	res.peakRSS = max(res.peakRSS, h.lastRSS)
+	res.peakRSS = h.lastRSS
 	return res, nil
 }
 

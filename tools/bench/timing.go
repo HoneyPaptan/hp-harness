@@ -144,13 +144,9 @@ func printTiming(w io.Writer, rows []timingRow, n int) error {
 	for _, r := range rows {
 		cpu := "-"
 		if len(r.cpu) > 0 {
-			cpu = roundTiming(median(r.cpu)).String()
+			cpu = round(median(r.cpu)).String()
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", r.name, roundTiming(median(r.wall)), roundTiming(percentile(r.wall, 0.9)), cpu)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", r.name, round(median(r.wall)), round(percentile(r.wall, 0.9)), cpu)
 	}
 	return tw.Flush()
-}
-
-func roundTiming(d time.Duration) time.Duration {
-	return d.Round(10 * time.Microsecond)
 }
