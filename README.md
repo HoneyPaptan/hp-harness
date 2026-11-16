@@ -92,6 +92,7 @@ make bench   # startup, `hp runs`, first byte and memory bounds
 | `hp remove` | removes an MCP server or skill |
 | `hp key` | stores, lists or removes provider API keys |
 | `hp permissions` | prints the permission mode and the settings file path |
+| `hp doctor` | checks keys, models, endpoints, git and folders and prints a fix for each problem; exits 1 when a check fails |
 | `hp version` | prints the version |
 
 Inside a session:

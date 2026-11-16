@@ -64,6 +64,8 @@ func dispatch(ctx context.Context, env Env, args []string) int {
 		return cmdKey(env, args[1:])
 	case "permissions":
 		return cmdPermissions(env, args[1:])
+	case "doctor":
+		return cmdDoctor(ctx, env, args[1:])
 	case "version":
 		return cmdVersion(env, args[1:])
 	case "help", "-h", "--help":

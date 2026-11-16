@@ -30,6 +30,7 @@ var commandHelps = []commandHelp{
 	{"remove", "hp remove NAME", "remove an MCP server or skill"},
 	{"key", strings.TrimPrefix(keyUsage, "usage: "), "store, list or remove provider API keys"},
 	{"permissions", "hp permissions [-json]", "show the permission mode and settings path"},
+	{"doctor", "hp doctor", "check keys, models, endpoints, git and folders, with a fix for each problem"},
 	{"version", "hp version", "print the version"},
 }
 
