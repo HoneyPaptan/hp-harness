@@ -10,9 +10,5 @@ func Seed(d Deps, c Config) error {
 }
 
 func seed(d Deps, c Config) (*journal.Writer, error) {
-	w, err := journal.Create(d.Host, c.JournalPath, runStartFromConfig(c))
-	if err != nil {
-		return nil, err
-	}
-	return w, w.User(c.Prompt)
+	return journal.CreateWithUser(d.Host, c.JournalPath, runStartFromConfig(c), c.Prompt)
 }

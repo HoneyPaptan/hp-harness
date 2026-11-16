@@ -27,6 +27,27 @@ func Create(h host.Host, path string, start RunStart) (*Writer, error) {
 	return w, nil
 }
 
+func CreateWithUser(h host.Host, path string, start RunStart, prompt string) (*Writer, error) {
+	if err := ensureAbsent(h, path); err != nil {
+		return nil, err
+	}
+	w := &Writer{h: h, path: path}
+	first, err := w.encode(TypeRunStart, start)
+	if err != nil {
+		return nil, err
+	}
+	w.seq++
+	second, err := w.encode(TypeUser, User{Text: prompt})
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Append(path, append(first, second...)); err != nil {
+		return nil, err
+	}
+	w.seq++
+	return w, nil
+}
+
 func ensureAbsent(h host.Host, path string) error {
 	_, err := h.Stat(path)
 	if err == nil {
@@ -111,9 +132,21 @@ func (w *Writer) End(reason string) error {
 }
 
 func (w *Writer) append(t Type, payload any) error {
-	data, err := json.Marshal(payload)
+	line, err := w.encode(t, payload)
 	if err != nil {
 		return err
+	}
+	if err := w.h.Append(w.path, line); err != nil {
+		return err
+	}
+	w.seq++
+	return nil
+}
+
+func (w *Writer) encode(t Type, payload any) ([]byte, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
 	}
 	rec := Record{
 		Seq:  w.seq,
@@ -123,12 +156,7 @@ func (w *Writer) append(t Type, payload any) error {
 	}
 	line, err := json.Marshal(rec)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	line = append(line, '\n')
-	if err := w.h.Append(w.path, line); err != nil {
-		return err
-	}
-	w.seq++
-	return nil
+	return append(line, '\n'), nil
 }
