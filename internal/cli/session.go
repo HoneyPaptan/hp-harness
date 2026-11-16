@@ -44,26 +44,27 @@ func parseSessionFlags(env Env, args []string) (runOpts, bool, error) {
 }
 
 func freshSession(ctx context.Context, env Env, o runOpts) int {
-	noModel := strings.TrimSpace(o.model) == "" && strings.TrimSpace(env.Getenv("HP_MODEL")) == ""
+	o, skipped := applyLastModel(env, o)
+	noModel := skipped != "" || (strings.TrimSpace(o.model) == "" && strings.TrimSpace(env.Getenv("HP_MODEL")) == "")
 	if noModel {
 		if len(o.fallbacks) > 0 {
 			return exitUsage(env, usagef("fallback requires a primary model"))
 		}
-		return startEmptySession(ctx, env, o)
+		return startEmptySession(ctx, env, o, skipped)
 	}
 	ep, bySpec, err := resolveRunSpecs(o, env.Getenv)
 	if err != nil {
 		return exitUsage(env, err)
 	}
-	return openFreshSession(ctx, env, o, ep, bySpec, false)
+	return openFreshSession(ctx, env, o, ep, bySpec, false, "")
 }
 
-func startEmptySession(ctx context.Context, env Env, o runOpts) int {
+func startEmptySession(ctx context.Context, env Env, o runOpts, intro string) int {
 	bySpec := make(map[string]Endpoint)
-	return openFreshSession(ctx, env, o, Endpoint{}, bySpec, true)
+	return openFreshSession(ctx, env, o, Endpoint{}, bySpec, true, intro)
 }
 
-func openFreshSession(ctx context.Context, env Env, o runOpts, ep Endpoint, bySpec map[string]Endpoint, pickModel bool) int {
+func openFreshSession(ctx context.Context, env Env, o runOpts, ep Endpoint, bySpec map[string]Endpoint, pickModel bool, intro string) int {
 	client, err := openJev(env, o.jev)
 	if err != nil {
 		return exitUsage(env, err)
@@ -80,7 +81,7 @@ func openFreshSession(ctx context.Context, env Env, o runOpts, ep Endpoint, bySp
 		return exitErr(env, "", "", err)
 	}
 	defer a.release()
-	return runSession(ctx, env, a, false, "", pickModel)
+	return runSession(ctx, env, a, false, intro, pickModel)
 }
 
 func continueSession(ctx context.Context, env Env, o runOpts) int {
@@ -104,7 +105,7 @@ func continueSession(ctx context.Context, env Env, o runOpts) int {
 	}
 	defer a.release()
 	if o.model != "" {
-		if err := a.SetModel(o.model); err != nil {
+		if err := a.useModel(o.model); err != nil {
 			return exitUsage(env, err)
 		}
 	}

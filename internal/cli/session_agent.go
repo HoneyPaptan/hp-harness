@@ -338,6 +338,14 @@ func (a *sessionAgent) Jev() bool {
 }
 
 func (a *sessionAgent) SetModel(spec string) error {
+	if err := a.useModel(spec); err != nil {
+		return err
+	}
+	_ = saveLastModel(a.env, endpointSpec(a.ep))
+	return nil
+}
+
+func (a *sessionAgent) useModel(spec string) error {
 	ep, ok := a.bySpec[spec]
 	if !ok {
 		found, err := endpointFor(a.ep, spec, a.env.Getenv)
