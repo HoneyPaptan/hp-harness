@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/HoneyPaptan/hp-harness/internal/skill"
 )
@@ -21,7 +22,7 @@ const (
 	maxGitOutput   = 2 << 10
 )
 
-var scpLikeURL = regexp.MustCompile(`^[\w.-]+@[\w.-]+:`)
+var scpLikeURL = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[\w.-]+@[\w.-]+:`) })
 
 func isGitURL(s string) bool {
 	for _, prefix := range []string{"https://", "http://", "ssh://", "git://", "file://"} {
@@ -29,7 +30,7 @@ func isGitURL(s string) bool {
 			return true
 		}
 	}
-	return scpLikeURL.MatchString(s)
+	return scpLikeURL().MatchString(s)
 }
 
 func addSkill(ctx context.Context, env Env, source string) error {

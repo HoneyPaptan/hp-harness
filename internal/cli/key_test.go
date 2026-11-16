@@ -313,3 +313,24 @@ func TestCheckKeyValue(t *testing.T) {
 		})
 	}
 }
+
+func TestValidKeyName(t *testing.T) {
+	cases := []struct {
+		name string
+		want bool
+	}{
+		{"GROQ_API_KEY", true},
+		{"_X", true},
+		{"A1", true},
+		{"", false},
+		{"1A", false},
+		{"lower", false},
+		{"A-B", false},
+		{"A B", false},
+	}
+	for _, tc := range cases {
+		if got := validKeyName(tc.name); got != tc.want {
+			t.Errorf("validKeyName(%q) = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

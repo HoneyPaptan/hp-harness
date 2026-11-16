@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 const (
@@ -18,7 +19,7 @@ const (
 	maxNameLen      = 32
 )
 
-var namePattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9-])?$`)
+var namePattern = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9-])?$`) })
 
 type connection struct {
 	Command string            `json:"command,omitempty"`
@@ -46,7 +47,7 @@ type schemaCache struct {
 }
 
 func checkName(name string) error {
-	if len(name) > maxNameLen || strings.Contains(name, "__") || !namePattern.MatchString(name) {
+	if len(name) > maxNameLen || strings.Contains(name, "__") || !namePattern().MatchString(name) {
 		return usagef("invalid name %q: use letters, digits, - and _, at most %d characters", name, maxNameLen)
 	}
 	return nil

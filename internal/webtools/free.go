@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/HoneyPaptan/hp-harness/internal/tool"
 )
@@ -35,7 +36,7 @@ type freeResult struct {
 }
 
 var (
-	tagPattern     = regexp.MustCompile(`<[^>]*>`)
+	tagPattern     = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`<[^>]*>`) })
 	readSchema     = json.RawMessage(`{"type":"object","properties":{"page":{"type":"string","description":"A Wikipedia article title or a wikipedia.org URL, usually one returned by web_search."}},"required":["page"],"additionalProperties":false}`)
 	freeSearchNote = "Search the public web for free through Wikipedia and DuckDuckGo instant answers. Returns titles, URLs and short snippets. Good for facts, definitions and well known topics, not for news or niche pages. Use wiki_read to read a Wikipedia result in full."
 )
@@ -246,7 +247,7 @@ func articleURL(base, title string) string {
 }
 
 func plainText(s string) string {
-	return strings.Join(strings.Fields(html.UnescapeString(tagPattern.ReplaceAllString(s, ""))), " ")
+	return strings.Join(strings.Fields(html.UnescapeString(tagPattern().ReplaceAllString(s, ""))), " ")
 }
 
 func hostOf(raw string) string {
