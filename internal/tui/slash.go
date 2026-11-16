@@ -39,6 +39,9 @@ var slashCommands = []slashCommand{
 	{"/permissions", "", "show or set permission mode"},
 	{"/permissions", " ask|auto|full-access|reset", "switch mode or reset session grants"},
 	{"/compact", "", "compact the conversation now"},
+	{"/crew", "", "list crews"},
+	{"/crew", " plan.md|goal", "run a plan file or a drafted goal as a crew"},
+	{"/crew", " status|report ID", "show one crew"},
 	{"/quit", "", "leave, also Ctrl-D"},
 }
 
@@ -111,6 +114,8 @@ func (s *Session) runSlash(ctx context.Context, name, arg string) {
 		s.switchPermissions(arg)
 	case "/compact":
 		s.runCompact(ctx)
+	case "/crew":
+		s.runCrew(ctx, arg)
 	case "/quit":
 		s.quit = true
 	default:

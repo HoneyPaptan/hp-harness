@@ -50,7 +50,7 @@ func crewEnv(e cli.Env) crew.Env {
 	return crew.Env{
 		Args: e.Args, Getenv: e.Getenv, Cwd: e.Cwd,
 		Stdout: e.Stdout, Stderr: e.Stderr, Exe: e.Exe,
-		Alive: processAlive,
+		Alive: processAlive, Spawn: spawnDetached, Pid: os.Getpid(),
 	}
 }
 
@@ -69,6 +69,11 @@ func buildEnv() (cli.Env, error) {
 		Term: stdTerminal{}, RunCtl: runCtl,
 	}
 	env.LoginEnv = memoLoginEnv(&env)
+	env.Crew = func(dir string) cli.CrewService {
+		ce := crewEnv(env)
+		ce.Cwd = dir
+		return crew.Service{Env: ce}
+	}
 	return env, nil
 }
 

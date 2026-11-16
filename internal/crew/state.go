@@ -102,7 +102,11 @@ func (s *State) save(getenv func(string) string) error {
 	if err := os.MkdirAll(crewsDir(getenv), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(statePath(getenv, s.ID), data, 0o600)
+	tmp := statePath(getenv, s.ID) + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, statePath(getenv, s.ID))
 }
 
 func load(getenv func(string) string, id string) (*State, error) {

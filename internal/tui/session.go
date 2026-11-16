@@ -25,6 +25,7 @@ type Config struct {
 	Intro     string
 	PickModel bool
 	Now       func() time.Time
+	CrewPoll  time.Duration
 }
 
 type turnResult struct {
@@ -62,6 +63,11 @@ type Session struct {
 	complete  *completion
 	fileCache []string
 	approval  *approval
+	crew      *crewFlow
+	drafts    chan draftResult
+	crewID    string
+	crewBrief string
+	crewTick  <-chan time.Time
 }
 
 func NewSession(cfg Config) *Session {
@@ -75,6 +81,7 @@ func NewSession(cfg Config) *Session {
 		events:   make(chan Event),
 		done:     make(chan turnResult),
 		models:   make(chan modelsResult, 1),
+		drafts:   make(chan draftResult, 1),
 		stopped:  make(chan struct{}),
 	}
 }
@@ -82,6 +89,9 @@ func NewSession(cfg Config) *Session {
 func withClock(cfg Config) Config {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
+	}
+	if cfg.CrewPoll <= 0 {
+		cfg.CrewPoll = crewPollDefault
 	}
 	return cfg
 }
@@ -176,6 +186,10 @@ func (s *Session) step(ctx context.Context) {
 		s.finishTurn(ctx, res)
 	case res := <-s.models:
 		s.handleModelsResult(res)
+	case res := <-s.drafts:
+		s.handleDraft(res)
+	case <-s.crewTick:
+		s.pollCrew()
 	}
 }
 
@@ -340,24 +354,28 @@ func (s *Session) redraw() {
 	s.renderer.SetWidth(s.cfg.Width())
 	if s.picker != nil && s.picker.stage == pickProvider {
 		rows, sel := s.picker.menu.window()
-		_ = s.renderer.DrawMenu(providerPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", pickerMore(s.picker.menu), footerLine(s.cfg.Agent))
+		_ = s.renderer.DrawMenu(providerPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", pickerMore(s.picker.menu), s.footer())
 		return
 	}
 	if s.picker != nil && s.picker.stage == pickModel {
 		rows, sel := s.picker.menu.window()
-		_ = s.renderer.DrawMenu(modelPrompt(s.picker.provider), s.editor.Runes(), s.editor.Cursor(), markFree(rows), sel, s.picker.modelsNote, modelPickerMore(s.picker), footerLine(s.cfg.Agent))
+		_ = s.renderer.DrawMenu(modelPrompt(s.picker.provider), s.editor.Runes(), s.editor.Cursor(), markFree(rows), sel, s.picker.modelsNote, modelPickerMore(s.picker), s.footer())
+		return
+	}
+	if s.crew != nil {
+		_ = s.renderer.Draw(s.crewPrompt(), s.editor.Runes(), s.editor.Cursor(), s.footer())
 		return
 	}
 	if s.masking {
-		_ = s.renderer.DrawMasked(s.prompt(), s.editor.Runes(), s.editor.Cursor(), footerLine(s.cfg.Agent))
+		_ = s.renderer.DrawMasked(s.prompt(), s.editor.Runes(), s.editor.Cursor(), s.footer())
 		return
 	}
 	if s.complete != nil && s.complete.visible() {
 		rows, sel := s.complete.menu.window()
-		_ = s.renderer.DrawMenu(promptGlyph, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", completionMore(s.complete.menu), footerLine(s.cfg.Agent))
+		_ = s.renderer.DrawMenu(promptGlyph, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", completionMore(s.complete.menu), s.footer())
 		return
 	}
-	_ = s.renderer.Draw(s.prompt(), s.editor.Runes(), s.editor.Cursor(), footerLine(s.cfg.Agent))
+	_ = s.renderer.Draw(s.prompt(), s.editor.Runes(), s.editor.Cursor(), s.footer())
 }
 
 func (s *Session) prompt() string {

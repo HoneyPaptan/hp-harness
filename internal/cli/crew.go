@@ -1,0 +1,117 @@
+package cli
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/HoneyPaptan/hp-harness/internal/provider"
+	"github.com/HoneyPaptan/hp-harness/internal/tui"
+)
+
+const (
+	crewDraftTimeout   = 2 * time.Minute
+	crewDraftMaxTokens = 4096
+)
+
+type CrewService interface {
+	PlanTitles(plan string) ([]string, bool, error)
+	DraftSystem() string
+	SavePlan(reply string) (path, text string, err error)
+	Start(plan string, n int, model, baseURL, keyEnv string) (string, error)
+	List() ([]string, error)
+	Status(id string) ([]string, error)
+	Report(id string) ([]string, error)
+	Brief(id string) (string, bool, error)
+}
+
+func (a *sessionAgent) crewService() (CrewService, error) {
+	if a.env.Crew != nil {
+		return a.env.Crew(a.dir), nil
+	}
+	if a.env.Browser {
+		return nil, errors.New("/crew is not available in the browser")
+	}
+	return nil, errors.New("/crew is not available here")
+}
+
+func (a *sessionAgent) CrewPlan(arg string) (tui.CrewPlan, bool, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return tui.CrewPlan{}, false, err
+	}
+	titles, found, err := svc.PlanTitles(arg)
+	return tui.CrewPlan{Path: arg, Titles: titles}, found, err
+}
+
+func (a *sessionAgent) CrewDraft(ctx context.Context, goal string) (tui.CrewPlan, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return tui.CrewPlan{}, err
+	}
+	if a.ep.Preset == "" {
+		return tui.CrewPlan{}, tui.NoModelError{}
+	}
+	session, err := newRunID(a.env.Host.Now(), a.env.Rand)
+	if err != nil {
+		return tui.CrewPlan{}, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, crewDraftTimeout)
+	defer cancel()
+	msg, _, err := provider.Collect(a.env.NewProvider(a.ep).Stream(ctx, provider.Request{
+		Model: a.ep.Model, System: svc.DraftSystem(), MaxTokens: crewDraftMaxTokens, SessionID: session,
+		Messages: []provider.Message{{Role: provider.RoleUser, Text: goal}},
+	}))
+	if err != nil {
+		return tui.CrewPlan{}, err
+	}
+	path, text, err := svc.SavePlan(msg.Text)
+	if err != nil {
+		return tui.CrewPlan{}, err
+	}
+	titles, _, err := svc.PlanTitles(path)
+	return tui.CrewPlan{Path: path, Text: text, Titles: titles}, err
+}
+
+func (a *sessionAgent) CrewStart(plan tui.CrewPlan, n int) (string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return "", err
+	}
+	if a.ep.Preset == "" {
+		return "", tui.NoModelError{}
+	}
+	return svc.Start(plan.Path, n, endpointSpec(a.ep), a.ep.BaseURL, a.ep.KeyEnv)
+}
+
+func (a *sessionAgent) CrewList() ([]string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return nil, err
+	}
+	return svc.List()
+}
+
+func (a *sessionAgent) CrewStatus(id string) ([]string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return nil, err
+	}
+	return svc.Status(id)
+}
+
+func (a *sessionAgent) CrewReport(id string) ([]string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return nil, err
+	}
+	return svc.Report(id)
+}
+
+func (a *sessionAgent) CrewBrief(id string) (string, bool, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return "", false, err
+	}
+	return svc.Brief(id)
+}

@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -23,6 +22,8 @@ type Env struct {
 	Alive  func(pid int) bool
 	Git    func(dir string, args ...string) (string, error)
 	RunHP  func(ctx context.Context, args ...string) (string, error)
+	Spawn  func(args []string, logPath string) (int, error)
+	Pid    int
 }
 
 type runFlags struct {
@@ -93,6 +94,11 @@ func cmdRun(ctx context.Context, env Env, args []string) int {
 		return exitErr(env, err)
 	}
 	fmt.Fprintf(env.Stdout, "%s\n", st.ID)
+	release, err := beginSupervise(env, st.ID)
+	if err != nil {
+		return exitErr(env, err)
+	}
+	defer release()
 	if err := supervise(ctx, env, st); err != nil {
 		if isCanceled(ctx) {
 			fmt.Fprintf(env.Stderr, "interrupted, resume with: hp crew resume %s\n", st.ID)
@@ -112,6 +118,11 @@ func cmdResume(ctx context.Context, env Env, args []string) int {
 	if err != nil {
 		return exitErr(env, err)
 	}
+	release, err := beginSupervise(env, id)
+	if err != nil {
+		return exitErr(env, err)
+	}
+	defer release()
 	if err := supervise(ctx, env, st); err != nil {
 		if isCanceled(ctx) {
 			fmt.Fprintf(env.Stderr, "interrupted, resume with: hp crew resume %s\n", id)
@@ -127,11 +138,7 @@ func cmdStatus(env Env, args []string) int {
 	if !ok {
 		return 2
 	}
-	for i := range st.Tasks {
-		t := &st.Tasks[i]
-		fmt.Fprintf(env.Stdout, "%s  %s  %s  %s  %s\n",
-			t.Title, statusWord(t), runID(t), t.Branch, changedFiles(env, st, t))
-	}
+	fmt.Fprint(env.Stdout, statusText(env, st))
 	return 0
 }
 
@@ -140,28 +147,7 @@ func cmdReport(env Env, args []string) int {
 	if !ok {
 		return 2
 	}
-	for i := range st.Tasks {
-		t := &st.Tasks[i]
-		fmt.Fprintf(env.Stdout, "## %s\n\n", t.Title)
-		if t.Status != StatusFinished {
-			fmt.Fprintln(env.Stdout, statusWord(t))
-			fmt.Fprintln(env.Stdout)
-			continue
-		}
-		fmt.Fprintf(env.Stdout, "run %s  branch %s\n\n", t.RunID, t.Branch)
-		if stat := diffStat(env, st, t); stat != "" {
-			fmt.Fprintln(env.Stdout, stat)
-		} else {
-			fmt.Fprintln(env.Stdout, "(no changes)")
-		}
-		fmt.Fprintln(env.Stdout)
-		if answer := taskAnswer(env, t.RunID); answer != "" {
-			fmt.Fprintln(env.Stdout, answer)
-		} else {
-			fmt.Fprintln(env.Stdout, "(no final answer)")
-		}
-		fmt.Fprintln(env.Stdout)
-	}
+	fmt.Fprint(env.Stdout, reportText(env, st))
 	return 0
 }
 
@@ -169,32 +155,7 @@ func cmdCrews(env Env, args []string) int {
 	if len(args) != 0 {
 		return usageErr(env, fmt.Errorf("unexpected arguments"))
 	}
-	ents, err := os.ReadDir(crewsDir(env.Getenv))
-	if err != nil || len(ents) == 0 {
-		fmt.Fprintln(env.Stdout, "no crews yet")
-		return 0
-	}
-	var ids []string
-	for _, e := range ents {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		ids = append(ids, strings.TrimSuffix(e.Name(), ".json"))
-	}
-	if len(ids) == 0 {
-		fmt.Fprintln(env.Stdout, "no crews yet")
-		return 0
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(ids)))
-	for _, id := range ids {
-		st, err := load(env.Getenv, id)
-		if err != nil {
-			fmt.Fprintf(env.Stdout, "%s  broken\n", id)
-			continue
-		}
-		fmt.Fprintf(env.Stdout, "%s  %s  %d/%d done\n",
-			id, filepath.Base(st.Plan), st.doneCount(), len(st.Tasks))
-	}
+	fmt.Fprint(env.Stdout, listText(env))
 	return 0
 }
 
