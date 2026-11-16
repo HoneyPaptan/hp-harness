@@ -41,6 +41,7 @@ type State struct {
 	Model       string    `json:"model,omitempty"`
 	BaseURL     string    `json:"base_url,omitempty"`
 	KeyEnv      string    `json:"key_env,omitempty"`
+	Label       string    `json:"label,omitempty"`
 	Created     time.Time `json:"created"`
 	Tasks       []Task    `json:"tasks"`
 }
@@ -62,6 +63,10 @@ func stateHome(getenv func(string) string, leaf string) string {
 		home = "."
 	}
 	return filepath.Join(home, ".local", "state", "hp", leaf)
+}
+
+func plansDir(getenv func(string) string) string {
+	return filepath.Join(crewsDir(getenv), "plans")
 }
 
 func statePath(getenv func(string) string, id string) string {

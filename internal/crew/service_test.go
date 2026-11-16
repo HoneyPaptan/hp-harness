@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/HoneyPaptan/hp-harness/internal/crewview"
 )
 
 type spawnCall struct {
@@ -74,7 +76,7 @@ func TestServicePlanTitles(t *testing.T) {
 func TestServiceStart(t *testing.T) {
 	env, getenv, calls := serviceEnv(t)
 	writePlan(t, env.Cwd, "plan.md", "## one\nfirst\n## two\nsecond\n## three\nthird\n")
-	id, err := Service{Env: env}.Start("plan.md", 3, "custom/m", "http://x/v1", "K")
+	id, err := Service{Env: env}.Start(crewview.Start{Plan: "plan.md", Label: "  add   a cache ", N: 3, Model: "custom/m", BaseURL: "http://x/v1", KeyEnv: "K"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +84,7 @@ func TestServiceStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Concurrency != 3 || st.Model != "custom/m" || st.BaseURL != "http://x/v1" || st.KeyEnv != "K" || len(st.Tasks) != 3 || st.Repo != "/repo" {
+	if st.Label != "add a cache" || st.Concurrency != 3 || st.Model != "custom/m" || st.BaseURL != "http://x/v1" || st.KeyEnv != "K" || len(st.Tasks) != 3 || st.Repo != "/repo" {
 		t.Fatalf("state %+v", st)
 	}
 	if len(*calls) != 1 || strings.Join((*calls)[0].args, " ") != "crew resume "+id || (*calls)[0].log != logPath(getenv, id) {
@@ -122,7 +124,7 @@ func TestServiceStartRefusals(t *testing.T) {
 			if tc.edit != nil {
 				tc.edit(&e)
 			}
-			_, err := Service{Env: e}.Start(tc.plan, tc.n, "", "", "")
+			_, err := Service{Env: e}.Start(crewview.Start{Plan: tc.plan, N: tc.n})
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("err %v want %q", err, tc.want)
 			}
