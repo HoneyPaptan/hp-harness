@@ -72,6 +72,14 @@ func IsNoModel(err error) bool {
 	return errors.As(err, &target)
 }
 
+type KeyHinter interface {
+	KeyHint() string
+}
+
+type QuitNoter interface {
+	QuitNotes() []string
+}
+
 type Preconnector interface {
 	Preconnect(ctx context.Context)
 }

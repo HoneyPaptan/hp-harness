@@ -16,6 +16,8 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/tui"
 )
 
+const keyHint = "no provider key is set: /key NAME or hp key set NAME unlocks one\nNAME is e.g. GROQ_API_KEY, OPENCODE_API_KEY, OPENROUTER_API_KEY (hp providers lists all)"
+
 var modelListTimeout = 5 * time.Second
 
 type sessionAgent struct {
@@ -334,6 +336,26 @@ func (a *sessionAgent) Models(ctx context.Context, preset string) ([]string, err
 
 func (a *sessionAgent) Providers() []string {
 	return currentFirst(configuredPresets(a.env.Getenv), a.ep.Preset)
+}
+
+func (a *sessionAgent) KeyHint() string {
+	for _, name := range presetNames() {
+		if key := presets[name].keyEnv; key != "" && a.env.Getenv(key) != "" {
+			return ""
+		}
+	}
+	return keyHint
+}
+
+func (a *sessionAgent) QuitNotes() []string {
+	if !a.started {
+		return nil
+	}
+	notes := []string{"run " + a.id + ", hp -c continues it"}
+	if a.open {
+		notes = append(notes, "it stopped mid-step: hp resume "+a.id+" finishes it without a new prompt")
+	}
+	return notes
 }
 
 func (a *sessionAgent) Jev() bool {
