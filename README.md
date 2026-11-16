@@ -39,6 +39,10 @@ hp crew report <crew-id>
 
 The installer supports linux and macOS on amd64 and arm64, checks the sha256 against `checksums.txt` and puts `hp` in `~/.local/bin`. `hp key set` stores the key in `~/.config/hp/env` with mode 0600. Bare `hp` opens an interactive session. The model you pick with the picker or `/model` is saved in `~/.local/state/hp/last-model` and used the next time you start `hp`. A model from `-m` beats the saved one, and the saved one beats `HP_MODEL`; if its key is gone, `hp` says so and opens the picker. With no `-m`, no saved model and no `HP_MODEL`, it opens the picker first. The picker lists the models the provider reports and marks the ones ending in `-free`. `hp run`, `hp run -d` and `hp resume` ignore the saved model and use `-m`, then `HP_MODEL`. `hp providers` lists the presets and which keys are set.
 
+## Crews in a session
+
+`/crew plan.md` or `/crew <goal>` lists the tasks and asks how many agents run at once. At that step, `e` opens the plan file in `$VISUAL`, else `$EDITOR`, else `vi`. hp hands the terminal to the editor and takes it back when you quit, then re-reads the plan and shows the new task count. If the plan no longer parses, hp shows the error and stays at that step, so you can press `e` again.
+
 To build and check from source (Go 1.27.3 or newer):
 
 ```sh

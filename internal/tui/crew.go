@@ -16,7 +16,8 @@ const (
 	crewUnavailable   = "/crew is not available here"
 	crewBusyNote      = "finish or stop the turn before /crew"
 	crewDraftNote     = "drafting a plan with one model request, Esc cancels"
-	crewAskNote       = "Enter starts the crew, Esc cancels"
+	crewAskNote       = "Enter starts the crew, e edits the plan, Esc cancels"
+	crewBadPlanNote   = "the plan has no tasks yet, e edits it, Esc cancels"
 	crewCancelNote    = "crew not started"
 	crewCountHint     = "enter a number from 1 to %d"
 	crewDefaultAt     = 2
@@ -35,6 +36,7 @@ type CrewPlan struct {
 type CrewAgent interface {
 	CrewPlan(arg string) (CrewPlan, bool, error)
 	CrewDraft(ctx context.Context, goal string) (CrewPlan, error)
+	CrewEdit(plan CrewPlan) (CrewPlan, error)
 	CrewStart(plan CrewPlan, n int) (string, error)
 	CrewPreflight() (int, error)
 	CrewView(id string) (crewview.Snapshot, bool, error)
@@ -177,9 +179,7 @@ func (s *Session) handleDraft(res draftResult) {
 
 func (s *Session) askCrewCount(plan CrewPlan) {
 	if plan.Text == "" {
-		for i, title := range plan.Titles {
-			s.note(fmt.Sprintf("%d. %s", i+1, title))
-		}
+		s.noteTitles(plan.Titles)
 	}
 	if plan.Dirty > 0 {
 		s.note(dirtyNote(plan.Dirty))
@@ -188,6 +188,37 @@ func (s *Session) askCrewCount(plan CrewPlan) {
 	s.crew = &crewFlow{stage: crewCount, plan: plan}
 	s.editor.SetText(strconv.Itoa(min(len(plan.Titles), crewDefaultAt)))
 	s.dirty = true
+}
+
+func (s *Session) noteTitles(titles []string) {
+	for i, title := range titles {
+		s.note(fmt.Sprintf("%d. %s", i+1, title))
+	}
+}
+
+func (s *Session) editCrewPlan() {
+	typed := strings.TrimSpace(s.editor.Text())
+	s.clearDrawn()
+	edited, err := s.cfg.Agent.(CrewAgent).CrewEdit(s.crew.plan)
+	s.flush = nil
+	s.dirty = true
+	edited.Dirty = s.crew.plan.Dirty
+	edited.Text = ""
+	s.crew.plan = edited
+	if err != nil {
+		s.fail(err)
+	}
+	s.noteTitles(edited.Titles)
+	if len(edited.Titles) == 0 {
+		s.note(crewBadPlanNote)
+		s.editor.SetText("")
+		return
+	}
+	s.note(crewAskNote)
+	s.editor.SetText(strconv.Itoa(min(len(edited.Titles), crewDefaultAt)))
+	if n, err := strconv.Atoi(typed); err == nil && n >= 1 && n <= len(edited.Titles) {
+		s.editor.SetText(typed)
+	}
 }
 
 func dirtyNote(n int) string {
@@ -207,10 +238,15 @@ func (s *Session) crewKey(k Key) {
 			s.confirmCrew()
 		}
 	default:
-		if s.crew.stage == crewCount {
-			s.editor.Handle(k)
-			s.dirty = true
+		if s.crew.stage != crewCount {
+			return
 		}
+		if k.Type == KeyRune && k.Rune == 'e' {
+			s.editCrewPlan()
+			return
+		}
+		s.editor.Handle(k)
+		s.dirty = true
 	}
 }
 
@@ -228,6 +264,12 @@ func (s *Session) cancelCrew() {
 func (s *Session) confirmCrew() {
 	plan := s.crew.plan
 	max := len(plan.Titles)
+	if max == 0 {
+		s.clearDrawn()
+		s.note(crewBadPlanNote)
+		s.dirty = true
+		return
+	}
 	n, err := strconv.Atoi(strings.TrimSpace(s.editor.Text()))
 	if err != nil || n < 1 || n > max {
 		s.clearDrawn()
@@ -284,6 +326,9 @@ func (s *Session) crewPrompt() string {
 		return "drafting plan · Esc cancels "
 	}
 	n := len(s.crew.plan.Titles)
+	if n == 0 {
+		return "plan has no tasks · e edits · Esc cancels "
+	}
 	noun := "tasks"
 	if n == 1 {
 		noun = "task"

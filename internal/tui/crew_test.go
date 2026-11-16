@@ -41,6 +41,13 @@ type crewFake struct {
 	newest    string
 	chunks    map[int][]crewview.Chunk
 	follows   [][2]int
+	edits     []CrewPlan
+	editSteps []editStep
+}
+
+type editStep struct {
+	titles []string
+	err    error
 }
 
 func (a *crewFake) CrewPreflight() (int, error) { return a.dirty, a.preflight }
@@ -108,6 +115,18 @@ func (a *crewFake) CrewStart(plan CrewPlan, n int) (string, error) {
 	a.started = append(a.started, plan)
 	a.counts = append(a.counts, n)
 	return "crew-1", nil
+}
+
+func (a *crewFake) CrewEdit(plan CrewPlan) (CrewPlan, error) {
+	a.cmu.Lock()
+	defer a.cmu.Unlock()
+	a.edits = append(a.edits, plan)
+	step := a.editSteps[0]
+	if len(a.editSteps) > 1 {
+		a.editSteps = a.editSteps[1:]
+	}
+	plan.Titles = step.titles
+	return plan, step.err
 }
 
 func (a *crewFake) CrewList() ([]string, error) { return a.list, nil }
@@ -346,5 +365,93 @@ func TestCrewBusyTurn(t *testing.T) {
 	h.play([]step{{keys: "hello\r"}, {turn: true}, {wait: "partial"}, {keys: "\x1b"}, {wait: "interrupted"}, {keys: "/crew plan.md\r"}, {wait: crewBusyNote}})
 	if a.startedCount() != 0 {
 		t.Fatalf("started %d", a.startedCount())
+	}
+}
+
+func TestCrewEditUpdatesTasksAndPrompt(t *testing.T) {
+	a := newCrewFake()
+	a.files["plan.md"] = []string{"a", "b"}
+	a.editSteps = []editStep{{titles: []string{"a", "b", "c", "d"}}}
+	h := startCrewSession(t, a)
+	h.play([]step{
+		{keys: "/crew plan.md\r"},
+		{wait: "2 tasks · agents at once (1-2): "},
+		{wait: crewAskNote},
+		{keys: "e"},
+		{wait: "4. d"},
+		{wait: "4 tasks · agents at once (1-4): "},
+		{keys: "\r"},
+		{wait: "crew crew-1 started, 2 at once"},
+	})
+	if len(a.edits) != 1 || a.edits[0].Path != "plan.md" {
+		t.Fatalf("edits %v", a.edits)
+	}
+	if a.startedCount() != 1 || a.counts[0] != 2 {
+		t.Fatalf("started %v", a.counts)
+	}
+}
+
+func TestCrewEditKeepsTypedCountWhenItStillFits(t *testing.T) {
+	cases := []struct {
+		name   string
+		titles []string
+		want   int
+	}{
+		{"fits", []string{"a", "b", "c"}, 3},
+		{"too large falls back to default", []string{"a"}, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newCrewFake()
+			a.files["plan.md"] = []string{"a", "b", "c"}
+			a.editSteps = []editStep{{titles: tc.titles}}
+			h := startCrewSession(t, a)
+			h.play([]step{{keys: "/crew plan.md\r"}, {wait: "agents at once"}, {keys: "\x7f3e"}, {wait: "agents at once (1-" + string(rune('0'+len(tc.titles))) + ")"}, {keys: "\r"}, {wait: "crew crew-1 started"}})
+			if a.counts[0] != tc.want {
+				t.Fatalf("count %d want %d", a.counts[0], tc.want)
+			}
+		})
+	}
+}
+
+func TestCrewEditInvalidPlanStaysOnConfirm(t *testing.T) {
+	a := newCrewFake()
+	a.files["plan.md"] = []string{"a", "b"}
+	a.editSteps = []editStep{{err: errors.New("plan has no ## tasks")}, {titles: []string{"only"}}}
+	h := startCrewSession(t, a)
+	h.play([]step{
+		{keys: "/crew plan.md\r"},
+		{wait: "agents at once"},
+		{keys: "e"},
+		{wait: "plan has no ## tasks"},
+		{wait: crewBadPlanNote},
+		{wait: "plan has no tasks · e edits · Esc cancels"},
+		{keys: "\r"},
+	})
+	if a.startedCount() != 0 {
+		t.Fatalf("started with an invalid plan: %d", a.startedCount())
+	}
+	h.play([]step{{keys: "e"}, {wait: "1 task · agents at once (1-1): "}, {keys: "\r"}, {wait: "crew crew-1 started, 1 at once"}})
+	if len(a.edits) != 2 {
+		t.Fatalf("edits %d", len(a.edits))
+	}
+}
+
+func TestCrewEditorFailureKeepsPlanUsable(t *testing.T) {
+	a := newCrewFake()
+	a.files["plan.md"] = []string{"a", "b"}
+	a.editSteps = []editStep{{titles: []string{"a", "b"}, err: errors.New("vi did not finish: exit status 1")}}
+	h := startCrewSession(t, a)
+	h.play([]step{{keys: "/crew plan.md\r"}, {wait: "agents at once"}, {keys: "e"}, {wait: "vi did not finish"}, {wait: "2 tasks · agents at once (1-2): "}, {keys: "\r"}, {wait: "crew crew-1 started"}})
+}
+
+func TestCrewEditOnlyAtTheCountStep(t *testing.T) {
+	a := newCrewFake()
+	a.draftWait = true
+	a.editSteps = []editStep{{titles: []string{"a"}}}
+	h := startCrewSession(t, a)
+	h.play([]step{{keys: "/crew make it fast\r"}, {wait: crewDraftNote}, {keys: "e"}, {keys: "\x1b"}, {wait: crewCancelNote}})
+	if len(a.edits) != 0 {
+		t.Fatalf("edited while drafting: %v", a.edits)
 	}
 }

@@ -51,6 +51,7 @@ func crewEnv(e cli.Env) crew.Env {
 		Args: e.Args, Getenv: e.Getenv, Cwd: e.Cwd,
 		Stdout: e.Stdout, Stderr: e.Stderr, Exe: e.Exe,
 		Alive: processAlive, Spawn: spawnDetached, Pid: os.Getpid(),
+		Handover: terminal.Handover,
 	}
 }
 
@@ -66,7 +67,7 @@ func buildEnv() (cli.Env, error) {
 		Rand: rand.Reader, Version: version, NewProvider: cli.SharedProviders(newProvider), NewJev: newJev,
 		Spawn: spawnDetached, Alive: processAlive, ProcStart: processStart, Signal: processSignal, Pid: os.Getpid(),
 		Lock: host.Native{}.Lock, Exe: exe, Os: runtime.GOOS,
-		Term: stdTerminal{}, RunCtl: runCtl,
+		Term: terminal, RunCtl: runCtl,
 	}
 	env.LoginEnv = memoLoginEnv(&env)
 	env.Crew = func(dir string) cli.CrewService {
