@@ -102,7 +102,7 @@ func Inspect(text, folder string) (string, bool) {
 }
 
 func identify(text, folder string) (string, string, bool) {
-	fields, _, ok := parseFrontmatter(text)
+	fields, ok := frontmatterFields(text)
 	if !ok {
 		return "", "", false
 	}
