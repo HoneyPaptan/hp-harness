@@ -6,30 +6,39 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/HoneyPaptan/hp-harness/internal/crewview"
 )
 
 const (
-	crewUsage       = "usage: /crew [plan.md | goal | status ID | report ID]"
-	crewUnavailable = "/crew is not available here"
-	crewBusyNote    = "finish or stop the turn before /crew"
-	crewDraftNote   = "drafting a plan with one model request, Esc cancels"
-	crewAskNote     = "Enter starts the crew, Esc cancels"
-	crewCancelNote  = "crew not started"
-	crewCountHint   = "enter a number from 1 to %d"
-	crewDefaultAt   = 2
-	crewPollDefault = 2 * time.Second
+	crewUsage         = "usage: /crew [ID | plan.md | goal | list | status ID | report ID]"
+	crewNoCrews       = "no crews yet, /crew plan.md or /crew GOAL starts one"
+	crewUnavailable   = "/crew is not available here"
+	crewBusyNote      = "finish or stop the turn before /crew"
+	crewDraftNote     = "drafting a plan with one model request, Esc cancels"
+	crewAskNote       = "Enter starts the crew, Esc cancels"
+	crewCancelNote    = "crew not started"
+	crewCountHint     = "enter a number from 1 to %d"
+	crewDefaultAt     = 2
+	crewPollDefault   = 2 * time.Second
+	crewFollowDefault = 300 * time.Millisecond
 )
 
 type CrewPlan struct {
 	Path   string
 	Text   string
+	Goal   string
 	Titles []string
+	Dirty  int
 }
 
 type CrewAgent interface {
 	CrewPlan(arg string) (CrewPlan, bool, error)
 	CrewDraft(ctx context.Context, goal string) (CrewPlan, error)
 	CrewStart(plan CrewPlan, n int) (string, error)
+	CrewPreflight() (int, error)
+	CrewView(id string) (crewview.Snapshot, bool, error)
+	CrewFollow(id string, index, offset int) (crewview.Chunk, error)
 	CrewList() ([]string, error)
 	CrewStatus(id string) ([]string, error)
 	CrewReport(id string) ([]string, error)
@@ -46,6 +55,7 @@ const (
 type crewFlow struct {
 	stage  crewStage
 	plan   CrewPlan
+	dirty  int
 	cancel context.CancelFunc
 }
 
@@ -68,6 +78,8 @@ func (s *Session) runCrew(ctx context.Context, arg string) {
 	fields := strings.Fields(arg)
 	switch {
 	case len(fields) == 0:
+		s.crewOpen(agent, "")
+	case fields[0] == "list" && len(fields) == 1:
 		s.showCrewLines(agent.CrewList())
 	case fields[0] == "status" && len(fields) <= 2:
 		s.crewDetail(fields, agent.CrewStatus)
@@ -97,11 +109,28 @@ func (s *Session) showCrewLines(lines []string, err error) {
 }
 
 func (s *Session) crewPlanOrGoal(ctx context.Context, agent CrewAgent, arg string) {
+	if !strings.ContainsAny(arg, " \t") {
+		snap, found, err := agent.CrewView(arg)
+		if err != nil {
+			s.fail(err)
+			return
+		}
+		if found {
+			s.openCrewView(snap)
+			return
+		}
+	}
+	dirty, err := agent.CrewPreflight()
+	if err != nil {
+		s.fail(err)
+		return
+	}
 	plan, found, err := agent.CrewPlan(arg)
 	if err != nil {
 		s.fail(err)
 		return
 	}
+	plan.Dirty = dirty
 	if s.cfg.Agent.Model() == "" {
 		s.pickModelFirst("/crew " + arg)
 		return
@@ -110,12 +139,12 @@ func (s *Session) crewPlanOrGoal(ctx context.Context, agent CrewAgent, arg strin
 		s.askCrewCount(plan)
 		return
 	}
-	s.startCrewDraft(ctx, agent, arg)
+	s.startCrewDraft(ctx, agent, arg, dirty)
 }
 
-func (s *Session) startCrewDraft(ctx context.Context, agent CrewAgent, goal string) {
+func (s *Session) startCrewDraft(ctx context.Context, agent CrewAgent, goal string, dirty int) {
 	draftCtx, cancel := context.WithCancel(ctx)
-	flow := &crewFlow{stage: crewDrafting, cancel: cancel}
+	flow := &crewFlow{stage: crewDrafting, dirty: dirty, cancel: cancel}
 	s.crew = flow
 	s.note(crewDraftNote)
 	go func() {
@@ -139,6 +168,7 @@ func (s *Session) handleDraft(res draftResult) {
 		s.fail(res.err)
 		return
 	}
+	res.plan.Dirty = res.flow.dirty
 	for _, line := range strings.Split(res.plan.Text, "\n") {
 		s.note(line)
 	}
@@ -151,10 +181,20 @@ func (s *Session) askCrewCount(plan CrewPlan) {
 			s.note(fmt.Sprintf("%d. %s", i+1, title))
 		}
 	}
+	if plan.Dirty > 0 {
+		s.note(dirtyNote(plan.Dirty))
+	}
 	s.note(crewAskNote)
 	s.crew = &crewFlow{stage: crewCount, plan: plan}
 	s.editor.SetText(strconv.Itoa(min(len(plan.Titles), crewDefaultAt)))
 	s.dirty = true
+}
+
+func dirtyNote(n int) string {
+	if n == 1 {
+		return "note: 1 uncommitted change is not in the crew's worktrees"
+	}
+	return fmt.Sprintf("note: %d uncommitted changes are not in the crew's worktrees", n)
 }
 
 func (s *Session) crewKey(k Key) {

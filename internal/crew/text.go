@@ -3,7 +3,6 @@ package crew
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -45,9 +44,26 @@ func reportText(env Env, st *State) string {
 }
 
 func listText(env Env) string {
+	ids := crewIDs(env)
+	if len(ids) == 0 {
+		return noCrews
+	}
+	var b strings.Builder
+	for _, id := range ids {
+		st, err := load(env.Getenv, id)
+		if err != nil {
+			fmt.Fprintf(&b, "%s  broken\n", id)
+			continue
+		}
+		fmt.Fprintf(&b, "%s  %s  %d/%d done\n", id, st.label(env.Getenv), st.doneCount(), len(st.Tasks))
+	}
+	return b.String()
+}
+
+func crewIDs(env Env) []string {
 	ents, err := os.ReadDir(crewsDir(env.Getenv))
 	if err != nil {
-		return noCrews
+		return nil
 	}
 	var ids []string
 	for _, e := range ents {
@@ -56,20 +72,8 @@ func listText(env Env) string {
 		}
 		ids = append(ids, strings.TrimSuffix(e.Name(), ".json"))
 	}
-	if len(ids) == 0 {
-		return noCrews
-	}
 	sort.Sort(sort.Reverse(sort.StringSlice(ids)))
-	var b strings.Builder
-	for _, id := range ids {
-		st, err := load(env.Getenv, id)
-		if err != nil {
-			fmt.Fprintf(&b, "%s  broken\n", id)
-			continue
-		}
-		fmt.Fprintf(&b, "%s  %s  %d/%d done\n", id, filepath.Base(st.Plan), st.doneCount(), len(st.Tasks))
-	}
-	return b.String()
+	return ids
 }
 
 func textLines(text string) []string {

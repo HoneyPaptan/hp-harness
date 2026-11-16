@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/HoneyPaptan/hp-harness/internal/crewview"
 )
 
 type Service struct{ Env Env }
@@ -24,11 +26,11 @@ func (s Service) PlanTitles(plan string) ([]string, bool, error) {
 	return titles, true, err
 }
 
-func (s Service) Start(plan string, n int, model, baseURL, keyEnv string) (string, error) {
-	if n < 1 {
+func (s Service) Start(req crewview.Start) (string, error) {
+	if req.N < 1 {
 		return "", errors.New("agents at once must be at least 1")
 	}
-	planPath := resolvePath(s.Env.Cwd, plan)
+	planPath := resolvePath(s.Env.Cwd, req.Plan)
 	data, err := os.ReadFile(planPath)
 	if err != nil {
 		return "", err
@@ -41,8 +43,9 @@ func (s Service) Start(plan string, n int, model, baseURL, keyEnv string) (strin
 	if err != nil {
 		return "", err
 	}
-	o := runFlags{n: n, model: model, baseURL: baseURL, keyEnv: keyEnv}
+	o := runFlags{n: req.N, model: req.Model, baseURL: req.BaseURL, keyEnv: req.KeyEnv}
 	st := newState(s.Env.Getenv, newCrewID(), planPath, repo, base, o, tasks)
+	st.Label = strings.Join(strings.Fields(req.Label), " ")
 	if err := st.save(s.Env.Getenv); err != nil {
 		return "", err
 	}

@@ -15,17 +15,18 @@ const (
 )
 
 type Config struct {
-	In        io.Reader
-	Out       io.Writer
-	Width     func() int
-	Color     bool
-	Agent     Agent
-	Header    string
-	Resume    bool
-	Intro     string
-	PickModel bool
-	Now       func() time.Time
-	CrewPoll  time.Duration
+	In         io.Reader
+	Out        io.Writer
+	Width      func() int
+	Color      bool
+	Agent      Agent
+	Header     string
+	Resume     bool
+	Intro      string
+	PickModel  bool
+	Now        func() time.Time
+	CrewPoll   time.Duration
+	CrewFollow time.Duration
 }
 
 type turnResult struct {
@@ -68,6 +69,8 @@ type Session struct {
 	crewID    string
 	crewBrief string
 	crewTick  <-chan time.Time
+	view      *crewView
+	viewTick  <-chan time.Time
 }
 
 func NewSession(cfg Config) *Session {
@@ -92,6 +95,9 @@ func withClock(cfg Config) Config {
 	}
 	if cfg.CrewPoll <= 0 {
 		cfg.CrewPoll = crewPollDefault
+	}
+	if cfg.CrewFollow <= 0 {
+		cfg.CrewFollow = crewFollowDefault
 	}
 	return cfg
 }
@@ -190,6 +196,8 @@ func (s *Session) step(ctx context.Context) {
 		s.handleDraft(res)
 	case <-s.crewTick:
 		s.pollCrew()
+	case <-s.viewTick:
+		s.pollView()
 	}
 }
 
@@ -360,6 +368,10 @@ func (s *Session) redraw() {
 	if s.picker != nil && s.picker.stage == pickModel {
 		rows, sel := s.picker.menu.window()
 		_ = s.renderer.DrawMenu(modelPrompt(s.picker.provider), s.editor.Runes(), s.editor.Cursor(), markFree(rows), sel, s.picker.modelsNote, modelPickerMore(s.picker), s.footer())
+		return
+	}
+	if s.view != nil {
+		s.drawView()
 		return
 	}
 	if s.crew != nil {

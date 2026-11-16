@@ -1,0 +1,126 @@
+package crew
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/HoneyPaptan/hp-harness/internal/crewview"
+)
+
+var (
+	errNoRepo   = errors.New("/crew needs a git repository here (run git init first)")
+	errNoCommit = errors.New("/crew needs a commit in this repository (run git commit first)")
+)
+
+func (s Service) Preflight() (int, error) {
+	if _, err := git(s.Env, s.Env.Cwd, "rev-parse", "--show-toplevel"); err != nil {
+		return 0, errNoRepo
+	}
+	if _, err := git(s.Env, s.Env.Cwd, "rev-parse", "HEAD"); err != nil {
+		return 0, errNoCommit
+	}
+	out, err := git(s.Env, s.Env.Cwd, "status", "--porcelain")
+	if err != nil {
+		return 0, err
+	}
+	return countLines(out), nil
+}
+
+func (s Service) View(id string) (crewview.Snapshot, bool, error) {
+	if id == "" {
+		ids := crewIDs(s.Env)
+		if len(ids) == 0 {
+			return crewview.Snapshot{}, false, nil
+		}
+		id = ids[0]
+	}
+	if !safeID(id) {
+		return crewview.Snapshot{}, false, nil
+	}
+	st, err := load(s.Env.Getenv, id)
+	if errors.Is(err, os.ErrNotExist) {
+		return crewview.Snapshot{}, false, nil
+	}
+	if err != nil {
+		return crewview.Snapshot{}, false, err
+	}
+	snap := crewview.Snapshot{ID: id, Label: st.label(s.Env.Getenv), Done: st.done(), Rows: make([]crewview.Row, len(st.Tasks))}
+	for i := range st.Tasks {
+		t := &st.Tasks[i]
+		snap.Rows[i] = crewview.Row{Title: t.Title, Status: statusWord(t), RunID: runID(t), Changed: changedFiles(s.Env, st, t)}
+	}
+	return snap, true, nil
+}
+
+func (s Service) Follow(id string, index, offset int) (crewview.Chunk, error) {
+	st, err := load(s.Env.Getenv, id)
+	if err != nil {
+		return crewview.Chunk{}, err
+	}
+	if index < 0 || index >= len(st.Tasks) {
+		return crewview.Chunk{}, fmt.Errorf("crew %s has no task %d", id, index+1)
+	}
+	t := &st.Tasks[index]
+	if t.RunID == "" {
+		if !taskStopped(t) {
+			return crewview.Chunk{Waiting: true}, nil
+		}
+		return crewview.Chunk{Ended: true, Trailer: s.trailer(st, t, "")}, nil
+	}
+	ended := s.taskEnded(t)
+	data, _ := os.ReadFile(runLogPath(s.Env.Getenv, t.RunID))
+	if offset > len(data) {
+		offset = 0
+	}
+	chunk := crewview.Chunk{Text: string(data[offset:]), Offset: len(data), Ended: ended}
+	if ended {
+		chunk.Trailer = s.trailer(st, t, string(data))
+	}
+	return chunk, nil
+}
+
+func (s Service) taskEnded(t *Task) bool {
+	if taskStopped(t) {
+		return true
+	}
+	if runAlive(s.Env, t.RunID) {
+		return false
+	}
+	_, run, err := replayRunRecords(s.Env, t.RunID)
+	return err == nil && (run.Finished || run.Stopped)
+}
+
+func (s Service) trailer(st *State, t *Task, log string) []string {
+	if t.Status == StatusFailed {
+		return []string{statusWord(t)}
+	}
+	if t.Status == StatusStopped {
+		return []string{"stopped"}
+	}
+	lines := []string{"finished · branch " + t.Branch}
+	stat := diffStat(s.Env, st, t)
+	if stat == "" {
+		stat = "(no changes)"
+	}
+	lines = append(lines, textLines(stat)...)
+	if answer := taskAnswer(s.Env, t.RunID); answer != "" && !strings.Contains(log, answer) {
+		lines = append(lines, "")
+		lines = append(lines, textLines(answer)...)
+	}
+	return lines
+}
+
+func taskStopped(t *Task) bool {
+	return t.Status == StatusFinished || t.Status == StatusFailed || t.Status == StatusStopped
+}
+
+func runLogPath(getenv func(string) string, id string) string {
+	return filepath.Join(runsDir(getenv), id+".log")
+}
+
+func safeID(id string) bool {
+	return id != "" && !strings.HasPrefix(id, ".") && !strings.ContainsAny(id, "/\\\x00")
+}

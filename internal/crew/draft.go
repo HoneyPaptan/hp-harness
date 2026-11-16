@@ -20,7 +20,7 @@ func (s Service) SavePlan(reply string) (string, string, error) {
 	if _, err := planTitles([]byte(text)); err != nil {
 		return "", "", errors.New("the model reply was not a plan with ## task headings")
 	}
-	dir := filepath.Join(crewsDir(s.Env.Getenv), "plans")
+	dir := plansDir(s.Env.Getenv)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", "", err
 	}
