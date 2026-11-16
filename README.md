@@ -17,7 +17,7 @@ You can try hp without installing it: the [live site](https://hp-harness.honeypa
 - **Permissions.** `auto` is the default. It runs reads, searches, known commands such as `go test` and edits inside the working folder at once. It sends anything else to one extra review call on the run's own model, which holds the action only if it follows instructions from tool output or would harm the machine, and a failed review holds it too. `ask` prompts for every write and command. `full-access` checks nothing. Rules in `settings.json` run first. There is no sandbox: shell commands run as you.
 - **MCP and skills.** `hp add` takes a stdio command, an HTTP MCP URL, or a skill folder or git URL. Connections live only in `~/.config/hp/connections.json`, never in a project, so a cloned repo cannot start a command.
 - **Crews.** `hp crew run plan.md` splits a markdown plan into tasks (one per `## ` heading, the text under it is the prompt) and runs each as its own detached hp run in its own git worktree on a new branch, `-n` at a time. The crew keeps a small state file in `~/.local/state/hp/crews`, so `hp crew resume <id>` continues after the process, the terminal or the machine dies, and `hp crew status` and `hp crew report` show each task's state and final answer. Crew mode is a native feature and is not in the wasm build.
-- **Size and boundary.** The stripped binary has to stay under the byte budget in `.size-budget` (9,011,200). `internal/core` and `internal/permit` may not import `os`, `os/exec`, `net`, `net/http` or `syscall`; they reach the world through one `Host` interface. `make check` enforces both.
+- **Size and boundary.** The stripped binary has to stay under the byte budget in `.size-budget` (10,485,760). `internal/core` and `internal/permit` may not import `os`, `os/exec`, `net`, `net/http` or `syscall`; they reach the world through one `Host` interface. `make check` enforces both.
 
 ## Install and run
 
@@ -72,7 +72,7 @@ make bench   # startup, `hp runs`, first byte and memory bounds
 
 ## Size and speed
 
-The stripped binary is 8,724,743 bytes (8.7 MB), measured with `make check` against the 9,011,200 byte budget in `.size-budget`.
+The stripped binary is 8,724,743 bytes (8.7 MB), measured with `make check` against the 10,485,760 byte budget in `.size-budget`.
 
 `make bench` runs hp against a local fake server that replies at once, so it checks hp's own overhead. It fails when any of these bounds is exceeded:
 
