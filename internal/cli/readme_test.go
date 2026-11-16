@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -58,6 +59,27 @@ func TestReadmeNumbersMatchTheBuild(t *testing.T) {
 		}
 		if want := humanInt(n); !strings.Contains(text, want+" ") && !strings.Contains(text, want+"`") && !strings.Contains(text, want+")") {
 			t.Errorf("README does not state the %s value %s", file, want)
+		}
+	}
+}
+
+func TestReadmeDocumentsEveryJSONField(t *testing.T) {
+	data, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []any{jsonRun{}, jsonText{}, jsonToolCall{}, jsonToolResult{}, jsonUsage{}, jsonEnd{}} {
+		typ := reflect.TypeOf(event)
+		for i := 0; i < typ.NumField(); i++ {
+			name, _, _ := strings.Cut(typ.Field(i).Tag.Get("json"), ",")
+			if !strings.Contains(string(data), "`"+name+"`") {
+				t.Errorf("README does not document the %s field %s", typ.Name(), name)
+			}
+		}
+	}
+	for _, reason := range []string{jsonEndFinal, jsonEndStepLimit, jsonEndError, jsonEndInterrupted, jsonEndLimitWait} {
+		if !strings.Contains(string(data), "`"+reason+"`") {
+			t.Errorf("README does not document end reason %s", reason)
 		}
 	}
 }

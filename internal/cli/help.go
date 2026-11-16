@@ -14,7 +14,7 @@ type commandHelp struct {
 }
 
 var commandHelps = []commandHelp{
-	{"run", "hp run [flags] PROMPT", "run a prompt to the end and journal every step"},
+	{"run", "hp run [flags] [PROMPT | -]", "run a prompt to the end and journal every step; the prompt can come from stdin"},
 	{"resume", "hp resume [-d] ID", "continue an unfinished run"},
 	{"attach", "hp attach ID", "follow a background run"},
 	{"stop", "hp stop ID", "stop a background run"},

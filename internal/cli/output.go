@@ -20,6 +20,7 @@ type printer struct {
 	turnStart time.Time
 	ttft      time.Duration
 	ttftDone  bool
+	json      bool
 }
 
 func newPrinter(env Env, id string, client *jev.Client) *printer {
@@ -82,6 +83,10 @@ func (p *printer) onEvent(ev provider.Event) {
 	if ev.Kind != provider.EventText || ev.Text == "" {
 		return
 	}
+	if p.json {
+		p.emit(jsonText{Type: "text", Text: ev.Text})
+		return
+	}
 	io.WriteString(p.env.Stdout, ev.Text)
 	p.midLine = !strings.HasSuffix(ev.Text, "\n")
 }
@@ -98,9 +103,15 @@ func (p *printer) onToolStart(c provider.ToolCall) {
 	p.markTTFT()
 	p.ensureOutNL()
 	fmt.Fprintf(p.env.Stderr, "> %s %s\n", c.Name, toolMainArg(c.Args))
+	if p.json {
+		p.emit(jsonToolCall{Type: "tool_call", ID: c.ID, Name: c.Name, Args: validArgs(c.Args)})
+	}
 }
 
 func (p *printer) onToolResult(r provider.ToolResult) {
+	if p.json {
+		p.emit(jsonToolResult{Type: "tool_result", ID: r.CallID, IsError: r.IsError, Text: r.Text})
+	}
 	if !r.IsError {
 		return
 	}
