@@ -345,7 +345,7 @@ func (s *Session) redraw() {
 	}
 	if s.picker != nil && s.picker.stage == pickModel {
 		rows, sel := s.picker.menu.window()
-		_ = s.renderer.DrawMenu(modelPrompt(s.picker.provider), s.editor.Runes(), s.editor.Cursor(), rows, sel, s.picker.modelsNote, modelPickerMore(s.picker), footerLine(s.cfg.Agent))
+		_ = s.renderer.DrawMenu(modelPrompt(s.picker.provider), s.editor.Runes(), s.editor.Cursor(), markFree(rows), sel, s.picker.modelsNote, modelPickerMore(s.picker), footerLine(s.cfg.Agent))
 		return
 	}
 	if s.masking {

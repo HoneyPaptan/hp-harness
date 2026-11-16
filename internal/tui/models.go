@@ -11,6 +11,11 @@ const (
 	modelsNotePref = "models: "
 )
 
+const (
+	freeSuffix = "-free"
+	freeTag    = "  free"
+)
+
 type modelsResult struct {
 	picker *picker
 	ids    []string
@@ -45,6 +50,17 @@ func modelsFetchNote(err error) string {
 		line = string(runes[:maxErrorRunes]) + "…"
 	}
 	return modelsNotePref + line
+}
+
+func markFree(rows []string) []string {
+	out := make([]string, len(rows))
+	for i, row := range rows {
+		out[i] = row
+		if strings.HasSuffix(row, freeSuffix) {
+			out[i] += freeTag
+		}
+	}
+	return out
 }
 
 func modelPickerMore(p *picker) string {
