@@ -202,6 +202,9 @@ func (s *Session) saveKey() {
 		return
 	}
 	s.note("saved " + name)
+	if s.cfg.Agent.Model() == "" {
+		s.startPicker()
+	}
 }
 
 func (s *Session) cancelKey() {

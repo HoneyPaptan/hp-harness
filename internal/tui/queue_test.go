@@ -74,3 +74,18 @@ func TestSessionSlashCommandWaitsForTheTurn(t *testing.T) {
 		t.Fatalf("slash command ran during the turn")
 	}
 }
+
+func TestSessionCrewCommandWaitsForTheTurnThenOpens(t *testing.T) {
+	gate := make(chan struct{})
+	a := newCrewFake()
+	a.fakeAgent = newFakeAgent(gatedTurn(gate))
+	a.files["plan.md"] = []string{"a", "b"}
+	h := startCrewSession(t, a)
+	h.play([]step{{keys: "first\r"}, {turn: true}, {keys: "/crew plan.md\r"}, {wait: busySlashHint}})
+	if a.startedCount() != 0 {
+		t.Fatalf("crew started during the turn")
+	}
+	close(gate)
+	h.play([]step{{wait: "8 in"}, {keys: "\r"}, {wait: "agents at once"}, {keys: "\x1b"}, {wait: crewCancelNote}, {keys: "\x04"}})
+	h.waitExit()
+}

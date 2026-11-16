@@ -44,12 +44,7 @@ func providerOnlyArg(arg string) string {
 }
 
 func modelsFetchNote(err error) string {
-	line, _, _ := strings.Cut(err.Error(), "\n")
-	runes := []rune(line)
-	if len(runes) > maxErrorRunes {
-		line = string(runes[:maxErrorRunes]) + "…"
-	}
-	return modelsNotePref + line
+	return modelsNotePref + errorText(err)
 }
 
 func markFree(rows []string) []string {

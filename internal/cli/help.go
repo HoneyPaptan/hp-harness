@@ -21,7 +21,7 @@ var commandHelps = []commandHelp{
 	{"runs", "hp runs", "list runs"},
 	{"recover", "hp recover [-dry-run] [-max-age DURATION]", "restart background runs whose process died"},
 	{"autostart", "hp autostart on|off|status", "run hp recover at login"},
-	{"crew", "hp crew run|resume|status|report ...", "run a markdown plan as parallel runs in git worktrees"},
+	{"crew", "hp crew run|resume|status|report|stop|retry|pause|unpause ...", "run a markdown plan as parallel runs in git worktrees"},
 	{"crews", "hp crews", "list crews"},
 	{"providers", "hp providers", "list provider presets and which keys are set"},
 	{"web", "hp web [flags]", "serve the local web UI"},
