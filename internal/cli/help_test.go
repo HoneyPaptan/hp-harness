@@ -41,7 +41,7 @@ func TestRunHelpListsFlags(t *testing.T) {
 	if code := Main(context.Background(), env); code != 0 {
 		t.Fatalf("code %d", code)
 	}
-	for _, want := range []string{"usage: hp run [flags] PROMPT", "-m string", "-fallback value", "-d"} {
+	for _, want := range []string{"usage: hp run [flags] [PROMPT | -]", "-m string", "-fallback value", "-d"} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Fatalf("missing %q in %q", want, stderr.String())
 		}

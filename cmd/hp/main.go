@@ -16,6 +16,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/provider/anthropic"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/openai"
 	"github.com/HoneyPaptan/hp-harness/internal/provider/transport"
+	"github.com/HoneyPaptan/hp-harness/internal/term"
 )
 
 var version = "dev"
@@ -62,8 +63,9 @@ func buildEnv() (cli.Env, error) {
 	exe, _ := os.Executable()
 	env := cli.Env{
 		Args: os.Args[1:], Getenv: os.Getenv, Cwd: cwd,
-		Stdout: os.Stdout, Stderr: os.Stderr, Host: host.Native{},
-		Rand: rand.Reader, Version: version, NewProvider: cli.SharedProviders(newProvider), NewJev: newJev,
+		Stdout: os.Stdout, Stderr: os.Stderr, Stdin: os.Stdin, Host: host.Native{},
+		StdinIsTerminal: func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
+		Rand:            rand.Reader, Version: version, NewProvider: cli.SharedProviders(newProvider), NewJev: newJev,
 		Spawn: spawnDetached, Alive: processAlive, ProcStart: processStart, Signal: processSignal, Pid: os.Getpid(),
 		Lock: host.Native{}.Lock, Exe: exe, Os: runtime.GOOS,
 		Term: stdTerminal{}, RunCtl: runCtl,

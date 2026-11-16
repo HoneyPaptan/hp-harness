@@ -56,7 +56,7 @@ make bench   # startup, `hp runs`, first byte and memory bounds
 
 | Command | What it does |
 | --- | --- |
-| `hp run` | runs a prompt to the end and journals every step; `-d` runs it in the background |
+| `hp run` | runs a prompt to the end and journals every step; `-d` runs it in the background, `--json` prints events for scripts, and the prompt can come from stdin |
 | `hp resume` | continues an unfinished run from its last finished step |
 | `hp attach` | follows a background run |
 | `hp stop` | stops a background run |
@@ -90,6 +90,31 @@ Inside a session:
 | `/quit` | leaves the session, Ctrl-D does the same |
 
 A line that starts with `//` is sent to the model as text starting with `/`. Ctrl-C or Esc stops a turn.
+
+## Scripting
+
+`hp run` takes the prompt from its arguments. With no argument it reads the prompt from stdin when stdin is not a terminal, and `hp run -` does the same on purpose; leading and trailing white space is trimmed and the limit is 8 MiB. When arguments are given they are the prompt and stdin is not read, the same rule as `fx ask` ([fx ask](https://fx.sh/docs/using-fx/fx-ask)).
+
+```sh
+echo "fix the failing test" | hp run
+hp run - < prompt.md
+```
+
+`hp run --json` writes one JSON object per line to stdout. The assistant's text and the tool progress lines that hp prints on stderr are unchanged. Every object has a `type`:
+
+| `type` | Fields | When |
+| --- | --- | --- |
+| `run` | `run_id`, `model`, `dir` | first line |
+| `text` | `text` | each piece of assistant text as it streams |
+| `tool_call` | `id`, `name`, `args` | a tool starts; `args` is the JSON the model sent |
+| `tool_result` | `id`, `is_error`, `text` | the tool finished; `id` matches the `tool_call` |
+| `end` | `run_id`, `reason`, `exit_code`, `text`, `steps`, `usage`, `error` | last line |
+
+`end.reason` is `final`, `step_limit`, `error`, `interrupted` or `limit_wait_too_long`. `end.text` is the final answer, `end.usage` holds `input_tokens` and `output_tokens`, and `end.error` is set only for a failed run. `exit_code` equals the process exit status: 0, 3 (step limit), 4 (limit wait too long), 130 (interrupted) or 1. A usage mistake exits 2 before the first line. `--json` cannot be combined with `-d`. The names above are the contract: a test compares this table with the code. `--json` does not change the journal format.
+
+```sh
+hp run --json "list the TODOs" | jq -r 'select(.type=="end") | .text'
+```
 
 ## Size and speed
 
