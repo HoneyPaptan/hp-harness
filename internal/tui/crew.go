@@ -41,6 +41,10 @@ type CrewAgent interface {
 	CrewPreflight() (int, error)
 	CrewView(id string) (crewview.Snapshot, bool, error)
 	CrewFollow(id string, index, offset int) (crewview.Chunk, error)
+	CrewStop(id, task string) error
+	CrewRetry(id, task string) error
+	CrewPause(id string) error
+	CrewUnpause(id string) error
 	CrewList() ([]string, error)
 	CrewStatus(id string) ([]string, error)
 	CrewReport(id string) ([]string, error)
@@ -338,8 +342,11 @@ func (s *Session) crewPrompt() string {
 
 func (s *Session) footer() string {
 	line := footerLine(s.cfg.Agent)
-	if s.crewBrief != "" {
+	switch {
+	case s.crewBrief != "":
 		line += " · crew " + s.crewBrief
+	case s.view != nil && s.view.snap.Paused:
+		line += " · crew paused"
 	}
 	return line
 }

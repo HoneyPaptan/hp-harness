@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	crewViewHint   = "↑ ↓ select · Enter follows a task · Esc closes"
+	crewViewHint   = "↑ ↓ select · Enter follows a task"
 	crewLiveHint   = "Esc goes back to the tasks"
 	crewWaitNote   = "waiting for the task to start"
 	crewBackNote   = "Esc goes back to the tasks"
@@ -24,7 +24,15 @@ type crewView struct {
 	snap crewview.Snapshot
 	menu *menu
 	live *crewLive
+	ask  *viewAsk
 }
+
+type viewAsk struct {
+	text string
+	yes  func()
+}
+
+var viewKeyVerbs = map[rune]string{'s': "stop", 'r': "retry"}
 
 type crewLive struct {
 	index  int
@@ -73,6 +81,10 @@ func (s *Session) viewKey(k Key) {
 		s.liveKey(k)
 		return
 	}
+	if s.view.ask != nil {
+		s.askKey(k)
+		return
+	}
 	switch k.Type {
 	case KeyUp:
 		s.view.menu.move(-1)
@@ -82,9 +94,90 @@ func (s *Session) viewKey(k Key) {
 		s.dirty = true
 	case KeyEnter:
 		s.followTask()
+	case KeyRune:
+		s.viewRune(k.Rune)
 	case KeyEsc, KeyCtrlC:
 		s.closeCrewView()
 	}
+}
+
+func (s *Session) askKey(k Key) {
+	switch {
+	case k.Type == KeyRune && (k.Rune == 'y' || k.Rune == 'Y'):
+		yes := s.view.ask.yes
+		s.view.ask = nil
+		yes()
+	case k.Type == KeyRune && (k.Rune == 'n' || k.Rune == 'N'), k.Type == KeyEsc, k.Type == KeyCtrlC:
+		s.view.ask = nil
+	default:
+		return
+	}
+	s.dirty = true
+}
+
+func (s *Session) selectedRow() (crewview.Row, bool) {
+	rows := s.view.snap.Rows
+	if len(rows) == 0 {
+		return crewview.Row{}, false
+	}
+	return rows[min(s.view.menu.selected, len(rows)-1)], true
+}
+
+func (s *Session) viewRune(r rune) {
+	agent := s.cfg.Agent.(CrewAgent)
+	id := s.view.snap.ID
+	if r == 'p' {
+		if s.view.snap.Paused {
+			s.crewAction(func() error { return agent.CrewUnpause(id) })
+			return
+		}
+		s.crewAction(func() error { return agent.CrewPause(id) })
+		return
+	}
+	verb, known := viewKeyVerbs[r]
+	row, ok := s.selectedRow()
+	if !known || !ok {
+		return
+	}
+	if !strings.ContainsRune(row.Keys, r) {
+		s.clearDrawn()
+		s.note("nothing to " + verb + ": " + row.Title + " is " + row.Status)
+		s.dirty = true
+		return
+	}
+	switch r {
+	case 's':
+		s.view.ask = &viewAsk{text: "stop " + row.Title + "? y/n", yes: func() {
+			s.crewAction(func() error { return agent.CrewStop(id, row.Slug) })
+		}}
+	case 'r':
+		s.crewAction(func() error { return agent.CrewRetry(id, row.Slug) })
+	}
+	s.dirty = true
+}
+
+func (s *Session) crewAction(do func() error) {
+	if err := do(); err != nil {
+		s.clearDrawn()
+		s.fail(err)
+	}
+	s.refreshTasks()
+	s.armViewTick()
+	s.dirty = true
+}
+
+func (s *Session) viewHint() string {
+	parts := []string{crewViewHint}
+	if row, ok := s.selectedRow(); ok {
+		for _, r := range row.Keys {
+			parts = append(parts, string(r)+" "+viewKeyVerbs[r])
+		}
+	}
+	pause := "p pause"
+	if s.view.snap.Paused {
+		pause = "p resume"
+	}
+	return strings.Join(append(parts, pause, "Esc closes"), " · ")
 }
 
 func (s *Session) liveKey(k Key) {
@@ -159,7 +252,7 @@ func (s *Session) refreshTasks() {
 		return
 	}
 	rows := crewRows(snap)
-	if strings.Join(rows, "\n") != strings.Join(s.view.menu.items, "\n") {
+	if strings.Join(rows, "\n") != strings.Join(s.view.menu.items, "\n") || snap.Paused != s.view.snap.Paused {
 		s.dirty = true
 	}
 	s.view.snap = snap
@@ -206,10 +299,16 @@ func (s *Session) drawView() {
 		return
 	}
 	rows, sel := s.view.menu.window()
-	more := crewViewHint
+	more := s.viewHint()
+	if s.view.ask != nil {
+		more = s.view.ask.text
+	}
 	if n := s.view.menu.moreHidden(); n > 0 {
 		more = "+" + strconv.Itoa(n) + " more · " + more
 	}
 	prompt := fmt.Sprintf("crew %s · %s", s.view.snap.ID, s.view.snap.Label)
+	if s.view.snap.Paused {
+		prompt += " · paused"
+	}
 	_ = s.renderer.DrawMenu(prompt, nil, 0, rows, sel, "", more, s.footer())
 }

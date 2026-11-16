@@ -10,17 +10,20 @@ type Start struct {
 }
 
 type Row struct {
+	Slug    string
 	Title   string
 	Status  string
 	RunID   string
 	Changed string
+	Keys    string
 }
 
 type Snapshot struct {
-	ID    string
-	Label string
-	Done  bool
-	Rows  []Row
+	ID     string
+	Label  string
+	Done   bool
+	Paused bool
+	Rows   []Row
 }
 
 type Chunk struct {

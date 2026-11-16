@@ -26,6 +26,7 @@ type fakeCrew struct {
 	preflightErr error
 	edited       []string
 	editErr      error
+	acts         []string
 }
 
 func (f *fakeCrew) PlanTitles(plan string) ([]string, bool, error) {
@@ -37,6 +38,17 @@ func (f *fakeCrew) EditPlan(plan string) ([]string, error) {
 	f.edited = append(f.edited, plan)
 	return f.titles[plan], f.editErr
 }
+
+func (f *fakeCrew) Stop(id, task string) error {
+	f.acts = append(f.acts, "stop "+id+" "+task)
+	return nil
+}
+func (f *fakeCrew) Retry(id, task string) error {
+	f.acts = append(f.acts, "retry "+id+" "+task)
+	return nil
+}
+func (f *fakeCrew) Pause(id string) error   { f.acts = append(f.acts, "pause "+id); return nil }
+func (f *fakeCrew) Unpause(id string) error { f.acts = append(f.acts, "unpause "+id); return nil }
 
 func (f *fakeCrew) DraftSystem() string { return "draft system" }
 
@@ -107,6 +119,10 @@ func TestCrewUnavailable(t *testing.T) {
 			_, calls["draft"] = a.CrewDraft(context.Background(), "x")
 			_, calls["start"] = a.CrewStart(tui.CrewPlan{}, 1)
 			_, calls["edit"] = a.CrewEdit(tui.CrewPlan{})
+			calls["stop"] = a.CrewStop("c", "t")
+			calls["retry"] = a.CrewRetry("c", "t")
+			calls["pause"] = a.CrewPause("c")
+			calls["unpause"] = a.CrewUnpause("c")
 			_, calls["list"] = a.CrewList()
 			_, calls["status"] = a.CrewStatus("c")
 			_, calls["report"] = a.CrewReport("c")
@@ -243,5 +259,19 @@ func TestCrewEditPassesPathAndKeepsPlanFields(t *testing.T) {
 				t.Fatalf("plan %+v", got)
 			}
 		})
+	}
+}
+
+func TestCrewControlsReachTheService(t *testing.T) {
+	svc := &fakeCrew{titles: map[string][]string{}}
+	a := crewAgent(t, customEP, &fake.Provider{}, svc, nil)
+	for _, err := range []error{a.CrewStop("c1", "a"), a.CrewRetry("c1", "b"), a.CrewPause("c1"), a.CrewUnpause("c1")} {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{"stop c1 a", "retry c1 b", "pause c1", "unpause c1"}
+	if strings.Join(svc.acts, ";") != strings.Join(want, ";") {
+		t.Fatalf("acts %v want %v", svc.acts, want)
 	}
 }

@@ -43,6 +43,14 @@ The installer supports linux and macOS on amd64 and arm64, checks the sha256 aga
 
 `/crew plan.md` or `/crew <goal>` lists the tasks and asks how many agents run at once. At that step, `e` opens the plan file in `$VISUAL`, else `$EDITOR`, else `vi`. hp hands the terminal to the editor and takes it back when you quit, then re-reads the plan and shows the new task count. If the plan no longer parses, hp shows the error and stays at that step, so you can press `e` again.
 
+The crew view (`/crew` for the newest crew, `/crew <id>` for another) lists one row per task. `↑ ↓` selects, `Enter` follows a task's log, `Esc` goes back. The hint line shows the keys that apply to the selected task:
+
+- `s` stops the selected task after a `y/n` question. Its run ends the way `hp stop` ends it and the task shows `stopped`.
+- `r` retries a failed or stopped task. A run that can still be resumed is resumed with its crash counter reset; otherwise a fresh run starts in the same worktree.
+- `p` pauses the crew: nothing new starts and running tasks finish their current work. `p` again resumes. The view, the footer and `hp crew status` show `paused`.
+
+The same actions are commands: `hp crew stop <id> <task>`, `hp crew retry <id> <task>`, `hp crew pause <id>` and `hp crew unpause <id>`. `<task>` is the task's slug, its number or its exact title. They write a small request file next to the crew's state file and the crew's supervisor applies it on its next poll (every two seconds), starting the supervisor again if it has exited. `hp crew run -n 0` is refused, and `hp crew run` in a folder with no commit says so instead of printing a git error.
+
 To build and check from source (Go 1.27.3 or newer):
 
 ```sh

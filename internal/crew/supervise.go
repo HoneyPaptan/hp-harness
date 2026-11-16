@@ -18,15 +18,35 @@ import (
 
 const pollInterval = 2 * time.Second
 
+func runSupervisor(ctx context.Context, env Env, st *State) error {
+	for first := true; ; first = false {
+		release, err := beginSupervise(env, st.ID)
+		if err != nil {
+			if first {
+				return err
+			}
+			return nil
+		}
+		err = supervise(ctx, env, st)
+		release()
+		if err != nil || !hasControls(env.Getenv, st.ID) {
+			return err
+		}
+	}
+}
+
 func supervise(ctx context.Context, env Env, st *State) error {
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		if err := applyControls(env, st); err != nil {
+			return err
+		}
 		if err := advance(ctx, env, st); err != nil {
 			return err
 		}
-		if st.done() {
+		if st.done() && !hasControls(env.Getenv, st.ID) {
 			return nil
 		}
 		if err := sleep(ctx, pollInterval); err != nil {
@@ -48,6 +68,9 @@ func advance(ctx context.Context, env Env, st *State) error {
 				return err
 			}
 		}
+	}
+	if st.Paused {
+		return nil
 	}
 	active := st.activeCount()
 	for i := range st.Tasks {

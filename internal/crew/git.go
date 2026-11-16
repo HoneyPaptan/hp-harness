@@ -26,11 +26,11 @@ func git(env Env, dir string, args ...string) (string, error) {
 func gitRootHead(env Env, dir string) (string, string, error) {
 	root, err := git(env, dir, "rev-parse", "--show-toplevel")
 	if err != nil {
-		return "", "", fmt.Errorf("not a git repo: %w", err)
+		return "", "", errNoRepo
 	}
 	head, err := git(env, dir, "rev-parse", "HEAD")
 	if err != nil {
-		return "", "", err
+		return "", "", errNoCommit
 	}
 	return strings.TrimSpace(root), strings.TrimSpace(head), nil
 }
