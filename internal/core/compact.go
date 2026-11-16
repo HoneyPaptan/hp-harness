@@ -81,7 +81,7 @@ func (r *runner) compact(ctx context.Context) (bool, error) {
 	}
 	body := renderOldPlain(old, capBytes)
 	msg, u, err := provider.Collect(r.prov.Stream(ctx, provider.Request{
-		Model: r.reqModel, System: summarySystemPrompt, MaxTokens: max,
+		Model: r.reqModel, System: summarySystemPrompt, MaxTokens: max, SessionID: r.cfg.RunID,
 		Messages: []provider.Message{{Role: provider.RoleUser, Text: body}},
 	}))
 	if err != nil || msg.Text == "" {

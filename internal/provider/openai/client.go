@@ -7,6 +7,7 @@ import (
 	"io"
 	"iter"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
@@ -21,7 +22,13 @@ type Client struct {
 	NestedReasoning bool
 	Headers         map[string]string
 	NoStreamOptions bool
+	UserAgent       string
 }
+
+const (
+	sessionHeader = "x-opencode-session"
+	sessionHost   = "opencode.ai"
+)
 
 func (c *Client) Stream(ctx context.Context, req provider.Request) iter.Seq2[provider.Event, error] {
 	return func(yield func(provider.Event, error) bool) {
@@ -40,6 +47,7 @@ func (c *Client) runStream(ctx context.Context, req provider.Request, yield func
 		yield(provider.Event{}, err)
 		return
 	}
+	c.setSession(httpReq.Header, req.SessionID)
 	resp, err := c.httpClient().Do(httpReq)
 	if err != nil {
 		yield(provider.Event{}, transport.Failure(ctx, err))
@@ -81,11 +89,23 @@ func (c *Client) newStreamHTTPRequest(ctx context.Context, body []byte) (*http.R
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "text/event-stream")
-	c.setAuthorization(httpReq.Header)
+	c.setHeaders(httpReq.Header)
 	return httpReq, nil
 }
 
-func (c *Client) setAuthorization(h http.Header) {
+func (c *Client) setSession(h http.Header, id string) {
+	if id == "" {
+		return
+	}
+	if u, err := url.Parse(c.BaseURL); err == nil && u.Hostname() == sessionHost {
+		h.Set(sessionHeader, id)
+	}
+}
+
+func (c *Client) setHeaders(h http.Header) {
+	if c.UserAgent != "" {
+		h.Set("User-Agent", c.UserAgent)
+	}
 	if c.APIKey != "" {
 		h.Set("Authorization", "Bearer "+c.APIKey)
 	}

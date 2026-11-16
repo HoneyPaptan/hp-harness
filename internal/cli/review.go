@@ -23,12 +23,14 @@ var reviewTimeout = 20 * time.Second
 type reviewer struct {
 	provider func() provider.Provider
 	model    func() string
+	runID    func() string
 }
 
-func newReviewer(env Env, epNow func() Endpoint) gateReview {
+func newReviewer(env Env, epNow func() Endpoint, runID func() string) gateReview {
 	rv := reviewer{
 		provider: func() provider.Provider { return env.NewProvider(epNow()) },
 		model:    func() string { return epNow().Model },
+		runID:    runID,
 	}
 	return rv.review
 }
@@ -62,11 +64,18 @@ func (rv reviewer) review(ctx context.Context, a permit.Action, msgs []provider.
 	return core.Verdict{Allow: true}
 }
 
+func (rv reviewer) sessionID() string {
+	if rv.runID == nil {
+		return ""
+	}
+	return rv.runID()
+}
+
 func (rv reviewer) ask(ctx context.Context, ctxText string) (reviewReply, error) {
 	rctx, cancel := context.WithTimeout(ctx, reviewTimeout)
 	defer cancel()
 	msg, _, err := provider.Collect(rv.provider().Stream(rctx, provider.Request{
-		Model: rv.model(), System: reviewSystemPrompt, MaxTokens: reviewMaxTokens,
+		Model: rv.model(), System: reviewSystemPrompt, MaxTokens: reviewMaxTokens, SessionID: rv.sessionID(),
 		Messages: []provider.Message{{Role: provider.RoleUser, Text: ctxText}},
 	}))
 	if err != nil {

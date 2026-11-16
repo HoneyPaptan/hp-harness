@@ -140,8 +140,8 @@ func (a *sessionAgent) deps(obs core.Observer) core.Deps {
 		mode:  func() permit.Mode { return a.permMode },
 		rules: a.permRules, grants: a.permGrants, dir: a.dir,
 	}
-	d := runDeps(a.env, a.ep, a.bySpec, a.tools.reg, obs, a.client, rp, a.settings)
-	d.Gate = newGate(a.env.Host, rp.mode, rp.rules, rp.grants, rp.dir, a.env.Getenv("HOME"), a.permissionAsk, newReviewer(a.env, func() Endpoint { return a.ep }))
+	d := runDeps(a.env, a.id, a.ep, a.bySpec, a.tools.reg, obs, a.client, rp, a.settings)
+	d.Gate = newGate(a.env.Host, rp.mode, rp.rules, rp.grants, rp.dir, a.env.Getenv("HOME"), a.permissionAsk, newReviewer(a.env, func() Endpoint { return a.ep }, func() string { return a.id }))
 	d.Providers = providerFactory(a.env, a.bySpec)
 	return d
 }

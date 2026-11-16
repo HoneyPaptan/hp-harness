@@ -129,7 +129,7 @@ func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoi
 		mode:  func() permit.Mode { return mode },
 		rules: rules, grants: grants, dir: dir,
 	}
-	deps := runDeps(env, ep, bySpec, tools.reg, pr.observer(), client, rp, st)
+	deps := runDeps(env, id, ep, bySpec, tools.reg, pr.observer(), client, rp, st)
 	out, err := core.Run(ctx, deps, cfg)
 	return out, pr, err
 }
@@ -141,11 +141,11 @@ func loginEnvExec(env Env, dir string) func() []string {
 	return env.LoginEnv(dir)
 }
 
-func runDeps(env Env, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Registry, obs core.Observer, client *jev.Client, rp runPerm, st settings) core.Deps {
+func runDeps(env Env, id string, ep Endpoint, bySpec map[string]Endpoint, tools *tool.Registry, obs core.Observer, client *jev.Client, rp runPerm, st settings) core.Deps {
 	d := core.Deps{
 		Host: env.Host, Provider: env.NewProvider(ep), Tools: tools,
 		ToolChooser: jevChooser(client), Observer: obs,
-		Gate:    newGate(env.Host, rp.mode, rp.rules, rp.grants, rp.dir, env.Getenv("HOME"), nil, newReviewer(env, func() Endpoint { return ep })),
+		Gate:    newGate(env.Host, rp.mode, rp.rules, rp.grants, rp.dir, env.Getenv("HOME"), nil, newReviewer(env, func() Endpoint { return ep }, func() string { return id })),
 		ExecEnv: loginEnvExec(env, rp.dir),
 	}
 	d.ContextWindow = contextWindow(st, endpointSpec(ep), ep.Model)
