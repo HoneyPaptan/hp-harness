@@ -19,6 +19,7 @@ func TestPresetEndpoints(t *testing.T) {
 		preset, url, key string
 	}{
 		{"opencode", "https://opencode.ai/inference/openai/v1", "OPENCODE_API_KEY"},
+		{"opencode-go", "https://opencode.ai/zen/go/v1", "OPENCODE_API_KEY"},
 		{"openai", "https://api.openai.com/v1", "OPENAI_API_KEY"},
 		{"anthropic", "https://api.anthropic.com/v1", "ANTHROPIC_API_KEY"},
 		{"gemini", "https://generativelanguage.googleapis.com/v1beta/openai", "GEMINI_API_KEY"},
@@ -99,6 +100,25 @@ func TestConfiguredPresetsListsTheNewProviders(t *testing.T) {
 	got := configuredPresets(getenvMap(map[string]string{"GEMINI_API_KEY": "k"}))
 	if strings.Join(got, ",") != "gemini,ollama" {
 		t.Fatalf("got %v", got)
+	}
+}
+
+func TestOpenCodeKeyListsBothOpenCodePresets(t *testing.T) {
+	got := configuredPresets(getenvMap(map[string]string{"OPENCODE_API_KEY": "k"}))
+	if strings.Join(got, ",") != "ollama,opencode,opencode-go" {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func TestOpenCodeGoSpecKeepsTheOpenCodeKey(t *testing.T) {
+	cur := Endpoint{Preset: "opencode", Model: "big-pickle", BaseURL: presets["opencode"].baseURL, KeyEnv: "OPENCODE_API_KEY", APIKey: "k"}
+	ep, err := endpointFor(cur, "opencode-go/hy4-flash-free", getenvMap(map[string]string{"OPENCODE_API_KEY": "k"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Endpoint{Preset: "opencode-go", Model: "hy4-flash-free", BaseURL: "https://opencode.ai/zen/go/v1", KeyEnv: "OPENCODE_API_KEY", APIKey: "k"}
+	if ep != want {
+		t.Fatalf("endpoint = %+v", ep)
 	}
 }
 
