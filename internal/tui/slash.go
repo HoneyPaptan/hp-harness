@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	maxErrorRunes  = 200
+	maxErrorRunes  = 2000
 	unknownHint    = "unknown command %s, /help lists them, // sends a literal /"
 	quitHint       = "press Ctrl-C again or Ctrl-D to quit"
 	literalPrefix  = "//"
