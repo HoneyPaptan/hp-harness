@@ -19,6 +19,16 @@ type CrewService interface {
 	PlanTitles(plan string) ([]string, bool, error)
 	DraftSystem() string
 	SavePlan(reply string) (path, text string, err error)
+	EditPlan(plan string) ([]string, error)
+	Diff(id, task string) ([]string, error)
+	LandCheck(id, task string) (string, error)
+	Land(id, task string) (string, error)
+	Discard(id, task string) error
+	Stop(id, task string) error
+	Retry(id, task string) error
+	Pause(id string) error
+	Unpause(id string) error
+	LastVerify() string
 	Start(req crewview.Start) (string, error)
 	Preflight() (int, error)
 	View(id string) (crewview.Snapshot, bool, error)
@@ -45,7 +55,7 @@ func (a *sessionAgent) CrewPlan(arg string) (tui.CrewPlan, bool, error) {
 		return tui.CrewPlan{}, false, err
 	}
 	titles, found, err := svc.PlanTitles(arg)
-	return tui.CrewPlan{Path: arg, Titles: titles}, found, err
+	return tui.CrewPlan{Path: arg, Titles: titles, Verify: svc.LastVerify()}, found, err
 }
 
 func (a *sessionAgent) CrewDraft(ctx context.Context, goal string) (tui.CrewPlan, error) {
@@ -74,7 +84,17 @@ func (a *sessionAgent) CrewDraft(ctx context.Context, goal string) (tui.CrewPlan
 		return tui.CrewPlan{}, err
 	}
 	titles, _, err := svc.PlanTitles(path)
-	return tui.CrewPlan{Path: path, Text: text, Titles: titles, Goal: goal}, err
+	return tui.CrewPlan{Path: path, Text: text, Titles: titles, Goal: goal, Verify: svc.LastVerify()}, err
+}
+
+func (a *sessionAgent) CrewEdit(plan tui.CrewPlan) (tui.CrewPlan, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return tui.CrewPlan{}, err
+	}
+	titles, err := svc.EditPlan(plan.Path)
+	plan.Titles = titles
+	return plan, err
 }
 
 func (a *sessionAgent) CrewStart(plan tui.CrewPlan, n int) (string, error) {
@@ -86,7 +106,7 @@ func (a *sessionAgent) CrewStart(plan tui.CrewPlan, n int) (string, error) {
 		return "", tui.NoModelError{}
 	}
 	return svc.Start(crewview.Start{
-		Plan: plan.Path, Label: plan.Goal, N: n,
+		Plan: plan.Path, Label: plan.Goal, N: n, Verify: plan.Verify,
 		Model: endpointSpec(a.ep), BaseURL: a.ep.BaseURL, KeyEnv: a.ep.KeyEnv,
 	})
 }
@@ -113,6 +133,58 @@ func (a *sessionAgent) CrewFollow(id string, index, offset int) (crewview.Chunk,
 		return crewview.Chunk{}, err
 	}
 	return svc.Follow(id, index, offset)
+}
+
+func (a *sessionAgent) CrewStop(id, task string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Stop(id, task) })
+}
+
+func (a *sessionAgent) CrewRetry(id, task string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Retry(id, task) })
+}
+
+func (a *sessionAgent) CrewPause(id string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Pause(id) })
+}
+
+func (a *sessionAgent) CrewUnpause(id string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Unpause(id) })
+}
+
+func (a *sessionAgent) crewDo(do func(CrewService) error) error {
+	svc, err := a.crewService()
+	if err != nil {
+		return err
+	}
+	return do(svc)
+}
+
+func (a *sessionAgent) CrewDiscard(id, task string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Discard(id, task) })
+}
+
+func (a *sessionAgent) CrewDiff(id, task string) ([]string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return nil, err
+	}
+	return svc.Diff(id, task)
+}
+
+func (a *sessionAgent) CrewLandCheck(id, task string) (string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return "", err
+	}
+	return svc.LandCheck(id, task)
+}
+
+func (a *sessionAgent) CrewLand(id, task string) (string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return "", err
+	}
+	return svc.Land(id, task)
 }
 
 func (a *sessionAgent) CrewList() ([]string, error) {
