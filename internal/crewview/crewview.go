@@ -7,6 +7,7 @@ type Start struct {
 	Model   string
 	BaseURL string
 	KeyEnv  string
+	Verify  string
 }
 
 type Row struct {

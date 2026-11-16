@@ -16,7 +16,7 @@ const (
 	crewUnavailable   = "/crew is not available here"
 	crewBusyNote      = "finish or stop the turn before /crew"
 	crewDraftNote     = "drafting a plan with one model request, Esc cancels"
-	crewAskNote       = "Enter starts the crew, e edits the plan, Esc cancels"
+	crewAskNote       = "Enter starts the crew, e edits the plan, Tab sets a verify command, Esc cancels"
 	crewBadPlanNote   = "the plan has no tasks yet, e edits it, Esc cancels"
 	crewCancelNote    = "crew not started"
 	crewCountHint     = "enter a number from 1 to %d"
@@ -31,6 +31,7 @@ type CrewPlan struct {
 	Goal   string
 	Titles []string
 	Dirty  int
+	Verify string
 }
 
 type CrewAgent interface {
@@ -56,6 +57,7 @@ type crewStage int
 const (
 	crewDrafting crewStage = iota
 	crewCount
+	crewVerify
 )
 
 type crewFlow struct {
@@ -63,6 +65,8 @@ type crewFlow struct {
 	plan   CrewPlan
 	dirty  int
 	cancel context.CancelFunc
+	count  string
+	verify string
 }
 
 type draftResult struct {
@@ -188,9 +192,24 @@ func (s *Session) askCrewCount(plan CrewPlan) {
 	if plan.Dirty > 0 {
 		s.note(dirtyNote(plan.Dirty))
 	}
+	if plan.Verify != "" {
+		s.note("verify: " + plan.Verify)
+	}
 	s.note(crewAskNote)
-	s.crew = &crewFlow{stage: crewCount, plan: plan}
+	s.crew = &crewFlow{stage: crewCount, plan: plan, verify: plan.Verify}
 	s.editor.SetText(strconv.Itoa(min(len(plan.Titles), crewDefaultAt)))
+	s.dirty = true
+}
+
+func (s *Session) swapCrewField() {
+	f := s.crew
+	if f.stage == crewCount {
+		f.count, f.stage = s.editor.Text(), crewVerify
+		s.editor.SetText(f.verify)
+	} else {
+		f.verify, f.stage = strings.TrimSpace(s.editor.Text()), crewCount
+		s.editor.SetText(f.count)
+	}
 	s.dirty = true
 }
 
@@ -238,14 +257,18 @@ func (s *Session) crewKey(k Key) {
 		s.cancelCrew()
 	case KeyUp, KeyDown, KeyCtrlD:
 	case KeyEnter:
-		if s.crew.stage == crewCount {
+		if s.crew.stage != crewDrafting {
 			s.confirmCrew()
 		}
+	case KeyTab:
+		if s.crew.stage != crewDrafting {
+			s.swapCrewField()
+		}
 	default:
-		if s.crew.stage != crewCount {
+		if s.crew.stage == crewDrafting {
 			return
 		}
-		if k.Type == KeyRune && k.Rune == 'e' {
+		if k.Type == KeyRune && k.Rune == 'e' && s.crew.stage == crewCount {
 			s.editCrewPlan()
 			return
 		}
@@ -266,7 +289,11 @@ func (s *Session) cancelCrew() {
 }
 
 func (s *Session) confirmCrew() {
+	if s.crew.stage == crewVerify {
+		s.swapCrewField()
+	}
 	plan := s.crew.plan
+	plan.Verify = s.crew.verify
 	max := len(plan.Titles)
 	if max == 0 {
 		s.clearDrawn()
@@ -328,6 +355,9 @@ func (s *Session) endCrewWatch(show func()) {
 func (s *Session) crewPrompt() string {
 	if s.crew.stage == crewDrafting {
 		return "drafting plan · Esc cancels "
+	}
+	if s.crew.stage == crewVerify {
+		return "verify command, empty skips (Tab goes back): "
 	}
 	n := len(s.crew.plan.Titles)
 	if n == 0 {

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type Env struct {
@@ -29,10 +30,12 @@ type Env struct {
 }
 
 type runFlags struct {
-	n       int
-	model   string
-	baseURL string
-	keyEnv  string
+	n             int
+	model         string
+	baseURL       string
+	keyEnv        string
+	verify        string
+	verifyTimeout time.Duration
 }
 
 func Main(ctx context.Context, env Env, args []string) int {
@@ -193,6 +196,8 @@ func parseRunFlags(env Env, args []string) (runFlags, []string, error) {
 	fs.StringVar(&o.model, "m", "", "preset/model")
 	fs.StringVar(&o.baseURL, "base-url", "", "API base URL")
 	fs.StringVar(&o.keyEnv, "key-env", "", "API key env var")
+	fs.StringVar(&o.verify, "verify", "", "command run in each finished task's worktree")
+	fs.DurationVar(&o.verifyTimeout, "verify-timeout", defaultVerifyTimeout, "time allowed for the verify command")
 	if err := fs.Parse(args); err != nil {
 		return runFlags{}, nil, err
 	}
@@ -223,6 +228,9 @@ func oneArg(env Env, args []string, msg string) (string, bool) {
 func statusWord(t *Task) string {
 	if t.Status == StatusFailed && t.EndReason != "" {
 		return "failed: " + t.EndReason
+	}
+	if t.Status == StatusFinished {
+		return verifyWord(t)
 	}
 	return string(t.Status)
 }
@@ -263,7 +271,7 @@ func execHP(ctx context.Context, env Env, args ...string) (string, error) {
 func usage(env Env) int {
 	fmt.Fprintln(env.Stderr, "usage: hp crew <run|resume|status|report|stop|retry|pause|unpause> ... | hp crews")
 	fmt.Fprintln(env.Stderr, "usage: hp crew stop|retry <crew-id> <task> | hp crew pause|unpause <crew-id>")
-	fmt.Fprintln(env.Stderr, "usage: hp crew run [-n N] [-m preset/model] [--base-url URL] [--key-env NAME] <plan.md>")
+	fmt.Fprintln(env.Stderr, "usage: hp crew run [-n N] [-m preset/model] [--base-url URL] [--key-env NAME] [--verify CMD] [--verify-timeout 10m] <plan.md>")
 	return 2
 }
 

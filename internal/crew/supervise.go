@@ -36,6 +36,7 @@ func runSupervisor(ctx context.Context, env Env, st *State) error {
 }
 
 func supervise(ctx context.Context, env Env, st *State) error {
+	v := newVerifier(len(st.Tasks))
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -46,10 +47,13 @@ func supervise(ctx context.Context, env Env, st *State) error {
 		if err := advance(ctx, env, st); err != nil {
 			return err
 		}
+		if err := v.step(ctx, env, st); err != nil {
+			return err
+		}
 		if st.done() && !hasControls(env.Getenv, st.ID) {
 			return nil
 		}
-		if err := sleep(ctx, pollInterval); err != nil {
+		if err := v.sleep(ctx, pollInterval); err != nil {
 			return err
 		}
 	}
@@ -308,17 +312,6 @@ func finalAnswer(st journal.State) string {
 		}
 	}
 	return ""
-}
-
-func sleep(ctx context.Context, d time.Duration) error {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
 }
 
 func firstLine(s string) string {

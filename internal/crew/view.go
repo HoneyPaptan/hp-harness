@@ -105,7 +105,7 @@ func (s Service) Follow(id string, index, offset int) (crewview.Chunk, error) {
 		}
 		return crewview.Chunk{Ended: true, Trailer: s.trailer(st, t, "")}, nil
 	}
-	ended := s.taskEnded(t)
+	ended := s.taskEnded(t) && !st.verifyPending(t)
 	data, _ := os.ReadFile(runLogPath(s.Env.Getenv, t.RunID))
 	if offset > len(data) {
 		offset = 0
@@ -145,7 +145,7 @@ func (s Service) trailer(st *State, t *Task, log string) []string {
 		lines = append(lines, "")
 		lines = append(lines, textLines(answer)...)
 	}
-	return lines
+	return append(lines, verifyLines(s.Env, st, t)...)
 }
 
 func taskStopped(t *Task) bool {
