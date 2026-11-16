@@ -4,6 +4,8 @@
 
 hp harness is a coding agent for the terminal; the command is `hp`. Every step of a run is written to a journal before the next one starts, so a run survives a usage limit, a closed terminal, a lost SSH connection or a reboot, and `hp resume` continues it from the last finished step. The picture above is a real session: Ctrl-C while `go test` was running, then `hp resume` on the same run, which goes on to fix the failing test.
 
+You can try hp without installing it: the [live site](https://hp-harness.honeypaptan.workers.dev) runs hp's Go core, compiled to WebAssembly, in your browser tab on a small sample project, with your own model key.
+
 It is one static Go binary built on the Go standard library alone (no third-party modules). It talks to 13 provider presets (Anthropic's Messages API, plus OpenAI-compatible endpoints such as Groq, OpenRouter, xAI and a local Ollama), runs the usual file, shell and web tools, and connects to MCP servers and skills with `hp add`.
 
 hp keeps the whole conversation on disk, so a dead process is a pause, not the end of the run. It is early (v0.0.x): flags and the journal format can still change.
