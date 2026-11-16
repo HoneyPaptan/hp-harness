@@ -8,13 +8,15 @@ import (
 )
 
 func Main(ctx context.Context, env Env) int {
-	env = applyKeyFile(env)
 	args := env.Args
+	if len(args) > 0 {
+		if code, done := globalFlags(env, args); done {
+			return code
+		}
+	}
+	env = applyKeyFile(env)
 	if len(args) == 0 {
 		return cmdSession(ctx, env, args)
-	}
-	if code, done := globalFlags(env, args); done {
-		return code
 	}
 	return dispatch(ctx, env, args)
 }

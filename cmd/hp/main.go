@@ -30,7 +30,7 @@ func run() int {
 		signal.Ignore(syscall.SIGHUP)
 		_ = os.Unsetenv("HP_DETACHED")
 	}
-	ctx, stop := signalContext()
+	ctx, stop := commandContext(os.Args[1:])
 	defer stop()
 	env, err := buildEnv()
 	if err != nil {
@@ -96,6 +96,25 @@ func newProvider(ep cli.Endpoint) provider.Provider {
 		NestedReasoning: ep.Preset == "openrouter", Headers: appHeaders(ep.Preset),
 		UserAgent: "hp/" + version,
 	}
+}
+
+func commandContext(args []string) (context.Context, func()) {
+	if !needsSignals(args) {
+		ctx, cancel := context.WithCancelCause(context.Background())
+		return ctx, func() { cancel(nil) }
+	}
+	return signalContext()
+}
+
+func needsSignals(args []string) bool {
+	if len(args) == 0 {
+		return true
+	}
+	switch args[0] {
+	case "--version", "-version", "version", "runs", "providers", "list", "remove", "permissions", "stop", "help", "-h", "--help":
+		return false
+	}
+	return true
 }
 
 func signalContext() (context.Context, func()) {
