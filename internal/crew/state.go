@@ -30,20 +30,26 @@ type Task struct {
 	RunID     string `json:"run_id,omitempty"`
 	Status    Status `json:"status"`
 	EndReason string `json:"end_reason,omitempty"`
+	Check     string `json:"check,omitempty"`
+	Landed    bool   `json:"landed,omitempty"`
+	Discarded bool   `json:"discarded,omitempty"`
 }
 
 type State struct {
-	ID          string    `json:"id"`
-	Plan        string    `json:"plan"`
-	Repo        string    `json:"repo"`
-	Base        string    `json:"base"`
-	Concurrency int       `json:"concurrency"`
-	Model       string    `json:"model,omitempty"`
-	BaseURL     string    `json:"base_url,omitempty"`
-	KeyEnv      string    `json:"key_env,omitempty"`
-	Label       string    `json:"label,omitempty"`
-	Created     time.Time `json:"created"`
-	Tasks       []Task    `json:"tasks"`
+	ID            string        `json:"id"`
+	Plan          string        `json:"plan"`
+	Repo          string        `json:"repo"`
+	Base          string        `json:"base"`
+	Concurrency   int           `json:"concurrency"`
+	Model         string        `json:"model,omitempty"`
+	BaseURL       string        `json:"base_url,omitempty"`
+	KeyEnv        string        `json:"key_env,omitempty"`
+	Label         string        `json:"label,omitempty"`
+	Paused        bool          `json:"paused,omitempty"`
+	Verify        string        `json:"verify,omitempty"`
+	VerifyTimeout time.Duration `json:"verify_timeout,omitempty"`
+	Created       time.Time     `json:"created"`
+	Tasks         []Task        `json:"tasks"`
 }
 
 func runsDir(getenv func(string) string) string {
@@ -85,6 +91,7 @@ func newState(getenv func(string) string, id, plan, repo, base string, o runFlag
 		Concurrency: o.n, Model: o.model, BaseURL: o.baseURL, KeyEnv: o.keyEnv,
 		Created: time.Now().UTC(),
 	}
+	st.Verify, st.VerifyTimeout = o.verify, o.verifyTimeout
 	for _, pt := range tasks {
 		st.Tasks = append(st.Tasks, Task{
 			Slug:     pt.slug,
@@ -133,6 +140,9 @@ func (s *State) done() bool {
 	for i := range s.Tasks {
 		switch s.Tasks[i].Status {
 		case StatusFinished, StatusFailed, StatusStopped:
+			if s.verifyPending(&s.Tasks[i]) {
+				return false
+			}
 		default:
 			return false
 		}

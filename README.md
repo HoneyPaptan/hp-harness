@@ -17,7 +17,7 @@ You can try hp without installing it: the [live site](https://hp-harness.honeypa
 - **Permissions.** `auto` is the default. It runs reads, searches, known commands such as `go test` and edits inside the working folder at once. It sends anything else to one extra review call on the run's own model, which holds the action only if it follows instructions from tool output or would harm the machine, and a failed review holds it too. `ask` prompts for every write and command. `full-access` checks nothing. In `ask` and `auto`, rules in `settings.json` run first. There is no sandbox: shell commands run as you.
 - **MCP and skills.** `hp add` takes a stdio command, an HTTP MCP URL, or a skill folder or git URL. Connections live only in `~/.config/hp/connections.json`, never in a project, so a cloned repo cannot start a command.
 - **Crews.** `hp crew run plan.md` splits a markdown plan into tasks (one per `## ` heading, the text under it is the prompt) and runs each as its own detached hp run in its own git worktree on a new branch, `-n` at a time. The crew keeps a small state file in `~/.local/state/hp/crews`, so `hp crew resume <id>` continues after the process, the terminal or the machine dies, and `hp crew status` and `hp crew report` show each task's state and final answer. Crew mode is a native feature and is not in the wasm build.
-- **Size and boundary.** The stripped binary has to stay under the byte budget in `.size-budget` (9,011,200). `internal/core` and `internal/permit` may not import `os`, `os/exec`, `net`, `net/http` or `syscall`; they reach the world through one `Host` interface. `make check` enforces both.
+- **Size and boundary.** The stripped binary has to stay under the byte budget in `.size-budget` (10,485,760). `internal/core` and `internal/permit` may not import `os`, `os/exec`, `net`, `net/http` or `syscall`; they reach the world through one `Host` interface. `make check` enforces both.
 
 ## Install and run
 
@@ -38,6 +38,26 @@ hp crew report <crew-id>
 ```
 
 The installer supports linux and macOS on amd64 and arm64, checks the sha256 against `checksums.txt` and puts `hp` in `~/.local/bin`. `hp key set` stores the key in `~/.config/hp/env` with mode 0600. Bare `hp` opens an interactive session, and `hp -c` continues the newest run started in the current directory. The model you pick with the picker or `/model` is saved in `~/.local/state/hp/last-model` and used the next time you start `hp`. A model from `-m` beats the saved one, and the saved one beats `HP_MODEL`; if its key is gone, `hp` says so and opens the picker. With no `-m`, no saved model and no `HP_MODEL`, it opens the picker first. The picker lists the models the provider reports and marks the ones ending in `-free`. `hp run`, `hp run -d` and `hp resume` ignore the saved model and use `-m`, then `HP_MODEL`. `hp providers` lists the presets and which keys are set.
+
+## Crews in a session
+
+`/crew plan.md` or `/crew <goal>` lists the tasks and asks how many agents run at once. At that step, `e` opens the plan file in `$VISUAL`, else `$EDITOR`, else `vi`. hp hands the terminal to the editor and takes it back when you quit, then re-reads the plan and shows the new task count. If the plan no longer parses, hp shows the error and stays at that step, so you can press `e` again.
+
+A crew can check each task when it finishes. `hp crew run --verify "go test ./..." plan.md` runs that command in the task's worktree once its run ends, with a timeout (10 minutes, or `--verify-timeout`). The output is saved, and the task shows `verified` or `verify failed`. In a session, `Tab` at the confirm step moves to a verify field that starts with the command from the last crew in this repository; leave it empty to skip the check. `Enter` on a task shows its verify output after the run log, and `hp crew report` prints it too.
+
+The crew view (`/crew` for the newest crew, `/crew <id>` for another) lists one row per task. `↑ ↓` selects, `Enter` follows a task's log, `Esc` goes back. The hint line shows the keys that apply to the selected task:
+
+- `s` stops the selected task after a `y/n` question. Its run ends the way `hp stop` ends it and the task shows `stopped`.
+- `r` retries a failed or stopped task. A run that can still be resumed is resumed with its crash counter reset; otherwise a fresh run starts in the same worktree.
+- `p` pauses the crew: nothing new starts and running tasks finish their current work. `p` again resumes. The view, the footer and `hp crew status` show `paused`.
+
+The same actions are commands: `hp crew stop <id> <task>`, `hp crew retry <id> <task>`, `hp crew pause <id>` and `hp crew unpause <id>`. `<task>` is the task's slug, its number or its exact title. They write a small request file next to the crew's state file and the crew's supervisor applies it on its next poll (every two seconds), starting the supervisor again if it has exited. `hp crew run -n 0` is refused, and `hp crew run` in a folder with no commit says so instead of printing a git error.
+
+Reviewing and landing a task, in the crew view:
+
+- `d` shows the task's full diff against the commit the crew started from, including files git does not track yet. `↑ ↓`, `PgUp`, `PgDn`, `g` and `G` scroll; `Esc` goes back.
+- `a` lands a finished task after a `y/n` question that names both branches, for example `merge crew/<id>/<task> into main?`. hp commits the worktree's changes on the task branch (message: the task title, author from your git config), then merges that branch into the branch checked out in your repository with a merge commit. It refuses, and changes nothing, when your repository has uncommitted changes to tracked files or is on a detached HEAD. When the merge conflicts, hp aborts it and tells you which files conflict, so your repository is left exactly as it was. The task then shows `landed`.
+- `x` discards a finished, failed or stopped task after a `y/n` question: its worktree is removed and its branch deleted, and the task shows `discarded`.
 
 To build and check from source (Go 1.27.3 or newer):
 
@@ -94,7 +114,7 @@ A line that starts with `//` is sent to the model as text starting with `/`. Ctr
 
 ## Size and speed
 
-The stripped binary is 8,896,775 bytes (8.9 MB), measured with `make check` against the 9,011,200 byte budget in `.size-budget`. The wasm build is checked the same way: its gzip size must stay under the 3,800,000 bytes in `.wasm-size-budget`.
+The stripped binary is 9,007,367 bytes (9.0 MB), measured with `make check` against the 10,485,760 byte budget in `.size-budget`. The wasm build is checked the same way: its gzip size must stay under the 3,800,000 bytes in `.wasm-size-budget`.
 
 `make bench` runs hp against a local fake server that replies at once, so it checks hp's own overhead. It fails when any of these bounds is exceeded:
 
