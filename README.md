@@ -108,13 +108,13 @@ Inside a session:
 | `/permissions` | shows or sets the permission mode, or resets session grants |
 | `/compact` | compacts the conversation now |
 | `/crew` | opens a crew, lists them, prints one, or runs a plan file or a drafted goal as a crew |
-| `/quit` | leaves the session, Ctrl-D does the same |
+| `/quit` | leaves the session, Ctrl-D does the same; it prints the run id and `hp -c` as the way back |
 
 A line that starts with `//` is sent to the model as text starting with `/`. Ctrl-C or Esc stops a turn.
 
 ## Size and speed
 
-The stripped binary is 9,007,367 bytes (9.0 MB), measured with `make check` against the 10,485,760 byte budget in `.size-budget`. The wasm build is checked the same way: its gzip size must stay under the 3,800,000 bytes in `.wasm-size-budget`.
+The stripped binary is 9,015,559 bytes (9.0 MB), measured with `make check` against the 10,485,760 byte budget in `.size-budget`. The wasm build is checked the same way: its gzip size must stay under the 3,800,000 bytes in `.wasm-size-budget`.
 
 `make bench` runs hp against a local fake server that replies at once, so it checks hp's own overhead. It fails when any of these bounds is exceeded:
 
