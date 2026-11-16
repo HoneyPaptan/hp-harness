@@ -128,6 +128,9 @@ func (s *State) brief() string {
 			parts = append(parts, strconv.Itoa(n)+" "+word)
 		}
 	}
+	if s.Paused {
+		parts = append(parts, "paused")
+	}
 	return strings.Join(parts, " · ")
 }
 

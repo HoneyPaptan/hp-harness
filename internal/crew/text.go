@@ -11,6 +11,9 @@ const noCrews = "no crews yet\n"
 
 func statusText(env Env, st *State) string {
 	var b strings.Builder
+	if st.Paused {
+		b.WriteString("paused\n")
+	}
 	for i := range st.Tasks {
 		t := &st.Tasks[i]
 		fmt.Fprintf(&b, "%s  %s  %s  %s  %s\n",
@@ -55,9 +58,16 @@ func listText(env Env) string {
 			fmt.Fprintf(&b, "%s  broken\n", id)
 			continue
 		}
-		fmt.Fprintf(&b, "%s  %s  %d/%d done\n", id, st.label(env.Getenv), st.doneCount(), len(st.Tasks))
+		fmt.Fprintf(&b, "%s  %s  %d/%d done%s\n", id, st.label(env.Getenv), st.doneCount(), len(st.Tasks), pausedSuffix(st))
 	}
 	return b.String()
+}
+
+func pausedSuffix(st *State) string {
+	if st.Paused {
+		return "  paused"
+	}
+	return ""
 }
 
 func crewIDs(env Env) []string {

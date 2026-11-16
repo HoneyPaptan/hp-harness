@@ -47,12 +47,47 @@ func (s Service) View(id string) (crewview.Snapshot, bool, error) {
 	if err != nil {
 		return crewview.Snapshot{}, false, err
 	}
-	snap := crewview.Snapshot{ID: id, Label: st.label(s.Env.Getenv), Done: st.done(), Rows: make([]crewview.Row, len(st.Tasks))}
+	reqs := queuedRequests(s.Env.Getenv, id)
+	snap := crewview.Snapshot{
+		ID: id, Label: st.label(s.Env.Getenv), Done: st.done() && len(reqs) == 0,
+		Paused: effectivePaused(st, reqs), Rows: make([]crewview.Row, len(st.Tasks)),
+	}
 	for i := range st.Tasks {
 		t := &st.Tasks[i]
-		snap.Rows[i] = crewview.Row{Title: t.Title, Status: statusWord(t), RunID: runID(t), Changed: changedFiles(s.Env, st, t)}
+		snap.Rows[i] = crewview.Row{
+			Slug: t.Slug, Title: t.Title, Status: statusWord(t), RunID: runID(t),
+			Changed: changedFiles(s.Env, st, t), Keys: taskKeys(t),
+		}
+		if word := pendingWord(reqs, t.Slug); word != "" {
+			snap.Rows[i].Status, snap.Rows[i].Keys = word, ""
+		}
 	}
 	return snap, true, nil
+}
+
+func taskKeys(t *Task) string {
+	switch t.Status {
+	case StatusQueued, StatusStarting, StatusRunning:
+		return "s"
+	case StatusFailed, StatusStopped:
+		return "r"
+	}
+	return ""
+}
+
+func pendingWord(reqs []queued, slug string) string {
+	for _, q := range reqs {
+		if !q.ok || q.req.Task != slug {
+			continue
+		}
+		switch q.req.Op {
+		case opStop:
+			return "stopping"
+		case opRetry:
+			return "retrying"
+		}
+	}
+	return ""
 }
 
 func (s Service) Follow(id string, index, offset int) (crewview.Chunk, error) {

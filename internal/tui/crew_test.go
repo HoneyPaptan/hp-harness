@@ -43,6 +43,8 @@ type crewFake struct {
 	follows   [][2]int
 	edits     []CrewPlan
 	editSteps []editStep
+	actions   []string
+	actionErr error
 }
 
 type editStep struct {
@@ -128,6 +130,24 @@ func (a *crewFake) CrewEdit(plan CrewPlan) (CrewPlan, error) {
 	plan.Titles = step.titles
 	return plan, step.err
 }
+
+func (a *crewFake) act(call string) error {
+	a.cmu.Lock()
+	defer a.cmu.Unlock()
+	a.actions = append(a.actions, call)
+	return a.actionErr
+}
+
+func (a *crewFake) acted() []string {
+	a.cmu.Lock()
+	defer a.cmu.Unlock()
+	return append([]string(nil), a.actions...)
+}
+
+func (a *crewFake) CrewStop(id, task string) error  { return a.act("stop " + id + " " + task) }
+func (a *crewFake) CrewRetry(id, task string) error { return a.act("retry " + id + " " + task) }
+func (a *crewFake) CrewPause(id string) error       { return a.act("pause " + id) }
+func (a *crewFake) CrewUnpause(id string) error     { return a.act("unpause " + id) }
 
 func (a *crewFake) CrewList() ([]string, error) { return a.list, nil }
 

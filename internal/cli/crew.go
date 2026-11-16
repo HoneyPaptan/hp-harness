@@ -20,6 +20,10 @@ type CrewService interface {
 	DraftSystem() string
 	SavePlan(reply string) (path, text string, err error)
 	EditPlan(plan string) ([]string, error)
+	Stop(id, task string) error
+	Retry(id, task string) error
+	Pause(id string) error
+	Unpause(id string) error
 	Start(req crewview.Start) (string, error)
 	Preflight() (int, error)
 	View(id string) (crewview.Snapshot, bool, error)
@@ -124,6 +128,30 @@ func (a *sessionAgent) CrewFollow(id string, index, offset int) (crewview.Chunk,
 		return crewview.Chunk{}, err
 	}
 	return svc.Follow(id, index, offset)
+}
+
+func (a *sessionAgent) CrewStop(id, task string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Stop(id, task) })
+}
+
+func (a *sessionAgent) CrewRetry(id, task string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Retry(id, task) })
+}
+
+func (a *sessionAgent) CrewPause(id string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Pause(id) })
+}
+
+func (a *sessionAgent) CrewUnpause(id string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Unpause(id) })
+}
+
+func (a *sessionAgent) crewDo(do func(CrewService) error) error {
+	svc, err := a.crewService()
+	if err != nil {
+		return err
+	}
+	return do(svc)
 }
 
 func (a *sessionAgent) CrewList() ([]string, error) {

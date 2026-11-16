@@ -42,6 +42,7 @@ type State struct {
 	BaseURL     string    `json:"base_url,omitempty"`
 	KeyEnv      string    `json:"key_env,omitempty"`
 	Label       string    `json:"label,omitempty"`
+	Paused      bool      `json:"paused,omitempty"`
 	Created     time.Time `json:"created"`
 	Tasks       []Task    `json:"tasks"`
 }
