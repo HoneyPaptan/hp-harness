@@ -77,6 +77,35 @@ func TestModelPickerFilterBeforeLoad(t *testing.T) {
 	}
 }
 
+func TestMarkFree(t *testing.T) {
+	got := markFree([]string{"hy4-flash-free", "glm-5.3", "free-for-all"})
+	want := []string{"hy4-flash-free" + freeTag, "glm-5.3", "free-for-all"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestModelPickerMarksFreeModels(t *testing.T) {
+	a := newFakeAgent()
+	a.models = []string{"hy4-flash-free", "glm-5.3"}
+	h := startSession(t, a, false, false)
+	openGroqModelStage(h)
+	h.play([]step{
+		{wait: "hy4-flash-free" + freeTag},
+		{keys: "\x1b[B"},
+		{keys: "\r"},
+		{wait: "model groq/glm-5.3"},
+		{keys: "\x04"},
+	})
+	h.waitExit()
+	if strings.Contains(h.out.String(), "glm-5.3"+freeTag) {
+		t.Fatalf("paid model marked free: %q", h.out.String())
+	}
+	if got := a.Model(); got != "groq/glm-5.3" {
+		t.Fatalf("model %q", got)
+	}
+}
+
 func TestModelPickerFetchError(t *testing.T) {
 	a := newFakeAgent()
 	a.modelsErr = errors.New("offline")

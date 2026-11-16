@@ -197,7 +197,7 @@ func (a *webAgent) Release() {
 }
 
 func (a *webAgent) SetModel(spec string) error {
-	err := a.sessionAgent.SetModel(spec)
+	err := a.sessionAgent.useModel(spec)
 	var usage usageError
 	if errors.As(err, &usage) {
 		return invalid(err)
