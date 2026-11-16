@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	versionLimit  = 10 * time.Millisecond
-	runsLimit     = 100 * time.Millisecond
-	overheadLimit = 15 * time.Millisecond
-	rssLimit      = 40 * bytesPerMB
+	versionLimit  = 5 * time.Millisecond
+	runsLimit     = 8 * time.Millisecond
+	overheadLimit = 8 * time.Millisecond
+	rssLimit      = 20 * bytesPerMB
 )
 
 var errOverBudget = errors.New("over budget")
