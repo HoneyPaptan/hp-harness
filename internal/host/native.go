@@ -82,6 +82,26 @@ func (Native) ReadDir(path string) ([]Entry, error) {
 	return out, nil
 }
 
+func (Native) ListNames(path string) ([]Entry, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Entry, 0, len(entries))
+	for _, e := range entries {
+		isDir := e.IsDir()
+		if e.Type()&fs.ModeSymlink != 0 {
+			info, err := os.Stat(filepath.Join(path, e.Name()))
+			if err != nil {
+				continue
+			}
+			isDir = info.IsDir()
+		}
+		out = append(out, Entry{Name: e.Name(), IsDir: isDir, IsLink: e.Type()&fs.ModeSymlink != 0})
+	}
+	return out, nil
+}
+
 func entryInfo(dir string, e os.DirEntry) (fs.FileInfo, error) {
 	if e.Type()&fs.ModeSymlink != 0 {
 		return os.Stat(filepath.Join(dir, e.Name()))
