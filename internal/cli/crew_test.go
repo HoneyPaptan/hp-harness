@@ -27,6 +27,7 @@ type fakeCrew struct {
 	edited       []string
 	editErr      error
 	acts         []string
+	lastVerify   string
 }
 
 func (f *fakeCrew) PlanTitles(plan string) ([]string, bool, error) {
@@ -49,6 +50,8 @@ func (f *fakeCrew) Retry(id, task string) error {
 }
 func (f *fakeCrew) Pause(id string) error   { f.acts = append(f.acts, "pause "+id); return nil }
 func (f *fakeCrew) Unpause(id string) error { f.acts = append(f.acts, "unpause "+id); return nil }
+
+func (f *fakeCrew) LastVerify() string { return f.lastVerify }
 
 func (f *fakeCrew) DraftSystem() string { return "draft system" }
 
@@ -273,5 +276,31 @@ func TestCrewControlsReachTheService(t *testing.T) {
 	want := []string{"stop c1 a", "retry c1 b", "pause c1", "unpause c1"}
 	if strings.Join(svc.acts, ";") != strings.Join(want, ";") {
 		t.Fatalf("acts %v want %v", svc.acts, want)
+	}
+}
+
+func TestCrewVerifyTravelsFromPlanToStart(t *testing.T) {
+	svc := &fakeCrew{titles: map[string][]string{"plan.md": {"a"}}, lastVerify: "make test"}
+	a := crewAgent(t, customEP, &fake.Provider{}, svc, nil)
+	plan, _, err := a.CrewPlan("plan.md")
+	if err != nil || plan.Verify != "make test" {
+		t.Fatalf("plan %+v %v", plan, err)
+	}
+	plan.Verify = "go vet ./..."
+	if _, err := a.CrewStart(plan, 1); err != nil {
+		t.Fatal(err)
+	}
+	if svc.started[0].Verify != "go vet ./..." {
+		t.Fatalf("started %+v", svc.started[0])
+	}
+}
+
+func TestCrewDraftCarriesTheLastVerify(t *testing.T) {
+	prov := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("## a\nx\n## b\ny\n")}}
+	svc := &fakeCrew{titles: map[string][]string{}, lastVerify: "make test"}
+	a := crewAgent(t, customEP, prov, svc, nil)
+	plan, err := a.CrewDraft(context.Background(), "goal")
+	if err != nil || plan.Verify != "make test" {
+		t.Fatalf("plan %+v %v", plan, err)
 	}
 }

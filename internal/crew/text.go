@@ -42,6 +42,9 @@ func reportText(env Env, st *State) string {
 			answer = "(no final answer)"
 		}
 		fmt.Fprintf(&b, "%s\n\n", answer)
+		if lines := verifyLines(env, st, t); len(lines) > 0 {
+			fmt.Fprintf(&b, "%s\n\n", strings.Join(lines, "\n"))
+		}
 	}
 	return b.String()
 }

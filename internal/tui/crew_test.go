@@ -45,6 +45,7 @@ type crewFake struct {
 	editSteps []editStep
 	actions   []string
 	actionErr error
+	lastCheck string
 }
 
 type editStep struct {
@@ -94,7 +95,7 @@ func (a *crewFake) CrewPlan(arg string) (CrewPlan, bool, error) {
 		return CrewPlan{}, false, a.planErr
 	}
 	titles, ok := a.files[arg]
-	return CrewPlan{Path: arg, Titles: titles}, ok, nil
+	return CrewPlan{Path: arg, Titles: titles, Verify: a.lastCheck}, ok, nil
 }
 
 func (a *crewFake) CrewDraft(ctx context.Context, goal string) (CrewPlan, error) {
@@ -473,5 +474,66 @@ func TestCrewEditOnlyAtTheCountStep(t *testing.T) {
 	h.play([]step{{keys: "/crew make it fast\r"}, {wait: crewDraftNote}, {keys: "e"}, {keys: "\x1b"}, {wait: crewCancelNote}})
 	if len(a.edits) != 0 {
 		t.Fatalf("edited while drafting: %v", a.edits)
+	}
+}
+
+func TestCrewVerifyField(t *testing.T) {
+	cases := []struct {
+		name   string
+		last   string
+		keys   string
+		verify string
+	}{
+		{"skipped by default", "", "\r", ""},
+		{"typed after Tab", "", "\tgo test ./...\r", "go test ./..."},
+		{"prefilled from the last crew", "make test", "\r", "make test"},
+		{"prefilled value can be changed", "make test", "\t\x15go vet ./...\r", "go vet ./..."},
+		{"prefilled value can be cleared", "make test", "\t\x15\r", ""},
+		{"surrounding spaces are dropped", "", "\t  go test  \r", "go test"},
+		{"Tab twice goes back to the count", "", "\t\t\x7f3\r", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newCrewFake()
+			a.files["plan.md"] = []string{"a", "b", "c"}
+			a.lastCheck = tc.last
+			h := startCrewSession(t, a)
+			h.play([]step{{keys: "/crew plan.md\r"}, {wait: "agents at once"}, {keys: tc.keys}, {wait: "crew crew-1 started"}})
+			if a.started[0].Verify != tc.verify {
+				t.Fatalf("verify %q want %q", a.started[0].Verify, tc.verify)
+			}
+		})
+	}
+}
+
+func TestCrewVerifyFieldPromptsAndKeepsTheCount(t *testing.T) {
+	a := newCrewFake()
+	a.files["plan.md"] = []string{"a", "b", "c"}
+	a.lastCheck = "make test"
+	h := startCrewSession(t, a)
+	h.play([]step{
+		{keys: "/crew plan.md\r"},
+		{wait: "verify: make test"},
+		{wait: crewAskNote},
+		{keys: "\x7f3\t"},
+		{wait: "verify command, empty skips (Tab goes back): make test"},
+		{keys: "\t"},
+		{wait: "3 tasks · agents at once (1-3): 3"},
+		{keys: "\r"},
+		{wait: "crew crew-1 started, 3 at once"},
+	})
+	if a.counts[0] != 3 || a.started[0].Verify != "make test" {
+		t.Fatalf("started %v %v", a.counts, a.started)
+	}
+}
+
+func TestCrewEditIsOnlyAtTheCountField(t *testing.T) {
+	a := newCrewFake()
+	a.files["plan.md"] = []string{"a", "b"}
+	a.editSteps = []editStep{{titles: []string{"a"}}}
+	h := startCrewSession(t, a)
+	h.play([]step{{keys: "/crew plan.md\r"}, {wait: "agents at once"}, {keys: "\tdev\r"}, {wait: "crew crew-1 started"}})
+	if len(a.edits) != 0 || a.started[0].Verify != "dev" {
+		t.Fatalf("edits %v started %v", a.edits, a.started)
 	}
 }

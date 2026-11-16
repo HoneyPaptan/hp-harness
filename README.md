@@ -43,6 +43,8 @@ The installer supports linux and macOS on amd64 and arm64, checks the sha256 aga
 
 `/crew plan.md` or `/crew <goal>` lists the tasks and asks how many agents run at once. At that step, `e` opens the plan file in `$VISUAL`, else `$EDITOR`, else `vi`. hp hands the terminal to the editor and takes it back when you quit, then re-reads the plan and shows the new task count. If the plan no longer parses, hp shows the error and stays at that step, so you can press `e` again.
 
+A crew can check each task when it finishes. `hp crew run --verify "go test ./..." plan.md` runs that command in the task's worktree once its run ends, with a timeout (10 minutes, or `--verify-timeout`). The output is saved, and the task shows `verified` or `verify failed`. In a session, `Tab` at the confirm step moves to a verify field that starts with the command from the last crew in this repository; leave it empty to skip the check. `Enter` on a task shows its verify output after the run log, and `hp crew report` prints it too.
+
 The crew view (`/crew` for the newest crew, `/crew <id>` for another) lists one row per task. `↑ ↓` selects, `Enter` follows a task's log, `Esc` goes back. The hint line shows the keys that apply to the selected task:
 
 - `s` stops the selected task after a `y/n` question. Its run ends the way `hp stop` ends it and the task shows `stopped`.

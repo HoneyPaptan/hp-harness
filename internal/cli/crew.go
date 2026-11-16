@@ -24,6 +24,7 @@ type CrewService interface {
 	Retry(id, task string) error
 	Pause(id string) error
 	Unpause(id string) error
+	LastVerify() string
 	Start(req crewview.Start) (string, error)
 	Preflight() (int, error)
 	View(id string) (crewview.Snapshot, bool, error)
@@ -50,7 +51,7 @@ func (a *sessionAgent) CrewPlan(arg string) (tui.CrewPlan, bool, error) {
 		return tui.CrewPlan{}, false, err
 	}
 	titles, found, err := svc.PlanTitles(arg)
-	return tui.CrewPlan{Path: arg, Titles: titles}, found, err
+	return tui.CrewPlan{Path: arg, Titles: titles, Verify: svc.LastVerify()}, found, err
 }
 
 func (a *sessionAgent) CrewDraft(ctx context.Context, goal string) (tui.CrewPlan, error) {
@@ -79,7 +80,7 @@ func (a *sessionAgent) CrewDraft(ctx context.Context, goal string) (tui.CrewPlan
 		return tui.CrewPlan{}, err
 	}
 	titles, _, err := svc.PlanTitles(path)
-	return tui.CrewPlan{Path: path, Text: text, Titles: titles, Goal: goal}, err
+	return tui.CrewPlan{Path: path, Text: text, Titles: titles, Goal: goal, Verify: svc.LastVerify()}, err
 }
 
 func (a *sessionAgent) CrewEdit(plan tui.CrewPlan) (tui.CrewPlan, error) {
@@ -101,7 +102,7 @@ func (a *sessionAgent) CrewStart(plan tui.CrewPlan, n int) (string, error) {
 		return "", tui.NoModelError{}
 	}
 	return svc.Start(crewview.Start{
-		Plan: plan.Path, Label: plan.Goal, N: n,
+		Plan: plan.Path, Label: plan.Goal, N: n, Verify: plan.Verify,
 		Model: endpointSpec(a.ep), BaseURL: a.ep.BaseURL, KeyEnv: a.ep.KeyEnv,
 	})
 }
