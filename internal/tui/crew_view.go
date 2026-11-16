@@ -293,13 +293,21 @@ func (s *Session) refreshTasks() {
 		return
 	}
 	rows := crewRows(snap)
-	if strings.Join(rows, "\n") != strings.Join(s.view.menu.items, "\n") || snap.Paused != s.view.snap.Paused {
+	if strings.Join(rows, "\n") != strings.Join(s.view.menu.items, "\n") || snap.Paused != s.view.snap.Paused || rowKeys(snap) != rowKeys(s.view.snap) {
 		s.dirty = true
 	}
 	s.view.snap = snap
 	s.view.menu.items = rows
 	s.view.menu.selected = min(s.view.menu.selected, max(len(rows)-1, 0))
 	s.view.menu.keepVisible()
+}
+
+func rowKeys(snap crewview.Snapshot) string {
+	keys := make([]string, len(snap.Rows))
+	for i, r := range snap.Rows {
+		keys[i] = r.Keys
+	}
+	return strings.Join(keys, ",")
 }
 
 func (s *Session) pollLive() {

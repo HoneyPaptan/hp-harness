@@ -527,3 +527,18 @@ func TestPageKeysDecode(t *testing.T) {
 		t.Fatalf("keys %v", keys)
 	}
 }
+
+func TestCrewViewHintFollowsKeysThatChangeUnderTheSameRowText(t *testing.T) {
+	a := reviewFake()
+	a.snaps["c1"].Rows[0].Status = "landed"
+	a.snaps["c1"].Rows[0].Keys = ""
+	h := startCrewSession(t, a)
+	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint + " · p pause · Esc closes"}})
+	a.cmu.Lock()
+	snap := a.snaps["c1"]
+	snap.Rows = append([]crewview.Row(nil), snap.Rows...)
+	snap.Rows[0].Keys = "dx"
+	a.snaps["c1"] = snap
+	a.cmu.Unlock()
+	h.waitFor(crewViewHint + " · d diff · x discard · p pause · Esc closes")
+}
