@@ -19,6 +19,7 @@ type CrewService interface {
 	PlanTitles(plan string) ([]string, bool, error)
 	DraftSystem() string
 	SavePlan(reply string) (path, text string, err error)
+	EditPlan(plan string) ([]string, error)
 	Start(req crewview.Start) (string, error)
 	Preflight() (int, error)
 	View(id string) (crewview.Snapshot, bool, error)
@@ -75,6 +76,16 @@ func (a *sessionAgent) CrewDraft(ctx context.Context, goal string) (tui.CrewPlan
 	}
 	titles, _, err := svc.PlanTitles(path)
 	return tui.CrewPlan{Path: path, Text: text, Titles: titles, Goal: goal}, err
+}
+
+func (a *sessionAgent) CrewEdit(plan tui.CrewPlan) (tui.CrewPlan, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return tui.CrewPlan{}, err
+	}
+	titles, err := svc.EditPlan(plan.Path)
+	plan.Titles = titles
+	return plan, err
 }
 
 func (a *sessionAgent) CrewStart(plan tui.CrewPlan, n int) (string, error) {

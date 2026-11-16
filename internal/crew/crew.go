@@ -13,17 +13,18 @@ import (
 )
 
 type Env struct {
-	Args   []string
-	Getenv func(string) string
-	Cwd    string
-	Stdout io.Writer
-	Stderr io.Writer
-	Exe    string
-	Alive  func(pid int) bool
-	Git    func(dir string, args ...string) (string, error)
-	RunHP  func(ctx context.Context, args ...string) (string, error)
-	Spawn  func(args []string, logPath string) (int, error)
-	Pid    int
+	Args     []string
+	Getenv   func(string) string
+	Cwd      string
+	Stdout   io.Writer
+	Stderr   io.Writer
+	Exe      string
+	Alive    func(pid int) bool
+	Git      func(dir string, args ...string) (string, error)
+	RunHP    func(ctx context.Context, args ...string) (string, error)
+	Spawn    func(args []string, logPath string) (int, error)
+	Pid      int
+	Handover func(argv []string) error
 }
 
 type runFlags struct {

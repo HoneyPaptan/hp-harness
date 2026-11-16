@@ -24,11 +24,18 @@ type fakeCrew struct {
 	done         bool
 	dirty        int
 	preflightErr error
+	edited       []string
+	editErr      error
 }
 
 func (f *fakeCrew) PlanTitles(plan string) ([]string, bool, error) {
 	titles, ok := f.titles[plan]
 	return titles, ok, nil
+}
+
+func (f *fakeCrew) EditPlan(plan string) ([]string, error) {
+	f.edited = append(f.edited, plan)
+	return f.titles[plan], f.editErr
 }
 
 func (f *fakeCrew) DraftSystem() string { return "draft system" }
@@ -99,6 +106,7 @@ func TestCrewUnavailable(t *testing.T) {
 			_, _, calls["plan"] = a.CrewPlan("x")
 			_, calls["draft"] = a.CrewDraft(context.Background(), "x")
 			_, calls["start"] = a.CrewStart(tui.CrewPlan{}, 1)
+			_, calls["edit"] = a.CrewEdit(tui.CrewPlan{})
 			_, calls["list"] = a.CrewList()
 			_, calls["status"] = a.CrewStatus("c")
 			_, calls["report"] = a.CrewReport("c")
@@ -208,5 +216,32 @@ func TestCrewPlanAndShowPassThrough(t *testing.T) {
 	}
 	if text, done, _ := a.CrewBrief("c9"); text != "1 running" || done {
 		t.Fatalf("brief %q %v", text, done)
+	}
+}
+
+func TestCrewEditPassesPathAndKeepsPlanFields(t *testing.T) {
+	cases := []struct {
+		name    string
+		titles  []string
+		editErr error
+	}{
+		{"valid plan", []string{"a", "b", "c"}, nil},
+		{"invalid plan keeps the error", nil, errors.New("plan has no ## tasks")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &fakeCrew{titles: map[string][]string{"/plans/p.md": tc.titles}, editErr: tc.editErr}
+			a := crewAgent(t, customEP, &fake.Provider{}, svc, nil)
+			got, err := a.CrewEdit(tui.CrewPlan{Path: "/plans/p.md", Goal: "g", Dirty: 2, Titles: []string{"old"}})
+			if err != tc.editErr {
+				t.Fatalf("err %v", err)
+			}
+			if len(svc.edited) != 1 || svc.edited[0] != "/plans/p.md" {
+				t.Fatalf("edited %v", svc.edited)
+			}
+			if got.Path != "/plans/p.md" || got.Goal != "g" || got.Dirty != 2 || len(got.Titles) != len(tc.titles) {
+				t.Fatalf("plan %+v", got)
+			}
+		})
 	}
 }
