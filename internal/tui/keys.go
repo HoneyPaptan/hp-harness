@@ -29,6 +29,8 @@ const (
 	KeyEsc
 	KeyTab
 	KeyShiftTab
+	KeyPgUp
+	KeyPgDn
 	KeyPasteStart
 	KeyPasteEnd
 )
@@ -71,6 +73,8 @@ var tildeKeys = map[string]KeyType{
 	"1":   KeyHome,
 	"3":   KeyDelete,
 	"4":   KeyEnd,
+	"5":   KeyPgUp,
+	"6":   KeyPgDn,
 	"7":   KeyHome,
 	"8":   KeyEnd,
 	"200": KeyPasteStart,

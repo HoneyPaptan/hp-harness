@@ -51,6 +51,26 @@ func (f *fakeCrew) Retry(id, task string) error {
 func (f *fakeCrew) Pause(id string) error   { f.acts = append(f.acts, "pause "+id); return nil }
 func (f *fakeCrew) Unpause(id string) error { f.acts = append(f.acts, "unpause "+id); return nil }
 
+func (f *fakeCrew) Diff(id, task string) ([]string, error) {
+	f.acts = append(f.acts, "diff "+id+" "+task)
+	return []string{"+x"}, nil
+}
+
+func (f *fakeCrew) LandCheck(id, task string) (string, error) {
+	f.acts = append(f.acts, "check "+id+" "+task)
+	return "merge x into main?", nil
+}
+
+func (f *fakeCrew) Land(id, task string) (string, error) {
+	f.acts = append(f.acts, "land "+id+" "+task)
+	return "landed", nil
+}
+
+func (f *fakeCrew) Discard(id, task string) error {
+	f.acts = append(f.acts, "discard "+id+" "+task)
+	return nil
+}
+
 func (f *fakeCrew) LastVerify() string { return f.lastVerify }
 
 func (f *fakeCrew) DraftSystem() string { return "draft system" }
@@ -122,6 +142,10 @@ func TestCrewUnavailable(t *testing.T) {
 			_, calls["draft"] = a.CrewDraft(context.Background(), "x")
 			_, calls["start"] = a.CrewStart(tui.CrewPlan{}, 1)
 			_, calls["edit"] = a.CrewEdit(tui.CrewPlan{})
+			_, calls["diff"] = a.CrewDiff("c", "t")
+			_, calls["check"] = a.CrewLandCheck("c", "t")
+			_, calls["land"] = a.CrewLand("c", "t")
+			calls["discard"] = a.CrewDiscard("c", "t")
 			calls["stop"] = a.CrewStop("c", "t")
 			calls["retry"] = a.CrewRetry("c", "t")
 			calls["pause"] = a.CrewPause("c")
@@ -302,5 +326,28 @@ func TestCrewDraftCarriesTheLastVerify(t *testing.T) {
 	plan, err := a.CrewDraft(context.Background(), "goal")
 	if err != nil || plan.Verify != "make test" {
 		t.Fatalf("plan %+v %v", plan, err)
+	}
+}
+
+func TestCrewReviewCallsReachTheService(t *testing.T) {
+	svc := &fakeCrew{titles: map[string][]string{}}
+	a := crewAgent(t, customEP, &fake.Provider{}, svc, nil)
+	lines, err := a.CrewDiff("c1", "a")
+	if err != nil || len(lines) != 1 {
+		t.Fatalf("diff %v %v", lines, err)
+	}
+	question, err := a.CrewLandCheck("c1", "a")
+	if err != nil || question != "merge x into main?" {
+		t.Fatalf("check %q %v", question, err)
+	}
+	if msg, err := a.CrewLand("c1", "a"); err != nil || msg != "landed" {
+		t.Fatalf("land %q %v", msg, err)
+	}
+	if err := a.CrewDiscard("c1", "a"); err != nil {
+		t.Fatal(err)
+	}
+	want := "diff c1 a;check c1 a;land c1 a;discard c1 a"
+	if got := strings.Join(svc.acts, ";"); got != want {
+		t.Fatalf("acts %q want %q", got, want)
 	}
 }

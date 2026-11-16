@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -379,4 +380,165 @@ func TestCrewViewControlKeysDoNothingWhileFollowing(t *testing.T) {
 	if got := a.acted(); len(got) != 0 {
 		t.Fatalf("actions while following: %v", got)
 	}
+}
+
+func reviewFake() *crewFake {
+	a := newCrewFake()
+	a.snaps["c1"] = crewview.Snapshot{ID: "c1", Label: "add a cache", Rows: []crewview.Row{
+		{Slug: "a", Title: "task a", Status: "finished", RunID: "run-a", Changed: "2 files", Keys: "dax"},
+		{Slug: "b", Title: "task b", Status: "running", RunID: "run-b", Changed: "1 file", Keys: "s"},
+	}}
+	a.newest = "c1"
+	a.landAsk = "merge crew/c1/a into main?"
+	var lines []string
+	for i := 1; i <= 40; i++ {
+		lines = append(lines, fmt.Sprintf("line %d", i))
+	}
+	lines[1] = "\t+indented with a tab"
+	a.diffs = map[string][]string{"a": lines}
+	return a
+}
+
+func waitActs(t *testing.T, a *crewFake, n int) []string {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for len(a.acted()) < n && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	return a.acted()
+}
+
+func TestCrewViewHintListsReviewKeys(t *testing.T) {
+	a := reviewFake()
+	h := startCrewSession(t, a)
+	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint + " · d diff · a land · x discard · p pause · Esc closes"}})
+}
+
+func TestCrewViewDiffScrolls(t *testing.T) {
+	a := reviewFake()
+	h := startCrewSession(t, a)
+	h.play([]step{
+		{keys: "/crew\r"}, {wait: crewViewHint}, {keys: "d"},
+		{wait: "diff task a · lines 1-16 of 40"},
+		{wait: "line 16"},
+		{wait: "    +indented with a tab"},
+		{keys: "j"}, {wait: "lines 2-17 of 40"},
+		{keys: "k"}, {wait: "lines 1-16 of 40"},
+		{keys: "\x1b[6~"}, {wait: "lines 17-32 of 40"},
+		{keys: "G"}, {wait: "lines 25-40 of 40"},
+		{keys: keyDown}, {wait: "lines 25-40 of 40"},
+		{keys: "\x1b[5~"}, {wait: "lines 9-24 of 40"},
+		{keys: "g"}, {wait: "lines 1-16 of 40"},
+		{keys: keyUp}, {wait: "lines 1-16 of 40"},
+	})
+	before := strings.Count(h.out.String(), crewViewHint)
+	h.play([]step{{keys: "\x1b"}})
+	h.waitForCount(crewViewHint, before+1)
+	if got := a.acted(); len(got) != 1 || got[0] != "diff c1 a" {
+		t.Fatalf("actions %v", got)
+	}
+}
+
+func TestCrewViewDiffOfShortAndMissing(t *testing.T) {
+	a := reviewFake()
+	a.diffs["a"] = []string{"(no changes)"}
+	h := startCrewSession(t, a)
+	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint}, {keys: "d"}, {wait: "diff task a · lines 1-1 of 1"}, {keys: "q"}, {wait: crewViewHint}})
+	b := reviewFake()
+	b.actionErr = errors.New("task a has no worktree to show")
+	h = startCrewSession(t, b)
+	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint}, {keys: "d"}, {wait: "task a has no worktree to show"}})
+}
+
+func TestCrewViewLandNamesBothBranchesAndAsks(t *testing.T) {
+	cases := []struct {
+		name  string
+		keys  string
+		calls []string
+	}{
+		{"y lands", "y", []string{"land c1 a"}},
+		{"n does nothing", "n", nil},
+		{"Esc does nothing", "\x1b", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := reviewFake()
+			h := startCrewSession(t, a)
+			h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint}, {keys: "a"}, {wait: "merge crew/c1/a into main? y/n"}, {keys: tc.keys}})
+			if tc.calls != nil {
+				h.waitFor("landed crew/c1/a into main")
+			}
+			time.Sleep(50 * time.Millisecond)
+			got := a.acted()
+			if len(got) != len(tc.calls) || len(got) == 1 && got[0] != tc.calls[0] {
+				t.Fatalf("actions %v want %v", got, tc.calls)
+			}
+		})
+	}
+}
+
+func TestCrewViewLandRefusalsAndFailures(t *testing.T) {
+	a := reviewFake()
+	a.checkErr = errors.New("your repository has uncommitted changes, commit or stash them first")
+	h := startCrewSession(t, a)
+	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint}, {keys: "a"}, {wait: "your repository has uncommitted changes"}})
+	if strings.Contains(h.out.String(), "y/n") || len(a.acted()) != 0 {
+		t.Fatalf("asked despite the refusal: %v", a.acted())
+	}
+	b := reviewFake()
+	b.landErr = errors.New("merging crew/c1/a conflicts in a.txt, your repository is left as it was")
+	h = startCrewSession(t, b)
+	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint}, {keys: "ay"}, {wait: "conflicts in a.txt, your repository is left as it was"}})
+	if strings.Contains(h.out.String(), "landed crew") {
+		t.Fatal("reported a landing that failed")
+	}
+	c := reviewFake()
+	h = startCrewSession(t, c)
+	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint}, {keys: keyDown + "a"}, {wait: "nothing to land: task b is running"}})
+}
+
+func TestCrewViewDiscardAsksFirst(t *testing.T) {
+	cases := []struct {
+		name  string
+		keys  string
+		calls []string
+	}{
+		{"y discards", "y", []string{"discard c1 a"}},
+		{"n keeps it", "n", nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := reviewFake()
+			h := startCrewSession(t, a)
+			h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint}, {keys: "x"}, {wait: "discard task a and delete its worktree and branch? y/n"}, {keys: tc.keys}})
+			time.Sleep(80 * time.Millisecond)
+			got := a.acted()
+			if len(got) != len(tc.calls) || len(got) == 1 && got[0] != tc.calls[0] {
+				t.Fatalf("actions %v want %v", got, tc.calls)
+			}
+		})
+	}
+}
+
+func TestPageKeysDecode(t *testing.T) {
+	var d Decoder
+	keys := d.Feed([]byte("\x1b[5~\x1b[6~"))
+	if len(keys) != 2 || keys[0].Type != KeyPgUp || keys[1].Type != KeyPgDn {
+		t.Fatalf("keys %v", keys)
+	}
+}
+
+func TestCrewViewHintFollowsKeysThatChangeUnderTheSameRowText(t *testing.T) {
+	a := reviewFake()
+	a.snaps["c1"].Rows[0].Status = "landed"
+	a.snaps["c1"].Rows[0].Keys = ""
+	h := startCrewSession(t, a)
+	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint + " · p pause · Esc closes"}})
+	a.cmu.Lock()
+	snap := a.snaps["c1"]
+	snap.Rows = append([]crewview.Row(nil), snap.Rows...)
+	snap.Rows[0].Keys = "dx"
+	a.snaps["c1"] = snap
+	a.cmu.Unlock()
+	h.waitFor(crewViewHint + " · d diff · x discard · p pause · Esc closes")
 }

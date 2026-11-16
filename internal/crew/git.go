@@ -47,7 +47,7 @@ func ensureWorktree(env Env, st *State, t *Task) error {
 }
 
 func changedFiles(env Env, st *State, t *Task) string {
-	if t.Status == StatusQueued {
+	if t.Status == StatusQueued || t.Discarded {
 		return "-"
 	}
 	out, err := git(env, t.Worktree, "status", "--porcelain")

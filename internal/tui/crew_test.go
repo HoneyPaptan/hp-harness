@@ -46,6 +46,10 @@ type crewFake struct {
 	actions   []string
 	actionErr error
 	lastCheck string
+	diffs     map[string][]string
+	landAsk   string
+	landErr   error
+	checkErr  error
 }
 
 type editStep struct {
@@ -144,6 +148,29 @@ func (a *crewFake) acted() []string {
 	defer a.cmu.Unlock()
 	return append([]string(nil), a.actions...)
 }
+
+func (a *crewFake) CrewDiff(id, task string) ([]string, error) {
+	if err := a.act("diff " + id + " " + task); err != nil {
+		return nil, err
+	}
+	return append([]string(nil), a.diffs[task]...), nil
+}
+
+func (a *crewFake) CrewLandCheck(id, task string) (string, error) {
+	return a.landAsk, a.checkErr
+}
+
+func (a *crewFake) CrewLand(id, task string) (string, error) {
+	a.cmu.Lock()
+	a.actions = append(a.actions, "land "+id+" "+task)
+	a.cmu.Unlock()
+	if a.landErr != nil {
+		return "", a.landErr
+	}
+	return "landed crew/" + id + "/" + task + " into main", nil
+}
+
+func (a *crewFake) CrewDiscard(id, task string) error { return a.act("discard " + id + " " + task) }
 
 func (a *crewFake) CrewStop(id, task string) error  { return a.act("stop " + id + " " + task) }
 func (a *crewFake) CrewRetry(id, task string) error { return a.act("retry " + id + " " + task) }

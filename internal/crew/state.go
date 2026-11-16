@@ -31,6 +31,8 @@ type Task struct {
 	Status    Status `json:"status"`
 	EndReason string `json:"end_reason,omitempty"`
 	Check     string `json:"check,omitempty"`
+	Landed    bool   `json:"landed,omitempty"`
+	Discarded bool   `json:"discarded,omitempty"`
 }
 
 type State struct {
