@@ -19,8 +19,8 @@ import (
 const timingLoadLimit = 2.0
 
 type timingRow struct {
-	name    string
-	samples []time.Duration
+	name string
+	timed
 }
 
 func runTiming(n int, bin string) error {
@@ -93,7 +93,7 @@ func timeAll(dir, bin string, n int) ([]timingRow, error) {
 		{"hp runs, 500 journals", runs},
 		{"hp to first drawn prompt (pty)", prompt},
 		{"hp run to first byte", first},
-		{"journal append, one turn (4 records)", turn},
+		{"journal append, one turn (4 records)", timed{wall: turn}},
 	}, nil
 }
 
@@ -140,9 +140,13 @@ func percentile(samples []time.Duration, p float64) time.Duration {
 
 func printTiming(w io.Writer, rows []timingRow, n int) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "path (n=%d)\tmedian\tp90\n", n)
+	fmt.Fprintf(tw, "path (n=%d)\tmedian\tp90\tcpu median\n", n)
 	for _, r := range rows {
-		fmt.Fprintf(tw, "%s\t%s\t%s\n", r.name, roundTiming(median(r.samples)), roundTiming(percentile(r.samples, 0.9)))
+		cpu := "-"
+		if len(r.cpu) > 0 {
+			cpu = roundTiming(median(r.cpu)).String()
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", r.name, roundTiming(median(r.wall)), roundTiming(percentile(r.wall, 0.9)), cpu)
 	}
 	return tw.Flush()
 }

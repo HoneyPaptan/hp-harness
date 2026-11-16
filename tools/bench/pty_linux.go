@@ -46,22 +46,20 @@ func openPty() (*os.File, *os.File, error) {
 	return master, slave, nil
 }
 
-func (h *harness) promptSamples(state string, n int) ([]time.Duration, error) {
-	samples := make([]time.Duration, n)
-	for i := range samples {
-		took, err := h.timePrompt(state)
-		if err != nil {
-			return nil, err
+func (h *harness) promptSamples(state string, n int) (timed, error) {
+	var t timed
+	for range n {
+		if err := h.timePrompt(state, &t); err != nil {
+			return timed{}, err
 		}
-		samples[i] = took
 	}
-	return samples, nil
+	return t, nil
 }
 
-func (h *harness) timePrompt(state string) (time.Duration, error) {
+func (h *harness) timePrompt(state string, t *timed) error {
 	master, slave, err := openPty()
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer master.Close()
 	cmd := h.command(state, "-m", benchModel, "--base-url", h.url)
@@ -71,14 +69,17 @@ func (h *harness) timePrompt(state string) (time.Duration, error) {
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
 		slave.Close()
-		return 0, err
+		return err
 	}
 	slave.Close()
-	defer func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
-	}()
-	return waitForPrompt(master, start)
+	took, err := waitForPrompt(master, start)
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
+	if err != nil {
+		return err
+	}
+	t.add(took, cmd)
+	return nil
 }
 
 func waitForPrompt(master *os.File, start time.Time) (time.Duration, error) {

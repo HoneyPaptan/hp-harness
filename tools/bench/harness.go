@@ -51,60 +51,68 @@ func (h *harness) runArgs() []string {
 }
 
 func (h *harness) medianWall(state string, n int, args ...string) (time.Duration, error) {
-	samples, err := h.wallSamples(state, n, args...)
-	return median(samples), err
+	t, err := h.wallSamples(state, n, args...)
+	return median(t.wall), err
 }
 
-func (h *harness) wallSamples(state string, n int, args ...string) ([]time.Duration, error) {
-	samples := make([]time.Duration, n)
-	for i := range samples {
+type timed struct {
+	wall, cpu []time.Duration
+}
+
+func (t *timed) add(wall time.Duration, cmd *exec.Cmd) {
+	t.wall = append(t.wall, wall)
+	t.cpu = append(t.cpu, cmd.ProcessState.UserTime()+cmd.ProcessState.SystemTime())
+}
+
+func (h *harness) wallSamples(state string, n int, args ...string) (timed, error) {
+	var t timed
+	for range n {
 		cmd := h.command(state, args...)
 		start := time.Now()
 		if err := cmd.Run(); err != nil {
-			return nil, fmt.Errorf("hp %s: %w", strings.Join(args, " "), err)
+			return timed{}, fmt.Errorf("hp %s: %w", strings.Join(args, " "), err)
 		}
-		samples[i] = time.Since(start)
+		t.add(time.Since(start), cmd)
 		h.lastRSS = max(h.lastRSS, peakRSS(cmd))
 	}
-	return samples, nil
+	return t, nil
 }
 
 func (h *harness) runOverhead(state string, n int) (time.Duration, int64, error) {
-	samples, err := h.firstByteSamples(state, n)
-	return median(samples), h.lastRSS, err
+	t, err := h.firstByteSamples(state, n)
+	return median(t.wall), h.lastRSS, err
 }
 
-func (h *harness) firstByteSamples(state string, n int) ([]time.Duration, error) {
-	samples := make([]time.Duration, n)
-	for i := range samples {
-		got, used, err := h.timeFirstByte(state)
-		if err != nil {
-			return nil, err
+func (h *harness) firstByteSamples(state string, n int) (timed, error) {
+	var t timed
+	for range n {
+		if err := h.timeFirstByte(state, &t); err != nil {
+			return timed{}, err
 		}
-		samples[i] = got
-		h.lastRSS = max(h.lastRSS, used)
 	}
-	return samples, nil
+	return t, nil
 }
 
-func (h *harness) timeFirstByte(state string) (time.Duration, int64, error) {
+func (h *harness) timeFirstByte(state string, t *timed) error {
 	cmd := h.command(state, h.runArgs()...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return 0, 0, err
+		return err
 	}
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
-		return 0, 0, err
+		return err
 	}
 	var first [1]byte
 	_, readErr := io.ReadFull(stdout, first[:])
 	took := time.Since(start)
 	_, _ = io.Copy(io.Discard, stdout)
 	if err := errors.Join(readErr, cmd.Wait()); err != nil {
-		return 0, 0, fmt.Errorf("hp run: %w", err)
+		return fmt.Errorf("hp run: %w", err)
 	}
-	return took, peakRSS(cmd), nil
+	t.add(took, cmd)
+	h.lastRSS = max(h.lastRSS, peakRSS(cmd))
+	return nil
 }
 
 func (h *harness) seedJournals(state string, n int) error {

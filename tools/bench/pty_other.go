@@ -2,11 +2,8 @@
 
 package main
 
-import (
-	"errors"
-	"time"
-)
+import "errors"
 
-func (h *harness) promptSamples(string, int) ([]time.Duration, error) {
-	return nil, errors.New("the pty timing needs linux")
+func (h *harness) promptSamples(string, int) (timed, error) {
+	return timed{}, errors.New("the pty timing needs linux")
 }
