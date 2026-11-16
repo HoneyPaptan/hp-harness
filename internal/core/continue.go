@@ -44,6 +44,15 @@ func continueRun(ctx context.Context, d Deps, journalPath, prompt string, allowO
 	return r.run(ctx)
 }
 
+func (r *runner) promptPending(prompt string) bool {
+	n := len(r.msgs)
+	if n == 0 {
+		return false
+	}
+	last := r.msgs[n-1]
+	return last.Role == provider.RoleUser && len(last.ToolResults) == 0 && last.Text == prompt
+}
+
 func (r *runner) abandonPending(pending []journal.Pending) error {
 	out := make([]provider.ToolResult, 0, len(pending))
 	for _, p := range pending {
@@ -65,6 +74,10 @@ func abandonText(p journal.Pending) string {
 }
 
 func (r *runner) addPrompt(prompt string) error {
+	if r.promptPending(prompt) {
+		r.steps = 0
+		return nil
+	}
 	if err := r.w.User(prompt); err != nil {
 		return err
 	}
