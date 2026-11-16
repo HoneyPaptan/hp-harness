@@ -14,10 +14,7 @@ import (
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 )
 
-const (
-	defaultMaxAge = 7 * 24 * time.Hour
-	crashLimit    = 3
-)
+const defaultMaxAge = 7 * 24 * time.Hour
 
 type recoverOpts struct {
 	dryRun bool
@@ -88,18 +85,15 @@ func recoverOne(env Env, id string, cutoff time.Time, o recoverOpts) (string, in
 		return skipNote(env, id, why), 0
 	}
 	prev := loadRecoverState(env, id)
-	attempts := prev.Attempts
-	if prev.Records != workedRecords(recs) {
-		attempts = 0
-	}
-	if attempts >= crashLimit {
-		return skipNote(env, id, fmt.Errorf("keeps crashing after %d recoveries", crashLimit)), 0
+	resume, next := journal.NextResume(st, recs, prev)
+	if !resume {
+		return skipNote(env, id, fmt.Errorf("keeps crashing after %d recoveries", journal.CrashLimit)), 0
 	}
 	if o.dryRun {
 		fmt.Fprintf(env.Stdout, "would recover %s\n", id)
 		return "", 0
 	}
-	if err := saveRecoverState(env, id, recoverState{Records: workedRecords(recs), Attempts: attempts + 1}); err != nil {
+	if err := saveRecoverState(env, id, next); err != nil {
 		fmt.Fprintf(env.Stderr, "error: %v\n", err)
 		return "", 0
 	}
@@ -203,24 +197,8 @@ func runPath(getenv func(string) string, id string) string {
 	return filepath.Join(runsDir(getenv), id+".jsonl")
 }
 
-func workedRecords(recs []journal.Record) int {
-	n := 0
-	for _, rec := range recs {
-		if rec.Type == journal.TypeDetached {
-			continue
-		}
-		n++
-	}
-	return n
-}
-
-type recoverState struct {
-	Records  int `json:"records"`
-	Attempts int `json:"attempts"`
-}
-
-func loadRecoverState(env Env, id string) recoverState {
-	var st recoverState
+func loadRecoverState(env Env, id string) journal.ResumeState {
+	var st journal.ResumeState
 	data, err := env.Host.ReadFile(recoverStatePath(env.Getenv, id))
 	if err != nil {
 		return st
@@ -229,7 +207,7 @@ func loadRecoverState(env Env, id string) recoverState {
 	return st
 }
 
-func saveRecoverState(env Env, id string, st recoverState) error {
+func saveRecoverState(env Env, id string, st journal.ResumeState) error {
 	data, err := json.Marshal(st)
 	if err != nil {
 		return err
