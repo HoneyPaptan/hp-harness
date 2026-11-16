@@ -339,6 +339,17 @@ func (s *Session) stopNow() {
 func (s *Session) leave() {
 	s.endPrompt()
 	s.out.endLine()
+	s.noteQuit()
+}
+
+func (s *Session) noteQuit() {
+	noter, ok := s.cfg.Agent.(QuitNoter)
+	if !ok {
+		return
+	}
+	for _, line := range noter.QuitNotes() {
+		s.note(line)
+	}
 }
 
 func (s *Session) note(text string) {

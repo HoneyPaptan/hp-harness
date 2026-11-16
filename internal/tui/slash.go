@@ -137,9 +137,20 @@ func (s *Session) startPicker() bool {
 		s.note(pickerEmpty)
 		return false
 	}
+	s.noteKeyHint()
 	s.picker = newPicker(items)
 	s.dirty = true
 	return true
+}
+
+func (s *Session) noteKeyHint() {
+	hinter, ok := s.cfg.Agent.(KeyHinter)
+	if !ok {
+		return
+	}
+	if hint := hinter.KeyHint(); hint != "" {
+		s.note(hint)
+	}
 }
 
 func (s *Session) switchModel(spec string) {

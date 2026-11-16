@@ -54,6 +54,8 @@ type fakeAgent struct {
 	compactFn  func(context.Context) (bool, error)
 	script     []func(context.Context, func(Event)) (Outcome, error)
 	started    chan struct{}
+	keyHint    string
+	quitNotes  []string
 }
 
 func newFakeAgent(script ...func(context.Context, func(Event)) (Outcome, error)) *fakeAgent {
@@ -91,6 +93,10 @@ func (a *fakeAgent) Resume(ctx context.Context, emit func(Event)) (Outcome, erro
 }
 
 func (a *fakeAgent) Model() string { return a.model }
+
+func (a *fakeAgent) KeyHint() string { return a.keyHint }
+
+func (a *fakeAgent) QuitNotes() []string { return a.quitNotes }
 
 func (a *fakeAgent) Models(ctx context.Context, preset string) ([]string, error) {
 	if a.modelsWait != nil {
@@ -927,6 +933,8 @@ func TestSessionKeyWithoutModel(t *testing.T) {
 		{wait: "key GROQ_API_KEY: "},
 		{keys: "secret\r"},
 		{wait: "saved GROQ_API_KEY"},
+		{wait: providerPrompt},
+		{keys: "\x1b"},
 		{keys: "/quit \r"},
 	})
 	h.waitExit()
