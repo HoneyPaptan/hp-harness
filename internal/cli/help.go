@@ -34,7 +34,7 @@ var commandHelps = []commandHelp{
 	{"version", "hp version", "print the version"},
 }
 
-var sessionHelp = commandHelp{"hp", "hp [-c] [flags]", "open an interactive session, -c continues the newest run in this directory"}
+var sessionHelp = commandHelp{"hp", "hp [-c|-r] [flags]", "open an interactive session, -c continues the newest run in this directory, -r picks one of the recent runs"}
 
 func printUsage(w io.Writer) {
 	names := make([]string, len(commandHelps))
@@ -46,7 +46,7 @@ func printUsage(w io.Writer) {
 
 func printHelp(w io.Writer) {
 	printUsage(w)
-	fmt.Fprintln(w, "hp with no command opens an interactive session; hp -c continues the newest run in this directory.")
+	fmt.Fprintln(w, "hp with no command opens an interactive session; hp -c continues the newest run in this directory, hp -r picks one of the recent runs.")
 	for _, c := range commandHelps {
 		fmt.Fprintf(w, "  %-11s %s\n", c.name, c.about)
 	}

@@ -37,7 +37,7 @@ hp crew status <crew-id>
 hp crew report <crew-id>
 ```
 
-The installer supports linux and macOS on amd64 and arm64, checks the sha256 against `checksums.txt` and puts `hp` in `~/.local/bin`. `hp key set` stores the key in `~/.config/hp/env` with mode 0600. Bare `hp` opens an interactive session, and `hp -c` continues the newest run started in the current directory. The model you pick with the picker or `/model` is saved in `~/.local/state/hp/last-model` and used the next time you start `hp`. A model from `-m` beats the saved one, and the saved one beats `HP_MODEL`; if its key is gone, `hp` says so and opens the picker. With no `-m`, no saved model and no `HP_MODEL`, it opens the picker first. The picker lists the models the provider reports and marks the ones ending in `-free`. `hp run`, `hp run -d` and `hp resume` ignore the saved model and use `-m`, then `HP_MODEL`. `hp providers` lists the presets and which keys are set.
+The installer supports linux and macOS on amd64 and arm64, checks the sha256 against `checksums.txt` and puts `hp` in `~/.local/bin`. `hp key set` stores the key in `~/.config/hp/env` with mode 0600. Bare `hp` opens an interactive session, `hp -c` continues the newest run started in the current directory, and `hp -r` lists the recent ones to choose from. The model you pick with the picker or `/model` is saved in `~/.local/state/hp/last-model` and used the next time you start `hp`. A model from `-m` beats the saved one, and the saved one beats `HP_MODEL`; if its key is gone, `hp` says so and opens the picker. With no `-m`, no saved model and no `HP_MODEL`, it opens the picker first. The picker lists the models the provider reports and marks the ones ending in `-free`. `hp run`, `hp run -d` and `hp resume` ignore the saved model and use `-m`, then `HP_MODEL`. `hp providers` lists the presets and which keys are set.
 
 ## Crews in a session
 
@@ -72,7 +72,7 @@ make bench   # startup, `hp runs`, first byte and memory bounds
 
 ## Commands
 
-`hp COMMAND -h` prints the usage and flags of one command, and `hp --help` lists them all. With no command, `hp` opens the interactive session (`hp -c` continues the newest run in this directory). A session needs a terminal; scripts use `hp run`.
+`hp COMMAND -h` prints the usage and flags of one command, and `hp --help` lists them all. With no command, `hp` opens the interactive session (`hp -c` continues the newest run in this directory, `hp -r` opens a list of the recent ones: newest first, with the first prompt and its age; Enter resumes the highlighted one, typing filters, Esc cancels). A session needs a terminal; scripts use `hp run`.
 
 | Command | What it does |
 | --- | --- |
@@ -110,7 +110,7 @@ Inside a session:
 | `/crew` | opens a crew, lists them, prints one, or runs a plan file or a drafted goal as a crew |
 | `/quit` | leaves the session, Ctrl-D does the same; it prints the run id and `hp -c` as the way back |
 
-A line that starts with `//` is sent to the model as text starting with `/`. Ctrl-C or Esc stops a turn.
+A line that starts with `//` is sent to the model as text starting with `/`. Ctrl-C or Esc stops a turn. While a turn runs you can keep typing: Enter queues the message, the status line shows how many are queued, and they are sent one by one in order when the turn ends. Up on an empty prompt takes the last queued message back into the editor, again for the one before it. Slash commands wait until the turn is over.
 
 ## Scripting
 
