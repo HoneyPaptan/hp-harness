@@ -21,6 +21,8 @@ type output struct {
 	color   bool
 	midLine bool
 	active  string
+	base    string
+	suffix  string
 }
 
 func (o *output) write(s string) {
@@ -43,12 +45,31 @@ func (o *output) activity() {
 }
 
 func (o *output) showActivity(label string) {
-	if o.active == label || o.midLine {
+	full := label + o.suffix
+	if o.active == full || o.midLine {
 		return
 	}
 	o.clearActivity()
-	o.write(o.paint(sgrDim, label))
-	o.active = label
+	o.write(o.paint(sgrDim, full))
+	o.active = full
+	o.base = label
+}
+
+func (o *output) setSuffix(suffix string) {
+	o.suffix = suffix
+	if o.active == "" {
+		return
+	}
+	base := o.base
+	o.clearActivity()
+	o.showActivity(base)
+}
+
+func (o *output) restoreActivity() {
+	if o.base == "" {
+		o.base = activityText
+	}
+	o.showActivity(o.base)
 }
 
 func (o *output) clearActivity() {

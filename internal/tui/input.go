@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 )
 
@@ -15,6 +16,10 @@ func (s *Session) handleKeys(ctx context.Context, keys []Key) {
 }
 
 func (s *Session) handleKey(ctx context.Context, k Key) {
+	if s.runPick != nil {
+		s.runPickKey(ctx, k)
+		return
+	}
 	if s.busy() {
 		if s.approval != nil {
 			s.approvalKey(k)
@@ -153,12 +158,22 @@ func (s *Session) turnKey(ctx context.Context, k Key) {
 	switch k.Type {
 	case KeyCtrlC, KeyEsc:
 		s.interrupt()
-	case KeyEnter, KeyCtrlD, KeyCtrlL:
+	case KeyEnter:
+		s.busyEnter(ctx)
+	case KeyCtrlD, KeyCtrlL:
 		if s.stopping && strings.TrimSpace(s.editor.Text()) != "" {
 			s.submit(ctx)
 		}
+	case KeyUp:
+		if s.editor.Text() == "" && len(s.queue) > 0 {
+			s.takeBack()
+			return
+		}
+		s.editor.Handle(k)
+		s.refreshBusyLine()
 	default:
 		s.editor.Handle(k)
+		s.refreshBusyLine()
 	}
 }
 
@@ -262,12 +277,62 @@ func (s *Session) submit(ctx context.Context) {
 		s.pickModelFirst(text)
 		return
 	}
-	prompt := promptText(text)
 	if s.busy() {
-		s.queued = prompt
+		s.enqueue(promptText(text))
 		return
 	}
+	s.startPrompt(ctx, promptText(text))
+}
+
+func (s *Session) startPrompt(ctx context.Context, prompt string) {
 	s.startTurn(ctx, func(ctx context.Context, emit func(Event)) (Outcome, error) {
 		return s.cfg.Agent.Send(ctx, prompt, emit)
 	})
+}
+
+func (s *Session) busyEnter(ctx context.Context) {
+	text := strings.TrimSpace(s.editor.Text())
+	if text == "" {
+		return
+	}
+	if _, _, ok := splitSlash(text); ok && !s.stopping {
+		s.note(busySlashHint)
+		return
+	}
+	s.submit(ctx)
+	s.refreshBusyLine()
+}
+
+func (s *Session) enqueue(text string) {
+	s.queue = append(s.queue, text)
+	s.note(fmt.Sprintf(queuedNote, len(s.queue), cutRunes(firstLine(text), queuedNoteRunes)))
+	s.refreshBusyLine()
+}
+
+func (s *Session) takeBack() {
+	last := len(s.queue) - 1
+	text := s.queue[last]
+	s.editor.SetText(text)
+	s.queue = s.queue[:last]
+	s.note(fmt.Sprintf(tookBackNote, cutRunes(firstLine(text), queuedNoteRunes)))
+	s.refreshBusyLine()
+}
+
+func (s *Session) refreshBusyLine() {
+	var parts []string
+	if n := len(s.queue); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d queued", n))
+		if s.editor.Text() == "" {
+			parts = append(parts, "↑ takes the last one back")
+		}
+	}
+	if typed := firstLine(s.editor.Text()); typed != "" {
+		parts = append(parts, promptGlyph+tailRunes(typed, s.cfg.Width()/2))
+	}
+	suffix := ""
+	if len(parts) > 0 {
+		suffix = " · " + strings.Join(parts, " · ")
+	}
+	s.out.setSuffix(suffix)
+	s.out.restoreActivity()
 }
