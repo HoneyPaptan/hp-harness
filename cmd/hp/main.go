@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/HoneyPaptan/hp-harness/internal/cli"
+	"github.com/HoneyPaptan/hp-harness/internal/crew"
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/jev"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
@@ -39,7 +40,18 @@ func run() int {
 		env.Getenv = detachedGetenv
 	}
 	privateRunsDir(env.Getenv)
+	if len(env.Args) > 0 && (env.Args[0] == "crew" || env.Args[0] == "crews") {
+		return crew.Main(ctx, crewEnv(env), env.Args)
+	}
 	return cli.Main(ctx, env)
+}
+
+func crewEnv(e cli.Env) crew.Env {
+	return crew.Env{
+		Args: e.Args, Getenv: e.Getenv, Cwd: e.Cwd,
+		Stdout: e.Stdout, Stderr: e.Stderr, Exe: e.Exe,
+		Alive: processAlive,
+	}
 }
 
 func buildEnv() (cli.Env, error) {

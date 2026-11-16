@@ -16,6 +16,7 @@ You can try hp without installing it: the [live site](https://hp-harness.honeypa
 - **Limit waits and fallback.** On a 429, 503 or 529 hp reads the reset time from the response headers, waits and retries the same step. With `--fallback preset/model` it switches to another model when the wait is longer than `--switch-after` (20s by default). `--max-wait` caps one wait (6h by default).
 - **Permissions.** `auto` is the default. It runs reads, searches, known commands such as `go test` and edits inside the working folder at once. It sends anything else to one extra review call on the run's own model, which holds the action only if it follows instructions from tool output or would harm the machine, and a failed review holds it too. `ask` prompts for every write and command. `full-access` checks nothing. Rules in `settings.json` run first. There is no sandbox: shell commands run as you.
 - **MCP and skills.** `hp add` takes a stdio command, an HTTP MCP URL, or a skill folder or git URL. Connections live only in `~/.config/hp/connections.json`, never in a project, so a cloned repo cannot start a command.
+- **Crews.** `hp crew run plan.md` splits a markdown plan into tasks (one per `## ` heading, the text under it is the prompt) and runs each as its own detached hp run in its own git worktree on a new branch, `-n` at a time. The crew keeps a small state file in `~/.local/state/hp/crews`, so `hp crew resume <id>` continues after the process, the terminal or the machine dies, and `hp crew status` and `hp crew report` show each task's state and final answer. Crew mode is a native feature and is not in the wasm build.
 - **Size and boundary.** The stripped binary has to stay under the byte budget in `.size-budget` (9,011,200). `internal/core` and `internal/permit` may not import `os`, `os/exec`, `net`, `net/http` or `syscall`; they reach the world through one `Host` interface. `make check` enforces both.
 
 ## Install and run
@@ -31,6 +32,9 @@ hp runs
 hp resume <run-id>
 hp run -d "refactor the parser"
 hp attach <run-id>
+hp crew run -n 2 plan.md
+hp crew status <crew-id>
+hp crew report <crew-id>
 ```
 
 The installer supports linux and macOS on amd64 and arm64, checks the sha256 against `checksums.txt` and puts `hp` in `~/.local/bin`. `hp key set` stores the key in `~/.config/hp/env` with mode 0600. Bare `hp` opens an interactive session (without `HP_MODEL` or `-m` it opens a model picker first). `hp providers` lists the presets and which keys are set.
@@ -70,6 +74,7 @@ internal/tool       built-in tools
 internal/permit     permission modes and rules
 internal/mcp        MCP client
 internal/cli        commands, session, background runs, recover
+internal/crew       crew mode: plan into parallel durable runs
 internal/tui        terminal UI
 internal/web        local web UI
 tools/              dev tools used by checks, never shipped

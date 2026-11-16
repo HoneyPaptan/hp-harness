@@ -56,7 +56,7 @@ func setRunAge(t *testing.T, h *host.Memory, getenv func(string) string, id stri
 	h.Clock = now
 }
 
-func writeRecoverState(t *testing.T, h *host.Memory, env Env, id string, st recoverState) {
+func writeRecoverState(t *testing.T, h *host.Memory, env Env, id string, st journal.ResumeState) {
 	t.Helper()
 	data := fmt.Sprintf(`{"records":%d,"attempts":%d}`, st.Records, st.Attempts)
 	if err := h.WriteFile(recoverStatePath(env.Getenv, id), []byte(data)); err != nil {
@@ -64,7 +64,7 @@ func writeRecoverState(t *testing.T, h *host.Memory, env Env, id string, st reco
 	}
 }
 
-func readRecoverState(t *testing.T, h *host.Memory, env Env, id string) recoverState {
+func readRecoverState(t *testing.T, h *host.Memory, env Env, id string) journal.ResumeState {
 	t.Helper()
 	return loadRecoverState(env, id)
 }
@@ -169,7 +169,7 @@ func TestRecover(t *testing.T) {
 				if err := journal.MarkDetached(h, runPath(env.Getenv, id)); err != nil {
 					t.Fatal(err)
 				}
-				writeRecoverState(t, h, env, id, recoverState{Records: 2, Attempts: 3})
+				writeRecoverState(t, h, env, id, journal.ResumeState{Records: 2, Attempts: 3})
 			},
 			wantNote: "skipping " + recoverID + ": keeps crashing after 3 recoveries",
 			check: func(t *testing.T, h *host.Memory, env Env, stdout, stderr fmt.Stringer) {
@@ -186,7 +186,7 @@ func TestRecover(t *testing.T) {
 				if err := journal.MarkDetached(h, runPath(env.Getenv, id)); err != nil {
 					t.Fatal(err)
 				}
-				writeRecoverState(t, h, env, id, recoverState{Records: 1, Attempts: 3})
+				writeRecoverState(t, h, env, id, journal.ResumeState{Records: 1, Attempts: 3})
 			},
 			wantSpawned: 1,
 			wantStdout:  "recovered " + recoverID,

@@ -88,5 +88,5 @@ func printVersion(env Env) {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|recover|autostart|providers|web|add|list|remove|key|permissions|version> ...")
+	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|recover|autostart|crew|crews|providers|web|add|list|remove|key|permissions|version> ...")
 }

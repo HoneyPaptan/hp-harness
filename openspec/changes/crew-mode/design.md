@@ -1,0 +1,9 @@
+## Decisions
+
+- New package `internal/crew`, imported only by `cmd/hp`. It is a native orchestrator: it uses `os` and `os/exec` directly and is never linked into `cmd/hp-wasm`, so the wasm build is untouched and no build tags are needed.
+- Crew does not run a second engine. Starting a task shells out to the hp binary (`os.Executable()`) as `hp run -d -C <worktree> -m ... -- <prompt>` and reads the run id from stdout; resuming a dead run shells out to `hp resume -d <id>`. Both are already-tested commands, so crew gets seed, spawn, journal and resume behavior for free.
+- `cmd/hp/main.go` intercepts `crew` and `crews` before `cli.Main` and hands them to `crew.Main`. `internal/cli` is unchanged, which keeps the shared command dispatch and the wasm build free of crew code.
+- The crew state file lives at `~/.local/state/hp/crews/<id>.json` and worktrees at `~/.local/state/hp/crews/<id>/<slug>`. The state file is rewritten before each transition (queued to running before the spawn, running to finished after the journal says the child finished). A torn write costs at most one duplicated child run, not a corrupt crew, because the state file is small and only ever moves a task forward.
+- Worktrees are created lazily, right before a task starts, but the branch and worktree path are computed from the task slug at parse time, so resume can recreate a task that never started.
+- Status and report read the child journals through `internal/journal` with `host.Native`, exactly the way `hp runs` does, and get the fork diff with `git -C <worktree> diff --stat <base>`. The fork point `base` is the repo HEAD recorded when the crew started.
+- Liveness comes from the child's pid file plus an injected `Alive` function (`cmd/hp`'s existing `processAlive`); a run with no pid file and no finished record is treated as dead and resumed.
