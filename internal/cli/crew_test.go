@@ -24,12 +24,54 @@ type fakeCrew struct {
 	done         bool
 	dirty        int
 	preflightErr error
+	edited       []string
+	editErr      error
+	acts         []string
+	lastVerify   string
 }
 
 func (f *fakeCrew) PlanTitles(plan string) ([]string, bool, error) {
 	titles, ok := f.titles[plan]
 	return titles, ok, nil
 }
+
+func (f *fakeCrew) EditPlan(plan string) ([]string, error) {
+	f.edited = append(f.edited, plan)
+	return f.titles[plan], f.editErr
+}
+
+func (f *fakeCrew) Stop(id, task string) error {
+	f.acts = append(f.acts, "stop "+id+" "+task)
+	return nil
+}
+func (f *fakeCrew) Retry(id, task string) error {
+	f.acts = append(f.acts, "retry "+id+" "+task)
+	return nil
+}
+func (f *fakeCrew) Pause(id string) error   { f.acts = append(f.acts, "pause "+id); return nil }
+func (f *fakeCrew) Unpause(id string) error { f.acts = append(f.acts, "unpause "+id); return nil }
+
+func (f *fakeCrew) Diff(id, task string) ([]string, error) {
+	f.acts = append(f.acts, "diff "+id+" "+task)
+	return []string{"+x"}, nil
+}
+
+func (f *fakeCrew) LandCheck(id, task string) (string, error) {
+	f.acts = append(f.acts, "check "+id+" "+task)
+	return "merge x into main?", nil
+}
+
+func (f *fakeCrew) Land(id, task string) (string, error) {
+	f.acts = append(f.acts, "land "+id+" "+task)
+	return "landed", nil
+}
+
+func (f *fakeCrew) Discard(id, task string) error {
+	f.acts = append(f.acts, "discard "+id+" "+task)
+	return nil
+}
+
+func (f *fakeCrew) LastVerify() string { return f.lastVerify }
 
 func (f *fakeCrew) DraftSystem() string { return "draft system" }
 
@@ -99,6 +141,15 @@ func TestCrewUnavailable(t *testing.T) {
 			_, _, calls["plan"] = a.CrewPlan("x")
 			_, calls["draft"] = a.CrewDraft(context.Background(), "x")
 			_, calls["start"] = a.CrewStart(tui.CrewPlan{}, 1)
+			_, calls["edit"] = a.CrewEdit(tui.CrewPlan{})
+			_, calls["diff"] = a.CrewDiff("c", "t")
+			_, calls["check"] = a.CrewLandCheck("c", "t")
+			_, calls["land"] = a.CrewLand("c", "t")
+			calls["discard"] = a.CrewDiscard("c", "t")
+			calls["stop"] = a.CrewStop("c", "t")
+			calls["retry"] = a.CrewRetry("c", "t")
+			calls["pause"] = a.CrewPause("c")
+			calls["unpause"] = a.CrewUnpause("c")
 			_, calls["list"] = a.CrewList()
 			_, calls["status"] = a.CrewStatus("c")
 			_, calls["report"] = a.CrewReport("c")
@@ -208,5 +259,95 @@ func TestCrewPlanAndShowPassThrough(t *testing.T) {
 	}
 	if text, done, _ := a.CrewBrief("c9"); text != "1 running" || done {
 		t.Fatalf("brief %q %v", text, done)
+	}
+}
+
+func TestCrewEditPassesPathAndKeepsPlanFields(t *testing.T) {
+	cases := []struct {
+		name    string
+		titles  []string
+		editErr error
+	}{
+		{"valid plan", []string{"a", "b", "c"}, nil},
+		{"invalid plan keeps the error", nil, errors.New("plan has no ## tasks")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &fakeCrew{titles: map[string][]string{"/plans/p.md": tc.titles}, editErr: tc.editErr}
+			a := crewAgent(t, customEP, &fake.Provider{}, svc, nil)
+			got, err := a.CrewEdit(tui.CrewPlan{Path: "/plans/p.md", Goal: "g", Dirty: 2, Titles: []string{"old"}})
+			if err != tc.editErr {
+				t.Fatalf("err %v", err)
+			}
+			if len(svc.edited) != 1 || svc.edited[0] != "/plans/p.md" {
+				t.Fatalf("edited %v", svc.edited)
+			}
+			if got.Path != "/plans/p.md" || got.Goal != "g" || got.Dirty != 2 || len(got.Titles) != len(tc.titles) {
+				t.Fatalf("plan %+v", got)
+			}
+		})
+	}
+}
+
+func TestCrewControlsReachTheService(t *testing.T) {
+	svc := &fakeCrew{titles: map[string][]string{}}
+	a := crewAgent(t, customEP, &fake.Provider{}, svc, nil)
+	for _, err := range []error{a.CrewStop("c1", "a"), a.CrewRetry("c1", "b"), a.CrewPause("c1"), a.CrewUnpause("c1")} {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{"stop c1 a", "retry c1 b", "pause c1", "unpause c1"}
+	if strings.Join(svc.acts, ";") != strings.Join(want, ";") {
+		t.Fatalf("acts %v want %v", svc.acts, want)
+	}
+}
+
+func TestCrewVerifyTravelsFromPlanToStart(t *testing.T) {
+	svc := &fakeCrew{titles: map[string][]string{"plan.md": {"a"}}, lastVerify: "make test"}
+	a := crewAgent(t, customEP, &fake.Provider{}, svc, nil)
+	plan, _, err := a.CrewPlan("plan.md")
+	if err != nil || plan.Verify != "make test" {
+		t.Fatalf("plan %+v %v", plan, err)
+	}
+	plan.Verify = "go vet ./..."
+	if _, err := a.CrewStart(plan, 1); err != nil {
+		t.Fatal(err)
+	}
+	if svc.started[0].Verify != "go vet ./..." {
+		t.Fatalf("started %+v", svc.started[0])
+	}
+}
+
+func TestCrewDraftCarriesTheLastVerify(t *testing.T) {
+	prov := &fake.Provider{Turns: []fake.Turn{fake.TextTurn("## a\nx\n## b\ny\n")}}
+	svc := &fakeCrew{titles: map[string][]string{}, lastVerify: "make test"}
+	a := crewAgent(t, customEP, prov, svc, nil)
+	plan, err := a.CrewDraft(context.Background(), "goal")
+	if err != nil || plan.Verify != "make test" {
+		t.Fatalf("plan %+v %v", plan, err)
+	}
+}
+
+func TestCrewReviewCallsReachTheService(t *testing.T) {
+	svc := &fakeCrew{titles: map[string][]string{}}
+	a := crewAgent(t, customEP, &fake.Provider{}, svc, nil)
+	lines, err := a.CrewDiff("c1", "a")
+	if err != nil || len(lines) != 1 {
+		t.Fatalf("diff %v %v", lines, err)
+	}
+	question, err := a.CrewLandCheck("c1", "a")
+	if err != nil || question != "merge x into main?" {
+		t.Fatalf("check %q %v", question, err)
+	}
+	if msg, err := a.CrewLand("c1", "a"); err != nil || msg != "landed" {
+		t.Fatalf("land %q %v", msg, err)
+	}
+	if err := a.CrewDiscard("c1", "a"); err != nil {
+		t.Fatal(err)
+	}
+	want := "diff c1 a;check c1 a;land c1 a;discard c1 a"
+	if got := strings.Join(svc.acts, ";"); got != want {
+		t.Fatalf("acts %q want %q", got, want)
 	}
 }

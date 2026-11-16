@@ -43,7 +43,7 @@ func (s Service) Start(req crewview.Start) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	o := runFlags{n: req.N, model: req.Model, baseURL: req.BaseURL, keyEnv: req.KeyEnv}
+	o := runFlags{n: req.N, model: req.Model, baseURL: req.BaseURL, keyEnv: req.KeyEnv, verify: strings.TrimSpace(req.Verify), verifyTimeout: defaultVerifyTimeout}
 	st := newState(s.Env.Getenv, newCrewID(), planPath, repo, base, o, tasks)
 	st.Label = strings.Join(strings.Fields(req.Label), " ")
 	if err := st.save(s.Env.Getenv); err != nil {
@@ -53,6 +53,19 @@ func (s Service) Start(req crewview.Start) (string, error) {
 		return "", fmt.Errorf("crew %s created but its supervisor did not start: %w", st.ID, err)
 	}
 	return st.ID, nil
+}
+
+func (s Service) LastVerify() string {
+	repo, _, err := gitRootHead(s.Env, s.Env.Cwd)
+	if err != nil {
+		return ""
+	}
+	for _, id := range crewIDs(s.Env) {
+		if st, err := load(s.Env.Getenv, id); err == nil && st.Repo == repo && st.Verify != "" {
+			return st.Verify
+		}
+	}
+	return ""
 }
 
 func (s Service) spawn(id string) error {
@@ -120,20 +133,26 @@ func planTitles(data []byte) ([]string, error) {
 func (s *State) brief() string {
 	counts := map[string]int{}
 	for i := range s.Tasks {
-		counts[briefWord(s.Tasks[i].Status)]++
+		counts[briefWord(&s.Tasks[i])]++
 	}
 	var parts []string
-	for _, word := range []string{"queued", "running", "finished", "failed", "stopped"} {
+	for _, word := range []string{"queued", "running", "verifying", "finished", "failed", "stopped"} {
 		if n := counts[word]; n > 0 {
 			parts = append(parts, strconv.Itoa(n)+" "+word)
 		}
 	}
+	if s.Paused {
+		parts = append(parts, "paused")
+	}
 	return strings.Join(parts, " · ")
 }
 
-func briefWord(s Status) string {
-	if s == StatusStarting {
+func briefWord(t *Task) string {
+	switch {
+	case t.Status == StatusStarting:
 		return string(StatusRunning)
+	case t.Check == checkRunning:
+		return "verifying"
 	}
-	return string(s)
+	return string(t.Status)
 }

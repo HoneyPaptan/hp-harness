@@ -47,12 +47,54 @@ func (s Service) View(id string) (crewview.Snapshot, bool, error) {
 	if err != nil {
 		return crewview.Snapshot{}, false, err
 	}
-	snap := crewview.Snapshot{ID: id, Label: st.label(s.Env.Getenv), Done: st.done(), Rows: make([]crewview.Row, len(st.Tasks))}
+	reqs := queuedRequests(s.Env.Getenv, id)
+	snap := crewview.Snapshot{
+		ID: id, Label: st.label(s.Env.Getenv), Done: st.done() && len(reqs) == 0,
+		Paused: effectivePaused(st, reqs), Rows: make([]crewview.Row, len(st.Tasks)),
+	}
 	for i := range st.Tasks {
 		t := &st.Tasks[i]
-		snap.Rows[i] = crewview.Row{Title: t.Title, Status: statusWord(t), RunID: runID(t), Changed: changedFiles(s.Env, st, t)}
+		snap.Rows[i] = crewview.Row{
+			Slug: t.Slug, Title: t.Title, Status: statusWord(t), RunID: runID(t),
+			Changed: changedFiles(s.Env, st, t), Keys: taskKeys(t),
+		}
+		if word := pendingWord(reqs, t.Slug); word != "" {
+			snap.Rows[i].Status, snap.Rows[i].Keys = word, ""
+		}
 	}
 	return snap, true, nil
+}
+
+func taskKeys(t *Task) string {
+	keys := ""
+	for _, k := range []struct {
+		key string
+		ok  bool
+	}{{"s", t.active()}, {"r", t.retryable()}, {"d", t.reviewable()}, {"a", t.landable()}, {"x", t.discardable()}} {
+		if k.ok {
+			keys += k.key
+		}
+	}
+	return keys
+}
+
+func pendingWord(reqs []queued, slug string) string {
+	for _, q := range reqs {
+		if !q.ok || q.req.Task != slug {
+			continue
+		}
+		switch q.req.Op {
+		case opStop:
+			return "stopping"
+		case opRetry:
+			return "retrying"
+		case opLanded:
+			return "landed"
+		case opDiscarded:
+			return "discarded"
+		}
+	}
+	return ""
 }
 
 func (s Service) Follow(id string, index, offset int) (crewview.Chunk, error) {
@@ -70,7 +112,7 @@ func (s Service) Follow(id string, index, offset int) (crewview.Chunk, error) {
 		}
 		return crewview.Chunk{Ended: true, Trailer: s.trailer(st, t, "")}, nil
 	}
-	ended := s.taskEnded(t)
+	ended := s.taskEnded(t) && !st.verifyPending(t)
 	data, _ := os.ReadFile(runLogPath(s.Env.Getenv, t.RunID))
 	if offset > len(data) {
 		offset = 0
@@ -94,6 +136,9 @@ func (s Service) taskEnded(t *Task) bool {
 }
 
 func (s Service) trailer(st *State, t *Task, log string) []string {
+	if t.Discarded {
+		return []string{"discarded · its worktree and branch are gone"}
+	}
 	if t.Status == StatusFailed {
 		return []string{statusWord(t)}
 	}
@@ -110,7 +155,7 @@ func (s Service) trailer(st *State, t *Task, log string) []string {
 		lines = append(lines, "")
 		lines = append(lines, textLines(answer)...)
 	}
-	return lines
+	return append(lines, verifyLines(s.Env, st, t)...)
 }
 
 func taskStopped(t *Task) bool {

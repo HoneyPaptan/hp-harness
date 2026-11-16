@@ -112,7 +112,7 @@ func TestServiceStartRefusals(t *testing.T) {
 		{"missing plan", "none.md", 1, nil, "no such file"},
 		{"not a git repo", "plan.md", 1, func(e *Env) {
 			e.Git = func(string, ...string) (string, error) { return "", errors.New("fatal") }
-		}, "not a git repo"},
+		}, "needs a git repository here"},
 		{"spawn fails", "plan.md", 1, func(e *Env) {
 			e.Spawn = func([]string, string) (int, error) { return 0, errors.New("boom") }
 		}, "supervisor did not start"},
