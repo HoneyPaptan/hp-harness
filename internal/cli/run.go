@@ -22,9 +22,15 @@ func cmdRun(ctx context.Context, env Env, args []string) int {
 	if err != nil {
 		return exitUsage(env, err)
 	}
-	prompt := strings.Join(rest, " ")
+	prompt, err := readPrompt(env, rest)
+	if err != nil {
+		return exitUsage(env, err)
+	}
 	if strings.TrimSpace(prompt) == "" {
 		return exitUsage(env, usagef("prompt required"))
+	}
+	if opts.json && opts.detach {
+		return exitUsage(env, usagef("--json cannot be combined with -d, a background run has no stdout to read"))
 	}
 	if opts.detach {
 		return detachRun(ctx, env, opts, prompt)
@@ -38,6 +44,7 @@ type runOpts struct {
 	fallbacks                   []string
 	switchAfter, maxWait        time.Duration
 	detach, jev, fullAccess     bool
+	json                        bool
 	effort                      string
 }
 
@@ -52,6 +59,7 @@ func (s *stringList) Set(v string) error {
 
 func parseRunFlags(env Env, args []string) (runOpts, []string, error) {
 	fs, o, fb := runFlagSet(env, "run")
+	fs.BoolVar(&o.json, "json", false, "print one JSON event per line on stdout")
 	if err := fs.Parse(args); err != nil {
 		return runOpts{}, nil, err
 	}
@@ -61,7 +69,7 @@ func parseRunFlags(env Env, args []string) (runOpts, []string, error) {
 
 func runFlagSet(env Env, name string) (*flag.FlagSet, *runOpts, *stringList) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	fs.SetOutput(env.Stderr)
+	setFlagUsage(fs, env, name)
 	o := &runOpts{}
 	fb := &stringList{}
 	fs.StringVar(&o.model, "m", "", "preset/model")
@@ -114,6 +122,10 @@ type runPerm struct {
 
 func execRun(ctx context.Context, env Env, ep Endpoint, bySpec map[string]Endpoint, client *jev.Client, dir, id, jpath string, o runOpts, prompt string) (core.Outcome, *printer, error) {
 	pr := newPrinter(env, id, client)
+	pr.json = o.json
+	if o.json {
+		pr.jsonStart(ep, dir)
+	}
 	skills, err := discoverSkills(env, dir)
 	if err != nil {
 		return core.Outcome{}, pr, err
@@ -167,13 +179,20 @@ func runConfig(id string, ep Endpoint, dir, jpath string, o runOpts, prompt stri
 func finishRun(ctx context.Context, env Env, id, jpath string, pr *printer, out core.Outcome, err error) int {
 	if err == nil {
 		pr.summary(out)
+		code := 0
 		if out.Reason == core.ReasonStepLimit {
-			return 3
+			code = 3
 		}
-		return 0
+		if pr.json {
+			pr.jsonEndOK(out, code)
+		}
+		return code
 	}
 	pr.ensureOutNL()
 	if isInterrupt(ctx, err) {
+		if pr.json {
+			pr.jsonEndFailed(jsonEndInterrupted, 130, err)
+		}
 		if !errors.Is(context.Cause(ctx), ErrTerminated) {
 			markUserStop(env, jpath)
 		}
@@ -181,9 +200,15 @@ func finishRun(ctx context.Context, env Env, id, jpath string, pr *printer, out 
 		return 130
 	}
 	if errors.Is(err, core.ErrLimitTooLong) {
+		if pr.json {
+			pr.jsonEndFailed(jsonEndLimitWait, 4, err)
+		}
 		fmt.Fprintf(env.Stderr, "error: %v\n", err)
 		fmt.Fprintf(env.Stderr, "resume with: hp resume %s\n", id)
 		return 4
+	}
+	if pr.json {
+		pr.jsonEndFailed(jsonEndError, 1, err)
 	}
 	fmt.Fprintf(env.Stderr, "error: %v\n", err)
 	if journalExists(env, jpath) {
@@ -213,8 +238,15 @@ func journalExists(env Env, path string) bool {
 }
 
 func exitUsage(env Env, err error) int {
+	if errors.Is(err, flag.ErrHelp) {
+		return 0
+	}
 	fmt.Fprintf(env.Stderr, "error: %v\n", err)
 	return 2
+}
+
+func exitNoRun(env Env, id string) int {
+	return exitUsage(env, usagef("run %q not found", id))
 }
 
 func exitErr(env Env, id, jpath string, err error) int {

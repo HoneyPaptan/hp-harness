@@ -9,16 +9,20 @@ import (
 )
 
 const (
-	maxErrorRunes  = 200
-	unknownHint    = "unknown command %s, /help lists them, // sends a literal /"
-	quitHint       = "press Ctrl-C again or Ctrl-D to quit"
-	literalPrefix  = "//"
-	jevUsage       = "usage: /jev on|off"
-	keyUsage       = "usage: /key NAME"
-	keyNotSaved    = "key not saved"
-	keyAddHint     = "add it with /key TYPESAFE_API_KEY"
-	permUsage      = "usage: /permissions [ask|auto|full-access|reset]"
-	fullAccessNote = "full access: no permission checks"
+	maxErrorRunes   = 2000
+	unknownHint     = "unknown command %s, /help lists them, // sends a literal /"
+	quitHint        = "press Ctrl-C again or Ctrl-D to quit"
+	literalPrefix   = "//"
+	jevUsage        = "usage: /jev on|off"
+	keyUsage        = "usage: /key NAME"
+	keyNotSaved     = "key not saved"
+	keyAddHint      = "add it with /key TYPESAFE_API_KEY"
+	queuedNote      = "queued %d: %s"
+	tookBackNote    = "took back: %s"
+	busySlashHint   = "slash commands wait for the turn: Esc stops it, then Enter runs this"
+	queuedNoteRunes = 60
+	permUsage       = "usage: /permissions [ask|auto|full-access|reset]"
+	fullAccessNote  = "full access: no permission checks"
 )
 
 type slashCommand struct {
@@ -137,9 +141,20 @@ func (s *Session) startPicker() bool {
 		s.note(pickerEmpty)
 		return false
 	}
+	s.noteKeyHint()
 	s.picker = newPicker(items)
 	s.dirty = true
 	return true
+}
+
+func (s *Session) noteKeyHint() {
+	hinter, ok := s.cfg.Agent.(KeyHinter)
+	if !ok {
+		return
+	}
+	if hint := hinter.KeyHint(); hint != "" {
+		s.note(hint)
+	}
 }
 
 func (s *Session) switchModel(spec string) {

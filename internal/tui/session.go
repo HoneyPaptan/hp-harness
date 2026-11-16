@@ -22,6 +22,8 @@ type Config struct {
 	Agent      Agent
 	Header     string
 	Resume     bool
+	RunChoices []RunChoice
+	OpenRun    func(id string) (Agent, bool, string, error)
 	Intro      string
 	PickModel  bool
 	Now        func() time.Time
@@ -41,6 +43,8 @@ type Session struct {
 	cfg       Config
 	editor    Editor
 	picker    *picker
+	runPick   *menu
+	runIDs    map[string]string
 	decoder   Decoder
 	renderer  *Renderer
 	out       output
@@ -60,7 +64,7 @@ type Session struct {
 	dirty     bool
 	quit      bool
 	pending   string
-	queued    string
+	queue     []string
 	complete  *completion
 	fileCache []string
 	approval  *approval
@@ -130,6 +134,12 @@ func (s *Session) rewarm(ctx context.Context) {
 func (s *Session) begin(ctx context.Context) {
 	s.preconnect(ctx)
 	s.greet()
+	if len(s.cfg.RunChoices) > 0 {
+		s.startRunPick()
+		s.dirty = true
+		s.redraw()
+		return
+	}
 	if s.cfg.Resume {
 		s.startTurn(ctx, s.cfg.Agent.Resume)
 		return
@@ -262,6 +272,7 @@ func (s *Session) emit(ev Event) {
 
 func (s *Session) finishTurn(ctx context.Context, res turnResult) {
 	s.settle(res)
+	s.out.setSuffix("")
 	s.lastKey = s.cfg.Now()
 	interrupted := s.stopping
 	if interrupted {
@@ -289,14 +300,21 @@ func (s *Session) finishTurn(ctx context.Context, res turnResult) {
 }
 
 func (s *Session) startQueued(ctx context.Context) {
-	if s.queued == "" || s.busy() {
+	for len(s.queue) > 0 && !s.busy() && s.idle() {
+		text := s.queue[0]
+		s.queue = s.queue[1:]
+		s.note(promptGlyph + firstLine(text))
+		s.startPrompt(ctx, text)
+	}
+	if s.busy() {
+		s.refreshBusyLine()
 		return
 	}
-	prompt := s.queued
-	s.queued = ""
-	s.startTurn(ctx, func(ctx context.Context, emit func(Event)) (Outcome, error) {
-		return s.cfg.Agent.Send(ctx, prompt, emit)
-	})
+	s.out.setSuffix("")
+}
+
+func (s *Session) idle() bool {
+	return s.picker == nil && s.view == nil && s.crew == nil && !s.masking && s.approval == nil
 }
 
 func (s *Session) settle(res turnResult) {
@@ -339,6 +357,17 @@ func (s *Session) stopNow() {
 func (s *Session) leave() {
 	s.endPrompt()
 	s.out.endLine()
+	s.noteQuit()
+}
+
+func (s *Session) noteQuit() {
+	noter, ok := s.cfg.Agent.(QuitNoter)
+	if !ok {
+		return
+	}
+	for _, line := range noter.QuitNotes() {
+		s.note(line)
+	}
 }
 
 func (s *Session) note(text string) {
@@ -360,6 +389,11 @@ func (s *Session) redraw() {
 	s.dirty = false
 	s.drawn = true
 	s.renderer.SetWidth(s.cfg.Width())
+	if s.runPick != nil {
+		rows, sel := s.runPick.window()
+		_ = s.renderer.DrawMenu(runPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", runPickMore(s.runPick), runFooter)
+		return
+	}
 	if s.picker != nil && s.picker.stage == pickProvider {
 		rows, sel := s.picker.menu.window()
 		_ = s.renderer.DrawMenu(providerPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", pickerMore(s.picker.menu), s.footer())
@@ -419,7 +453,7 @@ func footerLine(a Agent) string {
 }
 
 func (s *Session) endPrompt() {
-	if s.picker != nil {
+	if s.picker != nil || s.runPick != nil {
 		s.clearDrawn()
 		return
 	}

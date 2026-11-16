@@ -129,16 +129,27 @@ func liveElsewhere(env Env, id string) bool {
 	return ok && env.Alive(pid) && pid != env.Pid
 }
 
-func beginResume(env Env, id string) (func(), int) {
+func claimRun(env Env, id string) (func(), error) {
 	if liveElsewhere(env, id) {
-		fmt.Fprintf(env.Stderr, "run %s is running, follow it with: hp attach %s\n", id, id)
-		return nil, 1
+		return nil, fmt.Errorf("run %s is running, follow it with: hp attach %s", id, id)
 	}
 	if err := writeRunPid(env, id); err != nil {
-		fmt.Fprintf(env.Stderr, "error: %v\n", err)
-		return nil, 1
+		return nil, err
 	}
-	return func() { removeRunPid(env, id) }, -1
+	return func() { removeRunPid(env, id) }, nil
+}
+
+func beginResume(env Env, id string) (func(), int) {
+	cleanup, err := claimRun(env, id)
+	if err == nil {
+		return cleanup, -1
+	}
+	if liveElsewhere(env, id) {
+		fmt.Fprintf(env.Stderr, "%v\n", err)
+	} else {
+		fmt.Fprintf(env.Stderr, "error: %v\n", err)
+	}
+	return nil, 1
 }
 
 func cmdStop(env Env, args []string) int {
@@ -148,6 +159,9 @@ func cmdStop(env Env, args []string) int {
 	id := args[0]
 	if !safeRunID(id) {
 		return exitUsage(env, usagef("invalid run id %q", id))
+	}
+	if !runKnown(env, id) {
+		return exitNoRun(env, id)
 	}
 	pid, ok := readRunPid(env, id)
 	if !ok || !env.Alive(pid) {
@@ -160,6 +174,14 @@ func cmdStop(env Env, args []string) int {
 	}
 	fmt.Fprintf(env.Stdout, "stopping %s\n", id)
 	return 0
+}
+
+func runKnown(env Env, id string) bool {
+	if journalExists(env, filepath.Join(runsDir(env.Getenv), id+".jsonl")) {
+		return true
+	}
+	_, err := env.Host.ReadFile(runPidPath(env.Getenv, id))
+	return err == nil
 }
 
 func safeRunID(id string) bool {

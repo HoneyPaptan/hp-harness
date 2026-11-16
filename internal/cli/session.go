@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -14,33 +15,38 @@ import (
 func cmdSession(ctx context.Context, env Env, args []string) int {
 	if env.Term == nil || !env.Term.Interactive() {
 		printUsage(env.Stderr)
+		fmt.Fprintln(env.Stderr, "hp needs a terminal for a session, use hp run PROMPT in a script")
 		return 2
 	}
-	o, cont, err := parseSessionFlags(env, args)
+	o, cont, pick, err := parseSessionFlags(env, args)
 	if err != nil {
 		return exitUsage(env, err)
 	}
-	if cont {
-		return continueSession(ctx, env, o)
+	if cont || pick {
+		return continueSession(ctx, env, o, pick)
 	}
 	return freshSession(ctx, env, o)
 }
 
-func parseSessionFlags(env Env, args []string) (runOpts, bool, error) {
+func parseSessionFlags(env Env, args []string) (runOpts, bool, bool, error) {
 	fs, o, fb := runFlagSet(env, "hp")
-	var cont bool
+	var cont, pick bool
 	fs.BoolVar(&cont, "c", false, "continue the latest run in this directory")
+	fs.BoolVar(&pick, "r", false, "choose one of the recent runs in this directory to continue")
 	if err := fs.Parse(args); err != nil {
-		return runOpts{}, false, err
+		return runOpts{}, false, false, err
 	}
 	if len(fs.Args()) != 0 {
-		return runOpts{}, false, usagef("a session takes no prompt, use hp run")
+		return runOpts{}, false, false, usagef("a session takes no prompt, use hp run")
 	}
 	if o.detach {
-		return runOpts{}, false, usagef("a session cannot detach, use hp run -d")
+		return runOpts{}, false, false, usagef("a session cannot detach, use hp run -d")
+	}
+	if cont && pick {
+		return runOpts{}, false, false, usagef("use -c or -r, not both")
 	}
 	o.fallbacks = append([]string(nil), *fb...)
-	return *o, cont, nil
+	return *o, cont, pick, nil
 }
 
 func freshSession(ctx context.Context, env Env, o runOpts) int {
@@ -81,55 +87,85 @@ func openFreshSession(ctx context.Context, env Env, o runOpts, ep Endpoint, bySp
 		return exitErr(env, "", "", err)
 	}
 	defer a.release()
-	return runSession(ctx, env, a, false, intro, pickModel)
+	return runSession(ctx, env, tui.Config{Agent: a, Intro: intro, PickModel: pickModel})
 }
 
-func continueSession(ctx context.Context, env Env, o runOpts) int {
+func continueSession(ctx context.Context, env Env, o runOpts, pick bool) int {
 	dir, err := resolveWorkDir(env, o.dir)
 	if err != nil {
 		return exitErr(env, "", "", err)
 	}
-	id, err := latestRunIn(env, dir)
+	ids, err := runsIn(env, dir, recentRunLimit)
 	if err != nil {
 		return exitErr(env, "", "", err)
 	}
-	if id == "" {
+	if len(ids) == 0 {
 		return exitUsage(env, usagef("no run to continue in %s", dir))
 	}
 	if env.LoginEnv != nil {
 		env.LoginEnv(dir)
 	}
-	a, unfinished, code := openRun(env, o, id)
-	if code >= 0 {
-		return code
+	if pick && len(ids) > 1 {
+		return pickSession(ctx, env, o, ids)
+	}
+	a, unfinished, err := openRun(env, o, ids[0])
+	if err != nil {
+		return exitOpen(env, err)
 	}
 	defer a.release()
-	if o.model != "" {
-		if err := a.useModel(o.model); err != nil {
-			return exitUsage(env, err)
-		}
-	}
-	return runSession(ctx, env, a, unfinished, "continuing "+id, false)
+	return runSession(ctx, env, tui.Config{Agent: a, Resume: unfinished, Intro: "continuing " + ids[0]})
 }
 
-func openRun(env Env, o runOpts, id string) (*sessionAgent, bool, int) {
+func pickSession(ctx context.Context, env Env, o runOpts, ids []string) int {
+	var opened *sessionAgent
+	defer func() {
+		if opened != nil {
+			opened.release()
+		}
+	}()
+	open := func(id string) (tui.Agent, bool, string, error) {
+		a, unfinished, err := openRun(env, o, id)
+		if err != nil {
+			return nil, false, "", err
+		}
+		opened = a
+		return a, unfinished, "continuing " + id, nil
+	}
+	return runSession(ctx, env, tui.Config{RunChoices: runChoices(env, ids), OpenRun: open})
+}
+
+func exitOpen(env Env, err error) int {
+	if errors.As(err, new(usageError)) {
+		return exitUsage(env, err)
+	}
+	return exitErr(env, "", "", err)
+}
+
+func openRun(env Env, o runOpts, id string) (*sessionAgent, bool, error) {
 	jpath := filepath.Join(runsDir(env.Getenv), id+".jsonl")
 	st, err := replayRun(env, jpath)
 	if err != nil {
-		return nil, false, exitErr(env, "", "", err)
+		return nil, false, err
 	}
 	w, err := resolveStored(env, st, jpath)
 	if err != nil {
-		return nil, false, exitUsage(env, err)
+		return nil, false, usagef("%v", err)
 	}
 	a, err := restoredAgent(env, st, w.bySpec, w.ep, w.client, id, jpath)
 	if err != nil {
-		return nil, false, exitErr(env, "", "", err)
+		return nil, false, err
 	}
-	if _, code := beginResume(env, id); code >= 0 {
-		return nil, false, code
+	if _, err := claimRun(env, id); err != nil {
+		a.release()
+		return nil, false, err
 	}
-	return a, !st.Finished, -1
+	if o.model != "" {
+		if err := a.useModel(o.model); err != nil {
+			a.release()
+			return nil, false, usagef("%v", err)
+		}
+	}
+	return a, !st.Finished, nil
 }
 
 type storedWiring struct {
@@ -153,7 +189,7 @@ func resolveStored(env Env, st journal.State, jpath string) (storedWiring, error
 	return storedWiring{ep: ep, bySpec: bySpec, client: client}, nil
 }
 
-func runSession(ctx context.Context, env Env, a tui.Agent, resume bool, intro string, pickModel bool) int {
+func runSession(ctx context.Context, env Env, cfg tui.Config) int {
 	t := env.Term
 	ctx, stop := t.Signals(ctx)
 	defer stop()
@@ -164,11 +200,9 @@ func runSession(ctx context.Context, env Env, a tui.Agent, resume bool, intro st
 	}
 	defer restoreTerminal(t, restore)
 	_ = tui.EnableBracketedPaste(t)
-	tui.NewSession(tui.Config{
-		In: t, Out: t, Width: t.Width, Color: colorOn(env.Getenv),
-		Agent: a, Header: sessionHeader(env.Version), Resume: resume, Intro: intro,
-		PickModel: pickModel,
-	}).Run(ctx)
+	cfg.In, cfg.Out, cfg.Width, cfg.Color = t, t, t.Width, colorOn(env.Getenv)
+	cfg.Header = sessionHeader(env.Version)
+	tui.NewSession(cfg).Run(ctx)
 	if ctx.Err() != nil {
 		return 130
 	}

@@ -41,7 +41,7 @@ func cmdRecover(ctx context.Context, env Env, args []string) int {
 
 func parseRecoverFlags(env Env, args []string) (recoverOpts, error) {
 	fs := flag.NewFlagSet("recover", flag.ContinueOnError)
-	fs.SetOutput(env.Stderr)
+	setFlagUsage(fs, env, "recover")
 	o := recoverOpts{maxAge: defaultMaxAge}
 	fs.BoolVar(&o.dryRun, "dry-run", false, "list the runs recover would resume")
 	fs.DurationVar(&o.maxAge, "max-age", defaultMaxAge, "skip runs older than this")

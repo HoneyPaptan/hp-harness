@@ -20,6 +20,7 @@ type printer struct {
 	turnStart time.Time
 	ttft      time.Duration
 	ttftDone  bool
+	json      bool
 }
 
 func newPrinter(env Env, id string, client *jev.Client) *printer {
@@ -53,13 +54,23 @@ func retryLine(d time.Duration, attempt, max int) string {
 	return fmt.Sprintf("stream failed, retrying in %s (attempt %d/%d)", d.Round(time.Second), attempt, max)
 }
 
+func retryCauseLine(attempt int, cause error) string {
+	if attempt != 1 || cause == nil {
+		return ""
+	}
+	return "stream failed: " + cutRunes(firstLine(cause.Error()), 200)
+}
+
 func (p *printer) onSwitch(from, to string) {
 	p.ensureOutNL()
 	fmt.Fprintln(p.env.Stderr, switchLine(from, to))
 }
 
-func (p *printer) onRetry(d time.Duration, attempt, max int) {
+func (p *printer) onRetry(d time.Duration, attempt, max int, cause error) {
 	p.ensureOutNL()
+	if line := retryCauseLine(attempt, cause); line != "" {
+		fmt.Fprintln(p.env.Stderr, line)
+	}
 	fmt.Fprintln(p.env.Stderr, retryLine(d, attempt, max))
 }
 
@@ -70,6 +81,10 @@ func (p *printer) onTurnStart() {
 func (p *printer) onEvent(ev provider.Event) {
 	p.markTTFT()
 	if ev.Kind != provider.EventText || ev.Text == "" {
+		return
+	}
+	if p.json {
+		p.emit(jsonText{Type: "text", Text: ev.Text})
 		return
 	}
 	io.WriteString(p.env.Stdout, ev.Text)
@@ -88,9 +103,15 @@ func (p *printer) onToolStart(c provider.ToolCall) {
 	p.markTTFT()
 	p.ensureOutNL()
 	fmt.Fprintf(p.env.Stderr, "> %s %s\n", c.Name, toolMainArg(c.Args))
+	if p.json {
+		p.emit(jsonToolCall{Type: "tool_call", ID: c.ID, Name: c.Name, Args: validArgs(c.Args)})
+	}
 }
 
 func (p *printer) onToolResult(r provider.ToolResult) {
+	if p.json {
+		p.emit(jsonToolResult{Type: "tool_result", ID: r.CallID, IsError: r.IsError, Text: r.Text})
+	}
 	if !r.IsError {
 		return
 	}

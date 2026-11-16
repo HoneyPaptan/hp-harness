@@ -46,7 +46,7 @@ func TestTransientThenSuccess(t *testing.T) {
 	fp := &fake.Provider{Turns: []fake.Turn{partialTurn(), fake.TextTurn("whole")}}
 	var delays []time.Duration
 	var attempts []int
-	obs := Observer{OnRetry: func(d time.Duration, attempt, max int) {
+	obs := Observer{OnRetry: func(d time.Duration, attempt, max int, _ error) {
 		delays = append(delays, d)
 		attempts = append(attempts, attempt)
 		if max != maxStreamAttempts {
@@ -78,7 +78,7 @@ func TestTransientRetriesRunOut(t *testing.T) {
 	}
 	fp := &fake.Provider{Turns: append(turns, fake.TextTurn("never"))}
 	retries := 0
-	obs := Observer{OnRetry: func(time.Duration, int, int) { retries++ }}
+	obs := Observer{OnRetry: func(time.Duration, int, int, error) { retries++ }}
 	deps := Deps{Host: h, Provider: fp, Tools: tool.NewRegistry(tool.Builtins()...), Observer: obs}
 	_, err := Run(context.Background(), deps, limitCfg(h))
 	if !errors.Is(err, errCut) {
@@ -106,7 +106,7 @@ func TestCancelDuringRetrySleep(t *testing.T) {
 	fp := &fake.Provider{Turns: []fake.Turn{partialTurn(), fake.TextTurn("never")}}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	obs := Observer{OnRetry: func(time.Duration, int, int) { cancel() }}
+	obs := Observer{OnRetry: func(time.Duration, int, int, error) { cancel() }}
 	deps := Deps{Host: h, Provider: fp, Tools: tool.NewRegistry(tool.Builtins()...), Observer: obs}
 	_, err := Run(ctx, deps, limitCfg(h))
 	if !errors.Is(err, context.Canceled) {

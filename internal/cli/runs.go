@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/host"
 	"github.com/HoneyPaptan/hp-harness/internal/journal"
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
+	"github.com/HoneyPaptan/hp-harness/internal/tui"
 )
 
 func cmdRuns(env Env, args []string) int {
@@ -60,19 +62,59 @@ func sortedRunIDs(env Env, dir string) ([]string, error) {
 	return ids, nil
 }
 
-func latestRunIn(env Env, dir string) (string, error) {
+const recentRunLimit = 20
+
+func runsIn(env Env, dir string, limit int) ([]string, error) {
 	base := runsDir(env.Getenv)
 	ids, err := sortedRunIDs(env, base)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	var found []string
 	for _, id := range ids {
 		start, err := journal.ReadStart(env.Host, filepath.Join(base, id+".jsonl"))
 		if err == nil && filepath.Clean(start.Dir) == filepath.Clean(dir) {
-			return id, nil
+			found = append(found, id)
+		}
+		if len(found) == limit {
+			break
 		}
 	}
-	return "", nil
+	return found, nil
+}
+
+func runChoices(env Env, ids []string) []tui.RunChoice {
+	base := runsDir(env.Getenv)
+	now := env.Host.Now()
+	choices := make([]tui.RunChoice, len(ids))
+	for i, id := range ids {
+		prompt := "(broken journal)"
+		if st, err := replayRun(env, filepath.Join(base, id+".jsonl")); err == nil {
+			prompt = cutRunes(oneLine(firstPrompt(st)), 50)
+		}
+		choices[i] = tui.RunChoice{ID: id, Label: fmt.Sprintf("%-8s %s  %s", runAge(id, now), prompt, id)}
+	}
+	return choices
+}
+
+func runAge(id string, now time.Time) string {
+	if len(id) < 15 {
+		return ""
+	}
+	t, err := time.Parse("20060102-150405", id[:15])
+	if err != nil {
+		return ""
+	}
+	d := now.Sub(t)
+	switch {
+	case d < time.Minute:
+		return "now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd ago", int(d.Hours()/24))
 }
 
 func runIDs(ents []host.Entry) []string {
