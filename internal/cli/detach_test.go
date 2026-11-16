@@ -158,6 +158,7 @@ func TestStopNotRunning(t *testing.T) {
 	h := host.NewMemory()
 	env, _, stderr := testEnv(t, h, nil, nil)
 	env.Args = []string{"stop", "ghost"}
+	seedRun(t, h, env.Getenv, "ghost", "p", "", true)
 	if code := Main(context.Background(), env); code != 1 {
 		t.Fatalf("code %d", code)
 	}

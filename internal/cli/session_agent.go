@@ -259,7 +259,10 @@ func (a *sessionAgent) observer(emit func(tui.Event)) core.Observer {
 			note(waitLine(spec, d, until))
 		},
 		OnSwitch: func(from, to string) { note(switchLine(from, to)) },
-		OnRetry: func(d time.Duration, attempt, max int) {
+		OnRetry: func(d time.Duration, attempt, max int, cause error) {
+			if line := retryCauseLine(attempt, cause); line != "" {
+				note(line)
+			}
 			note(retryLine(d, attempt, max))
 		},
 		OnCompact: func(int) { note("compacted") },

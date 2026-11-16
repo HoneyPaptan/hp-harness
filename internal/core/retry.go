@@ -13,6 +13,6 @@ func (r *runner) retryStream(ctx context.Context, err error, failures *int) erro
 		return err
 	}
 	delay := backoff(*failures - 1)
-	r.deps.Observer.emitRetry(delay, *failures, maxStreamAttempts)
+	r.deps.Observer.emitRetry(delay, *failures, maxStreamAttempts, err)
 	return r.deps.Host.Sleep(ctx, delay)
 }

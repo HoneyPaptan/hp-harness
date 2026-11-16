@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"io"
 	"strings"
 )
 
@@ -24,14 +23,18 @@ func globalFlags(env Env, args []string) (int, bool) {
 		printVersion(env)
 		return 0, true
 	}
-	if isHelp(args[0]) && len(args) == 1 {
-		printUsage(env.Stderr)
+	if helpRequested(args) {
+		printHelp(env.Stderr)
 		return 0, true
 	}
 	return 0, false
 }
 
 func dispatch(ctx context.Context, env Env, args []string) int {
+	if len(args) > 1 && isHelp(args[1]) && !parsesFlags(args[0]) {
+		printCommandHelp(env.Stderr, args[0])
+		return 0
+	}
 	switch args[0] {
 	case "run":
 		return cmdRun(ctx, env, args[1:])
@@ -64,7 +67,7 @@ func dispatch(ctx context.Context, env Env, args []string) int {
 	case "version":
 		return cmdVersion(env, args[1:])
 	case "help", "-h", "--help":
-		printUsage(env.Stderr)
+		printHelp(env.Stderr)
 		return 0
 	default:
 		return unknownCommand(ctx, env, args)
@@ -79,14 +82,18 @@ func unknownCommand(ctx context.Context, env Env, args []string) int {
 	return 2
 }
 
+func parsesFlags(command string) bool {
+	switch command {
+	case "run", "resume", "recover", "web", "permissions":
+		return true
+	}
+	return false
+}
+
 func isHelp(s string) bool {
 	return s == "help" || s == "-h" || s == "--help"
 }
 
 func printVersion(env Env) {
 	fmt.Fprintf(env.Stdout, "hp %s\n", env.Version)
-}
-
-func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage: hp <run|resume|attach|stop|runs|recover|autostart|crew|crews|providers|web|add|list|remove|key|permissions|version> ...")
 }

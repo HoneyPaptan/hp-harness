@@ -14,6 +14,7 @@ import (
 func cmdSession(ctx context.Context, env Env, args []string) int {
 	if env.Term == nil || !env.Term.Interactive() {
 		printUsage(env.Stderr)
+		fmt.Fprintln(env.Stderr, "hp needs a terminal for a session, use hp run PROMPT in a script")
 		return 2
 	}
 	o, cont, err := parseSessionFlags(env, args)

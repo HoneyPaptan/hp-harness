@@ -53,13 +53,23 @@ func retryLine(d time.Duration, attempt, max int) string {
 	return fmt.Sprintf("stream failed, retrying in %s (attempt %d/%d)", d.Round(time.Second), attempt, max)
 }
 
+func retryCauseLine(attempt int, cause error) string {
+	if attempt != 1 || cause == nil {
+		return ""
+	}
+	return "stream failed: " + cutRunes(firstLine(cause.Error()), 200)
+}
+
 func (p *printer) onSwitch(from, to string) {
 	p.ensureOutNL()
 	fmt.Fprintln(p.env.Stderr, switchLine(from, to))
 }
 
-func (p *printer) onRetry(d time.Duration, attempt, max int) {
+func (p *printer) onRetry(d time.Duration, attempt, max int, cause error) {
 	p.ensureOutNL()
+	if line := retryCauseLine(attempt, cause); line != "" {
+		fmt.Fprintln(p.env.Stderr, line)
+	}
 	fmt.Fprintln(p.env.Stderr, retryLine(d, attempt, max))
 }
 

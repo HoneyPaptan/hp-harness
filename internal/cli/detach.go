@@ -149,6 +149,9 @@ func cmdStop(env Env, args []string) int {
 	if !safeRunID(id) {
 		return exitUsage(env, usagef("invalid run id %q", id))
 	}
+	if !runKnown(env, id) {
+		return exitNoRun(env, id)
+	}
 	pid, ok := readRunPid(env, id)
 	if !ok || !env.Alive(pid) {
 		fmt.Fprintf(env.Stderr, "run %s is not running\n", id)
@@ -160,6 +163,14 @@ func cmdStop(env Env, args []string) int {
 	}
 	fmt.Fprintf(env.Stdout, "stopping %s\n", id)
 	return 0
+}
+
+func runKnown(env Env, id string) bool {
+	if journalExists(env, filepath.Join(runsDir(env.Getenv), id+".jsonl")) {
+		return true
+	}
+	_, err := env.Host.ReadFile(runPidPath(env.Getenv, id))
+	return err == nil
 }
 
 func safeRunID(id string) bool {

@@ -8,7 +8,7 @@ import (
 
 func cmdPermissions(env Env, args []string) int {
 	fs := flag.NewFlagSet("permissions", flag.ContinueOnError)
-	fs.SetOutput(env.Stderr)
+	setFlagUsage(fs, env, "permissions")
 	var asJSON bool
 	fs.BoolVar(&asJSON, "json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
