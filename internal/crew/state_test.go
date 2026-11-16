@@ -86,8 +86,8 @@ func TestStateCounts(t *testing.T) {
 	if st.done() {
 		t.Fatal("crew not done")
 	}
-	if st.runningCount() != 1 || st.doneCount() != 1 {
-		t.Fatalf("counts %d %d", st.runningCount(), st.doneCount())
+	if st.activeCount() != 1 || st.doneCount() != 1 {
+		t.Fatalf("counts %d %d", st.activeCount(), st.doneCount())
 	}
 	st.Tasks[0].Status = StatusFinished
 	st.Tasks[1].Status = StatusFinished

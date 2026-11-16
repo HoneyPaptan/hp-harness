@@ -14,9 +14,11 @@ type Status string
 
 const (
 	StatusQueued   Status = "queued"
+	StatusStarting Status = "starting"
 	StatusRunning  Status = "running"
 	StatusFinished Status = "finished"
 	StatusFailed   Status = "failed"
+	StatusStopped  Status = "stopped"
 )
 
 type Task struct {
@@ -120,17 +122,19 @@ func load(getenv func(string) string, id string) (*State, error) {
 
 func (s *State) done() bool {
 	for i := range s.Tasks {
-		if s.Tasks[i].Status != StatusFinished && s.Tasks[i].Status != StatusFailed {
+		switch s.Tasks[i].Status {
+		case StatusFinished, StatusFailed, StatusStopped:
+		default:
 			return false
 		}
 	}
 	return true
 }
 
-func (s *State) runningCount() int {
+func (s *State) activeCount() int {
 	n := 0
 	for i := range s.Tasks {
-		if s.Tasks[i].Status == StatusRunning {
+		if s.Tasks[i].Status == StatusRunning || s.Tasks[i].Status == StatusStarting {
 			n++
 		}
 	}

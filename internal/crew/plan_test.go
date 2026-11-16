@@ -36,6 +36,15 @@ func TestParsePlan(t *testing.T) {
 			},
 		},
 		{
+			name: "bumped slug collides with later natural slug",
+			plan: "## A\n## A 2\n## A\n",
+			want: []planTask{
+				{title: "A", prompt: "A", slug: "a"},
+				{title: "A 2", prompt: "A 2", slug: "a-2"},
+				{title: "A", prompt: "A", slug: "a-3"},
+			},
+		},
+		{
 			name:    "empty plan",
 			plan:    "# nothing\n",
 			wantErr: "no ## tasks",

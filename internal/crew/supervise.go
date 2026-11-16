@@ -2,6 +2,7 @@ package crew
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,30 +35,22 @@ func supervise(ctx context.Context, env Env, st *State) error {
 }
 
 func advance(ctx context.Context, env Env, st *State) error {
-	changed := false
 	for i := range st.Tasks {
 		t := &st.Tasks[i]
-		if t.Status != StatusRunning {
-			continue
-		}
-		if reason, ok := runFinished(env, t.RunID); ok {
-			t.Status = StatusFinished
-			t.EndReason = reason
-			changed = true
-			continue
-		}
-		if runAlive(env, t.RunID) {
-			continue
-		}
-		if err := resumeRun(ctx, env, t.RunID); err != nil {
-			t.Status = StatusFailed
-			t.EndReason = err.Error()
-			changed = true
+		switch t.Status {
+		case StatusRunning:
+			if err := settleRunning(ctx, env, st, t); err != nil {
+				return err
+			}
+		case StatusStarting:
+			if err := settleStarting(ctx, env, st, t); err != nil {
+				return err
+			}
 		}
 	}
-	running := st.runningCount()
+	active := st.activeCount()
 	for i := range st.Tasks {
-		if running >= st.Concurrency {
+		if active >= st.Concurrency {
 			break
 		}
 		t := &st.Tasks[i]
@@ -65,25 +58,64 @@ func advance(ctx context.Context, env Env, st *State) error {
 			continue
 		}
 		if err := startTask(ctx, env, st, t); err != nil {
-			t.Status = StatusFailed
-			t.EndReason = err.Error()
-			changed = true
-			continue
+			return err
 		}
-		t.Status = StatusRunning
-		running++
-		changed = true
-	}
-	if changed {
-		return st.save(env.Getenv)
+		active++
 	}
 	return nil
 }
 
-func startTask(ctx context.Context, env Env, st *State, t *Task) error {
-	if err := ensureWorktree(env, st, t); err != nil {
+func settleRunning(ctx context.Context, env Env, st *State, t *Task) error {
+	recs, run, err := replayRunRecords(env, t.RunID)
+	if err != nil {
+		return failTask(env, st, t, err)
+	}
+	if run.Finished {
+		t.Status = StatusFinished
+		t.EndReason = run.EndReason
+		return st.save(env.Getenv)
+	}
+	if run.Stopped {
+		t.Status = StatusStopped
+		return st.save(env.Getenv)
+	}
+	if runAlive(env, t.RunID) {
+		return nil
+	}
+	resume, next := journal.NextResume(run, recs, loadResumeState(env, t.RunID))
+	if !resume {
+		return failTask(env, st, t, fmt.Errorf("keeps crashing after %d resumes", journal.CrashLimit))
+	}
+	if err := saveResumeState(env, t.RunID, next); err != nil {
 		return err
 	}
+	if err := resumeRun(ctx, env, t.RunID); err != nil {
+		return failTask(env, st, t, err)
+	}
+	return nil
+}
+
+func settleStarting(ctx context.Context, env Env, st *State, t *Task) error {
+	if id, ok := findRunByDir(env, t.Worktree); ok {
+		t.RunID = id
+		t.Status = StatusRunning
+		return st.save(env.Getenv)
+	}
+	return launchTask(ctx, env, st, t)
+}
+
+func startTask(ctx context.Context, env Env, st *State, t *Task) error {
+	if err := ensureWorktree(env, st, t); err != nil {
+		return failTask(env, st, t, err)
+	}
+	t.Status = StatusStarting
+	if err := st.save(env.Getenv); err != nil {
+		return err
+	}
+	return launchTask(ctx, env, st, t)
+}
+
+func launchTask(ctx context.Context, env Env, st *State, t *Task) error {
 	args := []string{"run", "-d", "-C", t.Worktree}
 	if st.Model != "" {
 		args = append(args, "-m", st.Model)
@@ -97,14 +129,21 @@ func startTask(ctx context.Context, env Env, st *State, t *Task) error {
 	args = append(args, "--", t.Prompt)
 	out, err := runHP(ctx, env, args...)
 	if err != nil {
-		return err
+		return failTask(env, st, t, err)
 	}
 	id := firstLine(out)
 	if id == "" {
-		return fmt.Errorf("hp run printed no run id")
+		return failTask(env, st, t, fmt.Errorf("hp run printed no run id"))
 	}
 	t.RunID = id
-	return nil
+	t.Status = StatusRunning
+	return st.save(env.Getenv)
+}
+
+func failTask(env Env, st *State, t *Task, err error) error {
+	t.Status = StatusFailed
+	t.EndReason = err.Error()
+	return st.save(env.Getenv)
 }
 
 func resumeRun(ctx context.Context, env Env, id string) error {
@@ -119,17 +158,6 @@ func runHP(ctx context.Context, env Env, args ...string) (string, error) {
 		return env.RunHP(ctx, args...)
 	}
 	return execHP(ctx, env, args...)
-}
-
-func runFinished(env Env, id string) (string, bool) {
-	st, err := replayRun(env, id)
-	if err != nil {
-		return "", false
-	}
-	if !st.Finished {
-		return "", false
-	}
-	return st.EndReason, true
 }
 
 func runAlive(env Env, id string) bool {
@@ -153,12 +181,61 @@ func readRunPid(getenv func(string) string, id string) (int, bool) {
 	return pid, true
 }
 
-func replayRun(env Env, id string) (journal.State, error) {
+func replayRunRecords(env Env, id string) ([]journal.Record, journal.State, error) {
 	recs, err := journal.Read(host.Native{}, filepath.Join(runsDir(env.Getenv), id+".jsonl"))
 	if err != nil {
-		return journal.State{}, err
+		return nil, journal.State{}, err
 	}
-	return journal.Replay(recs)
+	st, err := journal.Replay(recs)
+	if err != nil {
+		return recs, journal.State{}, err
+	}
+	return recs, st, nil
+}
+
+func replayRun(env Env, id string) (journal.State, error) {
+	_, st, err := replayRunRecords(env, id)
+	return st, err
+}
+
+func findRunByDir(env Env, dir string) (string, bool) {
+	ents, err := os.ReadDir(runsDir(env.Getenv))
+	if err != nil {
+		return "", false
+	}
+	for i := len(ents) - 1; i >= 0; i-- {
+		if ents[i].IsDir() || !strings.HasSuffix(ents[i].Name(), ".jsonl") {
+			continue
+		}
+		id := strings.TrimSuffix(ents[i].Name(), ".jsonl")
+		start, err := journal.ReadStart(host.Native{}, filepath.Join(runsDir(env.Getenv), id+".jsonl"))
+		if err == nil && filepath.Clean(start.Dir) == filepath.Clean(dir) {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+func loadResumeState(env Env, id string) journal.ResumeState {
+	var st journal.ResumeState
+	data, err := os.ReadFile(resumeStatePath(env.Getenv, id))
+	if err != nil {
+		return st
+	}
+	_ = json.Unmarshal(data, &st)
+	return st
+}
+
+func saveResumeState(env Env, id string, st journal.ResumeState) error {
+	data, err := json.Marshal(st)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(resumeStatePath(env.Getenv, id), data, 0o600)
+}
+
+func resumeStatePath(getenv func(string) string, id string) string {
+	return filepath.Join(runsDir(getenv), id+".recover")
 }
 
 func taskAnswer(env Env, id string) string {

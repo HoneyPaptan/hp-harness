@@ -43,13 +43,14 @@ func parsePlan(data []byte) ([]planTask, error) {
 }
 
 func dedupeSlugs(tasks []planTask) []planTask {
-	used := make(map[string]int, len(tasks))
+	used := make(map[string]bool, len(tasks))
 	for i := range tasks {
-		slug := taskSlug(tasks[i].title)
-		if n := used[slug]; n > 0 {
-			slug = fmt.Sprintf("%s-%d", slug, n+1)
+		base := taskSlug(tasks[i].title)
+		slug := base
+		for n := 2; used[slug]; n++ {
+			slug = fmt.Sprintf("%s-%d", base, n)
 		}
-		used[slug]++
+		used[slug] = true
 		tasks[i].slug = slug
 	}
 	return tasks

@@ -74,8 +74,8 @@ func TestAdvanceStartsThenFinishes(t *testing.T) {
 	if err := advance(context.Background(), env, st); err != nil {
 		t.Fatal(err)
 	}
-	if st.runningCount() != 2 {
-		t.Fatalf("running %d", st.runningCount())
+	if st.activeCount() != 2 {
+		t.Fatalf("running %d", st.activeCount())
 	}
 	for i := range st.Tasks {
 		if st.Tasks[i].Status != StatusRunning || st.Tasks[i].RunID == "" {
@@ -110,14 +110,14 @@ func TestAdvanceConcurrencyLimit(t *testing.T) {
 	if err := advance(context.Background(), env, st); err != nil {
 		t.Fatal(err)
 	}
-	if st.runningCount() != 1 || st.Tasks[1].Status != StatusQueued {
-		t.Fatalf("running %d queued %s", st.runningCount(), st.Tasks[1].Status)
+	if st.activeCount() != 1 || st.Tasks[1].Status != StatusQueued {
+		t.Fatalf("running %d queued %s", st.activeCount(), st.Tasks[1].Status)
 	}
 	seedEnd(t, getenv, st.Tasks[0].RunID, "final")
 	if err := advance(context.Background(), env, st); err != nil {
 		t.Fatal(err)
 	}
-	if st.runningCount() != 1 || st.Tasks[0].Status != StatusFinished || st.Tasks[1].Status != StatusRunning {
+	if st.activeCount() != 1 || st.Tasks[0].Status != StatusFinished || st.Tasks[1].Status != StatusRunning {
 		t.Fatalf("after finish %+v", st.Tasks)
 	}
 }
@@ -302,5 +302,132 @@ func TestCrewsList(t *testing.T) {
 	out := env.Stdout.(*bytes.Buffer).String()
 	if !strings.Contains(out, "c1  plan.md  1/2 done") {
 		t.Fatalf("crews %q", out)
+	}
+}
+
+func writeStopped(t *testing.T, getenv func(string) string, id string) {
+	t.Helper()
+	w, err := journal.Create(host.Native{}, filepath.Join(runsDir(getenv), id+".jsonl"), journal.RunStart{RunID: id, Dir: "/w"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.User("p"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Stop("user"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedRunDir(t *testing.T, getenv func(string) string, id, dir string) {
+	t.Helper()
+	w, err := journal.Create(host.Native{}, filepath.Join(runsDir(getenv), id+".jsonl"), journal.RunStart{RunID: id, Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.User("p"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAdvanceStoppedRunStaysStopped(t *testing.T) {
+	state := t.TempDir()
+	env, getenv, hp, _ := advEnv(t, state)
+	st := &State{ID: "c1", Plan: "/p", Repo: "/repo", Base: "b", Concurrency: 1,
+		Tasks: []Task{{Title: "S", Slug: "s", Prompt: "p", RunID: "old", Status: StatusRunning}}}
+	writeStopped(t, getenv, "old")
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusStopped {
+		t.Fatalf("status %s", st.Tasks[0].Status)
+	}
+	if len(hp.calls) != 0 {
+		t.Fatalf("hp called %v", hp.calls)
+	}
+	if !st.done() {
+		t.Fatal("crew should be done")
+	}
+}
+
+func TestAdvanceCrashLoopFailsAfterLimit(t *testing.T) {
+	state := t.TempDir()
+	env, getenv, hp, _ := advEnv(t, state)
+	st := &State{ID: "c1", Plan: "/p", Repo: "/repo", Base: "b", Concurrency: 1,
+		Tasks: []Task{{Title: "C", Slug: "c", Prompt: "p", RunID: "old", Status: StatusRunning}}}
+	writeUnfinished(t, getenv, "old")
+	for i := 0; i < journal.CrashLimit; i++ {
+		if err := advance(context.Background(), env, st); err != nil {
+			t.Fatal(err)
+		}
+		if st.Tasks[0].Status != StatusRunning {
+			t.Fatalf("attempt %d status %s", i, st.Tasks[0].Status)
+		}
+	}
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusFailed || !strings.Contains(st.Tasks[0].EndReason, "keeps crashing after 3 resumes") {
+		t.Fatalf("task %+v", st.Tasks[0])
+	}
+	if len(hp.calls) != journal.CrashLimit {
+		t.Fatalf("hp calls %d want %d", len(hp.calls), journal.CrashLimit)
+	}
+	for _, c := range hp.calls {
+		if c[0] != "resume" {
+			t.Fatalf("call %v", c)
+		}
+	}
+}
+
+func TestSettleStartingAdoptsExistingRun(t *testing.T) {
+	state := t.TempDir()
+	getenv := getenvMap(map[string]string{"XDG_STATE_HOME": state, "HOME": "/h"})
+	env := Env{
+		Getenv: getenv, Cwd: "/proj",
+		Alive: func(int) bool { return false },
+		RunHP: func(context.Context, ...string) (string, error) {
+			t.Fatal("must not launch a second run")
+			return "", nil
+		},
+		Git: func(string, ...string) (string, error) { return "", nil },
+	}
+	st := newState(getenv, "c1", "/p", "/repo", "b", runFlags{n: 1}, []planTask{
+		{title: "One", prompt: "one", slug: "one"},
+	})
+	task := &st.Tasks[0]
+	task.Status = StatusStarting
+	seedRunDir(t, getenv, "r7", task.Worktree)
+	if err := settleStarting(context.Background(), env, st, task); err != nil {
+		t.Fatal(err)
+	}
+	if task.RunID != "r7" || task.Status != StatusRunning {
+		t.Fatalf("task %+v", task)
+	}
+	reloaded, err := load(getenv, "c1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Tasks[0].RunID != "r7" || reloaded.Tasks[0].Status != StatusRunning {
+		t.Fatalf("saved task %+v", reloaded.Tasks[0])
+	}
+}
+
+func TestSettleStartingLaunchesWhenNoRun(t *testing.T) {
+	state := t.TempDir()
+	env, getenv, hp, _ := advEnv(t, state)
+	st := newState(getenv, "c1", "/p", "/repo", "b", runFlags{n: 1}, []planTask{
+		{title: "One", prompt: "one", slug: "one"},
+	})
+	task := &st.Tasks[0]
+	task.Status = StatusStarting
+	if err := settleStarting(context.Background(), env, st, task); err != nil {
+		t.Fatal(err)
+	}
+	if task.RunID != "run-1" || task.Status != StatusRunning {
+		t.Fatalf("task %+v", task)
+	}
+	if len(hp.calls) != 1 || hp.calls[0][0] != "run" {
+		t.Fatalf("calls %v", hp.calls)
 	}
 }
