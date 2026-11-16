@@ -17,10 +17,12 @@ import (
 type op string
 
 const (
-	opStop    op = "stop"
-	opRetry   op = "retry"
-	opPause   op = "pause"
-	opUnpause op = "unpause"
+	opStop      op = "stop"
+	opRetry     op = "retry"
+	opPause     op = "pause"
+	opUnpause   op = "unpause"
+	opLanded    op = "landed"
+	opDiscarded op = "discarded"
 )
 
 type request struct {
@@ -105,6 +107,12 @@ func applyRequest(env Env, st *State, r request) (bool, error) {
 			return false, nil
 		}
 		st.Paused = paused
+	case opLanded, opDiscarded:
+		t := st.task(r.Task)
+		if t == nil {
+			return false, nil
+		}
+		t.Landed, t.Discarded = t.Landed || r.Op == opLanded, t.Discarded || r.Op == opDiscarded
 	case opStop:
 		t := st.task(r.Task)
 		if t == nil || !stopTask(env, t) {
@@ -112,7 +120,7 @@ func applyRequest(env Env, st *State, r request) (bool, error) {
 		}
 	case opRetry:
 		t := st.task(r.Task)
-		if t == nil || t.Status != StatusFailed && t.Status != StatusStopped {
+		if t == nil || !t.retryable() {
 			return false, nil
 		}
 		if t.RunID != "" && runAlive(env, t.RunID) {
@@ -207,31 +215,17 @@ func effectivePaused(st *State, reqs []queued) bool {
 }
 
 func (s Service) Stop(id, task string) error {
-	return s.taskControl(id, task, opStop, "is not running", func(t *Task) bool {
-		return t.Status == StatusQueued || t.Status == StatusStarting || t.Status == StatusRunning
-	})
+	return s.taskControl(id, task, opStop, "is not running", (*Task).active)
 }
 
 func (s Service) Retry(id, task string) error {
-	return s.taskControl(id, task, opRetry, "did not fail or stop", func(t *Task) bool {
-		return t.Status == StatusFailed || t.Status == StatusStopped
-	})
+	return s.taskControl(id, task, opRetry, "did not fail or stop", (*Task).retryable)
 }
 
 func (s Service) taskControl(id, task string, o op, refusal string, allowed func(*Task) bool) error {
-	st, err := loadSafe(s.Env.Getenv, id)
+	_, t, err := s.gate(id, task, refusal, allowed)
 	if err != nil {
 		return err
-	}
-	t, err := findTask(st, task)
-	if err != nil {
-		return err
-	}
-	if taskPending(queuedRequests(s.Env.Getenv, id), t.Slug) {
-		return fmt.Errorf("%s already has a request waiting", t.Title)
-	}
-	if !allowed(t) {
-		return fmt.Errorf("%s %s", t.Title, refusal)
 	}
 	return s.submit(id, request{Op: o, Task: t.Slug})
 }

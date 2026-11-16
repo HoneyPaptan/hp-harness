@@ -66,13 +66,16 @@ func (s Service) View(id string) (crewview.Snapshot, bool, error) {
 }
 
 func taskKeys(t *Task) string {
-	switch t.Status {
-	case StatusQueued, StatusStarting, StatusRunning:
-		return "s"
-	case StatusFailed, StatusStopped:
-		return "r"
+	keys := ""
+	for _, k := range []struct {
+		key string
+		ok  bool
+	}{{"s", t.active()}, {"r", t.retryable()}, {"d", t.reviewable()}, {"a", t.landable()}, {"x", t.discardable()}} {
+		if k.ok {
+			keys += k.key
+		}
 	}
-	return ""
+	return keys
 }
 
 func pendingWord(reqs []queued, slug string) string {
@@ -85,6 +88,10 @@ func pendingWord(reqs []queued, slug string) string {
 			return "stopping"
 		case opRetry:
 			return "retrying"
+		case opLanded:
+			return "landed"
+		case opDiscarded:
+			return "discarded"
 		}
 	}
 	return ""

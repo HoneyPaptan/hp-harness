@@ -454,7 +454,7 @@ func TestViewShowsPendingRequestsAndPause(t *testing.T) {
 		t.Fatal(err)
 	}
 	keys := []string{snap.Rows[0].Keys, snap.Rows[1].Keys, snap.Rows[2].Keys}
-	if want := []string{"", "s", "r"}; !reflect.DeepEqual(keys, want) || snap.Paused || snap.Done {
+	if want := []string{"dax", "s", "rdx"}; !reflect.DeepEqual(keys, want) || snap.Paused || snap.Done {
 		t.Fatalf("keys %v paused %v done %v", keys, snap.Paused, snap.Done)
 	}
 	if err := svc.Stop("c1", "tb"); err != nil {

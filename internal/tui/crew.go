@@ -42,6 +42,10 @@ type CrewAgent interface {
 	CrewPreflight() (int, error)
 	CrewView(id string) (crewview.Snapshot, bool, error)
 	CrewFollow(id string, index, offset int) (crewview.Chunk, error)
+	CrewDiff(id, task string) ([]string, error)
+	CrewLandCheck(id, task string) (string, error)
+	CrewLand(id, task string) (string, error)
+	CrewDiscard(id, task string) error
 	CrewStop(id, task string) error
 	CrewRetry(id, task string) error
 	CrewPause(id string) error

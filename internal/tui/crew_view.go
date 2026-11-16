@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	crewViewHint   = "↑ ↓ select · Enter follows a task"
+	crewViewHint   = "↑ ↓ select · Enter follow"
 	crewLiveHint   = "Esc goes back to the tasks"
 	crewWaitNote   = "waiting for the task to start"
 	crewBackNote   = "Esc goes back to the tasks"
@@ -25,6 +25,7 @@ type crewView struct {
 	menu *menu
 	live *crewLive
 	ask  *viewAsk
+	diff *diffView
 }
 
 type viewAsk struct {
@@ -32,7 +33,7 @@ type viewAsk struct {
 	yes  func()
 }
 
-var viewKeyVerbs = map[rune]string{'s': "stop", 'r': "retry"}
+var viewKeyVerbs = map[rune]string{'s': "stop", 'r': "retry", 'd': "diff", 'a': "land", 'x': "discard"}
 
 type crewLive struct {
 	index  int
@@ -79,6 +80,10 @@ func padCut(text string, cells int) string {
 func (s *Session) viewKey(k Key) {
 	if s.view.live != nil {
 		s.liveKey(k)
+		return
+	}
+	if s.view.diff != nil {
+		s.diffKey(k)
 		return
 	}
 	if s.view.ask != nil {
@@ -152,8 +157,44 @@ func (s *Session) viewRune(r rune) {
 		}}
 	case 'r':
 		s.crewAction(func() error { return agent.CrewRetry(id, row.Slug) })
+	case 'd':
+		s.showDiff(agent, row)
+	case 'a':
+		s.askLand(agent, row)
+	case 'x':
+		s.view.ask = &viewAsk{text: "discard " + row.Title + " and delete its worktree and branch? y/n", yes: func() {
+			s.crewAction(func() error { return agent.CrewDiscard(id, row.Slug) })
+		}}
 	}
 	s.dirty = true
+}
+
+func (s *Session) showDiff(agent CrewAgent, row crewview.Row) {
+	lines, err := agent.CrewDiff(s.view.snap.ID, row.Slug)
+	if err != nil {
+		s.clearDrawn()
+		s.fail(err)
+		return
+	}
+	s.openDiff(row.Title, lines)
+}
+
+func (s *Session) askLand(agent CrewAgent, row crewview.Row) {
+	id := s.view.snap.ID
+	question, err := agent.CrewLandCheck(id, row.Slug)
+	if err != nil {
+		s.clearDrawn()
+		s.fail(err)
+		return
+	}
+	s.view.ask = &viewAsk{text: question + " y/n", yes: func() {
+		msg, err := agent.CrewLand(id, row.Slug)
+		s.crewAction(func() error { return err })
+		if err == nil {
+			s.clearDrawn()
+			s.note(msg)
+		}
+	}}
 }
 
 func (s *Session) crewAction(do func() error) {
@@ -292,6 +333,10 @@ func (s *Session) pollLive() {
 }
 
 func (s *Session) drawView() {
+	if s.view.diff != nil {
+		s.drawDiff()
+		return
+	}
 	if s.view.live != nil {
 		prompt := "following " + s.view.snap.Rows[s.view.live.index].Title + " · "
 		hint := "Esc goes back"

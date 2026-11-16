@@ -53,6 +53,12 @@ The crew view (`/crew` for the newest crew, `/crew <id>` for another) lists one 
 
 The same actions are commands: `hp crew stop <id> <task>`, `hp crew retry <id> <task>`, `hp crew pause <id>` and `hp crew unpause <id>`. `<task>` is the task's slug, its number or its exact title. They write a small request file next to the crew's state file and the crew's supervisor applies it on its next poll (every two seconds), starting the supervisor again if it has exited. `hp crew run -n 0` is refused, and `hp crew run` in a folder with no commit says so instead of printing a git error.
 
+Reviewing and landing a task, in the crew view:
+
+- `d` shows the task's full diff against the commit the crew started from, including files git does not track yet. `↑ ↓`, `PgUp`, `PgDn`, `g` and `G` scroll; `Esc` goes back.
+- `a` lands a finished task after a `y/n` question that names both branches, for example `merge crew/<id>/<task> into main?`. hp commits the worktree's changes on the task branch (message: the task title, author from your git config), then merges that branch into the branch checked out in your repository with a merge commit. It refuses, and changes nothing, when your repository has uncommitted changes to tracked files or is on a detached HEAD. When the merge conflicts, hp aborts it and tells you which files conflict, so your repository is left exactly as it was. The task then shows `landed`.
+- `x` discards a finished, failed or stopped task after a `y/n` question: its worktree is removed and its branch deleted, and the task shows `discarded`.
+
 To build and check from source (Go 1.27.3 or newer):
 
 ```sh

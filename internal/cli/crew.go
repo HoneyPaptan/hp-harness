@@ -20,6 +20,10 @@ type CrewService interface {
 	DraftSystem() string
 	SavePlan(reply string) (path, text string, err error)
 	EditPlan(plan string) ([]string, error)
+	Diff(id, task string) ([]string, error)
+	LandCheck(id, task string) (string, error)
+	Land(id, task string) (string, error)
+	Discard(id, task string) error
 	Stop(id, task string) error
 	Retry(id, task string) error
 	Pause(id string) error
@@ -153,6 +157,34 @@ func (a *sessionAgent) crewDo(do func(CrewService) error) error {
 		return err
 	}
 	return do(svc)
+}
+
+func (a *sessionAgent) CrewDiscard(id, task string) error {
+	return a.crewDo(func(svc CrewService) error { return svc.Discard(id, task) })
+}
+
+func (a *sessionAgent) CrewDiff(id, task string) ([]string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return nil, err
+	}
+	return svc.Diff(id, task)
+}
+
+func (a *sessionAgent) CrewLandCheck(id, task string) (string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return "", err
+	}
+	return svc.LandCheck(id, task)
+}
+
+func (a *sessionAgent) CrewLand(id, task string) (string, error) {
+	svc, err := a.crewService()
+	if err != nil {
+		return "", err
+	}
+	return svc.Land(id, task)
 }
 
 func (a *sessionAgent) CrewList() ([]string, error) {

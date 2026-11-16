@@ -229,7 +229,12 @@ func statusWord(t *Task) string {
 	if t.Status == StatusFailed && t.EndReason != "" {
 		return "failed: " + t.EndReason
 	}
-	if t.Status == StatusFinished {
+	switch {
+	case t.Landed:
+		return "landed"
+	case t.Discarded:
+		return "discarded"
+	case t.Status == StatusFinished:
 		return verifyWord(t)
 	}
 	return string(t.Status)
