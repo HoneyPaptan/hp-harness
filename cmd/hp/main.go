@@ -76,6 +76,7 @@ func newProvider(ep cli.Endpoint) provider.Provider {
 		BaseURL: ep.BaseURL, APIKey: ep.APIKey, HTTP: transport.NewHTTPClient(),
 		DisableThinking: ep.Preset == "deepseek", NoStreamOptions: ep.Preset == "mistral",
 		NestedReasoning: ep.Preset == "openrouter", Headers: appHeaders(ep.Preset),
+		UserAgent: "hp/" + version,
 	}
 }
 

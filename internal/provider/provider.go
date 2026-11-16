@@ -47,6 +47,7 @@ type Request struct {
 	Tools     []ToolDef
 	MaxTokens int
 	Effort    string
+	SessionID string
 }
 
 type Usage struct {

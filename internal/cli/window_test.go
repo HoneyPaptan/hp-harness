@@ -67,7 +67,7 @@ func TestRunDepsCompactionSettings(t *testing.T) {
 		ContextWindows:     map[string]int{"xai/grok": 5000},
 	}
 	ep := Endpoint{Preset: "xai", Model: "grok"}
-	d := runDeps(env, ep, nil, tool.NewRegistry(), pr.observer(), nil, emptyRunPerm("/w"), st)
+	d := runDeps(env, "", ep, nil, tool.NewRegistry(), pr.observer(), nil, emptyRunPerm("/w"), st)
 	if d.CompactPercent != 25 {
 		t.Fatalf("percent %d", d.CompactPercent)
 	}

@@ -27,7 +27,7 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.setAuthorization(httpReq.Header)
+	c.setHeaders(httpReq.Header)
 	resp, err := c.httpClient().Do(httpReq)
 	if err != nil {
 		return nil, transport.Failure(ctx, err)

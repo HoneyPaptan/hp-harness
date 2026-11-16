@@ -126,6 +126,7 @@ func (r *runner) streamTurn(ctx context.Context, tools []provider.ToolDef) (prov
 	req := provider.Request{
 		Model: r.reqModel, System: r.cfg.System, Messages: r.msgs,
 		Tools: tools, MaxTokens: r.cfg.MaxTokens, Effort: r.cfg.Effort,
+		SessionID: r.cfg.RunID,
 	}
 	r.deps.Observer.emitTurnStart()
 	raw := r.prov.Stream(ctx, req)

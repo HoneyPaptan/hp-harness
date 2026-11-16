@@ -95,7 +95,7 @@ func execResume(ctx context.Context, env Env, ep Endpoint, bySpec map[string]End
 		mode:  func() permit.Mode { return mode },
 		rules: rules, grants: grants, dir: start.Dir,
 	}
-	deps := runDeps(env, ep, bySpec, tools.reg, pr.observer(), client, rp, set)
+	deps := runDeps(env, id, ep, bySpec, tools.reg, pr.observer(), client, rp, set)
 	out, err := core.Resume(ctx, deps, jpath)
 	return out, pr, err
 }
