@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,11 +13,20 @@ const (
 	versionSamples  = 50
 	runsSamples     = 20
 	overheadSamples = 30
+	timingSamples   = 100
 	journalCount    = 500
 	bytesPerMB      = 1 << 20
 )
 
 func main() {
+	timing := flag.Bool("timing", false, "report median and p90 for every path instead of checking limits")
+	samples := flag.Int("n", timingSamples, "samples per path with -timing")
+	bin := flag.String("bin", "", "prebuilt hp binary to time instead of building HEAD")
+	flag.Parse()
+	run := run
+	if *timing {
+		run = func() error { return runTiming(*samples, *bin) }
+	}
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "bench: %v\n", err)
 		os.Exit(1)

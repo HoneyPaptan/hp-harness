@@ -49,31 +49,40 @@ func (h *harness) runArgs() []string {
 }
 
 func (h *harness) medianWall(state string, n int, args ...string) (time.Duration, error) {
+	samples, err := h.wallSamples(state, n, args...)
+	return median(samples), err
+}
+
+func (h *harness) wallSamples(state string, n int, args ...string) ([]time.Duration, error) {
 	samples := make([]time.Duration, n)
 	for i := range samples {
 		cmd := h.command(state, args...)
 		start := time.Now()
 		if err := cmd.Run(); err != nil {
-			return 0, fmt.Errorf("hp %s: %w", strings.Join(args, " "), err)
+			return nil, fmt.Errorf("hp %s: %w", strings.Join(args, " "), err)
 		}
 		samples[i] = time.Since(start)
 		h.lastRSS = max(h.lastRSS, peakRSS(cmd))
 	}
-	return median(samples), nil
+	return samples, nil
 }
 
 func (h *harness) runOverhead(state string, n int) (time.Duration, int64, error) {
+	samples, err := h.firstByteSamples(state, n)
+	return median(samples), h.lastRSS, err
+}
+
+func (h *harness) firstByteSamples(state string, n int) ([]time.Duration, error) {
 	samples := make([]time.Duration, n)
-	var rss int64
 	for i := range samples {
 		got, used, err := h.timeFirstByte(state)
 		if err != nil {
-			return 0, 0, err
+			return nil, err
 		}
 		samples[i] = got
-		rss = max(rss, used)
+		h.lastRSS = max(h.lastRSS, used)
 	}
-	return median(samples), rss, nil
+	return samples, nil
 }
 
 func (h *harness) timeFirstByte(state string) (time.Duration, int64, error) {
