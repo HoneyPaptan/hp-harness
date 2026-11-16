@@ -7,14 +7,15 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 const maxBody = 1 << 20
 
-var runIDShape = regexp.MustCompile(`^[0-9]{8}-[0-9]{6}-[0-9a-f]{4}$`)
+var runIDShape = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[0-9]{8}-[0-9]{6}-[0-9a-f]{4}$`) })
 
 func ValidRunID(id string) bool {
-	return runIDShape.MatchString(id)
+	return runIDShape().MatchString(id)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

@@ -6,23 +6,32 @@ import (
 )
 
 func parseFrontmatter(text string) (map[string]string, string, bool) {
+	lines, end, ok := frontmatterLines(text)
+	if !ok {
+		return nil, text, false
+	}
+	return parseFieldLines(lines[1:end]), strings.Join(lines[end+1:], "\n"), true
+}
+
+func frontmatterFields(text string) (map[string]string, bool) {
+	lines, end, ok := frontmatterLines(text)
+	if !ok {
+		return nil, false
+	}
+	return parseFieldLines(lines[1:end]), true
+}
+
+func frontmatterLines(text string) ([]string, int, bool) {
 	lines := splitLines(text)
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
-		return nil, text, false
+		return nil, 0, false
 	}
-	end := -1
 	for i := 1; i < len(lines); i++ {
 		if strings.TrimSpace(lines[i]) == "---" {
-			end = i
-			break
+			return lines, i, true
 		}
 	}
-	if end < 0 {
-		return nil, text, false
-	}
-	fields := parseFieldLines(lines[1:end])
-	body := strings.Join(lines[end+1:], "\n")
-	return fields, body, true
+	return nil, 0, false
 }
 
 func parseFieldLines(lines []string) map[string]string {

@@ -17,6 +17,7 @@ import (
 const (
 	benchModel  = "ollama/bench"
 	benchPrompt = "say hi"
+	buildTags   = "nethttpomithttp2"
 	seedID      = "20260101-000000-%04x"
 )
 
@@ -28,7 +29,8 @@ type harness struct {
 }
 
 func buildHP(out string) error {
-	cmd := exec.Command("go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, "./cmd/hp")
+	cmd := exec.Command("go", "build", "-tags", buildTags, "-trimpath", "-ldflags=-s -w", "-o", out, "./cmd/hp")
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	return cmd.Run()
 }
@@ -48,52 +50,59 @@ func (h *harness) runArgs() []string {
 	return []string{"run", "-m", benchModel, "--base-url", h.url, benchPrompt}
 }
 
-func (h *harness) medianWall(state string, n int, args ...string) (time.Duration, error) {
-	samples := make([]time.Duration, n)
-	for i := range samples {
+type timed struct {
+	wall, cpu []time.Duration
+}
+
+func (t *timed) add(wall time.Duration, cmd *exec.Cmd) {
+	t.wall = append(t.wall, wall)
+	t.cpu = append(t.cpu, cmd.ProcessState.UserTime()+cmd.ProcessState.SystemTime())
+}
+
+func (h *harness) wallSamples(state string, n int, args ...string) (timed, error) {
+	var t timed
+	for range n {
 		cmd := h.command(state, args...)
 		start := time.Now()
 		if err := cmd.Run(); err != nil {
-			return 0, fmt.Errorf("hp %s: %w", strings.Join(args, " "), err)
+			return timed{}, fmt.Errorf("hp %s: %w", strings.Join(args, " "), err)
 		}
-		samples[i] = time.Since(start)
+		t.add(time.Since(start), cmd)
 		h.lastRSS = max(h.lastRSS, peakRSS(cmd))
 	}
-	return median(samples), nil
+	return t, nil
 }
 
-func (h *harness) runOverhead(state string, n int) (time.Duration, int64, error) {
-	samples := make([]time.Duration, n)
-	var rss int64
-	for i := range samples {
-		got, used, err := h.timeFirstByte(state)
-		if err != nil {
-			return 0, 0, err
+func (h *harness) firstByteSamples(state string, n int) (timed, error) {
+	var t timed
+	for range n {
+		if err := h.timeFirstByte(state, &t); err != nil {
+			return timed{}, err
 		}
-		samples[i] = got
-		rss = max(rss, used)
 	}
-	return median(samples), rss, nil
+	return t, nil
 }
 
-func (h *harness) timeFirstByte(state string) (time.Duration, int64, error) {
+func (h *harness) timeFirstByte(state string, t *timed) error {
 	cmd := h.command(state, h.runArgs()...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return 0, 0, err
+		return err
 	}
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
-		return 0, 0, err
+		return err
 	}
 	var first [1]byte
 	_, readErr := io.ReadFull(stdout, first[:])
 	took := time.Since(start)
 	_, _ = io.Copy(io.Discard, stdout)
 	if err := errors.Join(readErr, cmd.Wait()); err != nil {
-		return 0, 0, fmt.Errorf("hp run: %w", err)
+		return fmt.Errorf("hp run: %w", err)
 	}
-	return took, peakRSS(cmd), nil
+	t.add(took, cmd)
+	h.lastRSS = max(h.lastRSS, peakRSS(cmd))
+	return nil
 }
 
 func (h *harness) seedJournals(state string, n int) error {

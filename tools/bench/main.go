@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,11 +13,20 @@ const (
 	versionSamples  = 50
 	runsSamples     = 20
 	overheadSamples = 30
+	timingSamples   = 100
 	journalCount    = 500
 	bytesPerMB      = 1 << 20
 )
 
 func main() {
+	timing := flag.Bool("timing", false, "report median and p90 for every path instead of checking limits")
+	samples := flag.Int("n", timingSamples, "samples per path with -timing")
+	bin := flag.String("bin", "", "prebuilt hp binary to time instead of building HEAD")
+	flag.Parse()
+	run := run
+	if *timing {
+		run = func() error { return runTiming(*samples, *bin) }
+	}
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "bench: %v\n", err)
 		os.Exit(1)
@@ -48,20 +58,20 @@ func measureAll(dir string) (results, error) {
 	}
 	defer srv.Close()
 	h := harness{bin: bin, dir: dir, url: srv.URL}
-	if res.version, err = h.medianWall(h.state("empty"), versionSamples, "--version"); err != nil {
+	if res.version, err = h.wallSamples(h.state("empty"), versionSamples, "--version"); err != nil {
 		return res, err
 	}
-	if res.overhead, res.peakRSS, err = h.runOverhead(h.state("run"), overheadSamples); err != nil {
+	if res.overhead, err = h.firstByteSamples(h.state("run"), overheadSamples); err != nil {
 		return res, err
 	}
 	state := h.state("runs")
 	if err := h.seedJournals(state, journalCount); err != nil {
 		return res, err
 	}
-	if res.runs, err = h.medianWall(state, runsSamples, "runs"); err != nil {
+	if res.runs, err = h.wallSamples(state, runsSamples, "runs"); err != nil {
 		return res, err
 	}
-	res.peakRSS = max(res.peakRSS, h.lastRSS)
+	res.peakRSS = h.lastRSS
 	return res, nil
 }
 

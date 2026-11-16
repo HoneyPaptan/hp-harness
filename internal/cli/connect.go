@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/HoneyPaptan/hp-harness/internal/mcp"
@@ -21,15 +22,15 @@ const (
 )
 
 var (
-	refPattern    = regexp.MustCompile(`\$[A-Za-z_][A-Za-z0-9_]*`)
-	unsafeToolRun = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+	refPattern    = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`\$[A-Za-z_][A-Za-z0-9_]*`) })
+	unsafeToolRun = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`[^a-zA-Z0-9_-]`) })
 	serverEnvKeys = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "LC_ALL", "TMPDIR"}
 )
 
 func expandRefs(value string, getenv func(string) string) (string, []string, error) {
 	var secrets []string
 	var missing error
-	out := refPattern.ReplaceAllStringFunc(value, func(ref string) string {
+	out := refPattern().ReplaceAllStringFunc(value, func(ref string) string {
 		v := getenv(ref[1:])
 		if v == "" && missing == nil {
 			missing = fmt.Errorf("%s is not set", ref)
@@ -124,7 +125,7 @@ func exposeTools(server string, tools []mcp.Tool) []cachedTool {
 	used := make(map[string]bool, len(sorted))
 	out := make([]cachedTool, 0, len(sorted))
 	for _, t := range sorted {
-		name := uniqueToolName(server+toolSeparator+unsafeToolRun.ReplaceAllString(t.Name, "_"), used)
+		name := uniqueToolName(server+toolSeparator+unsafeToolRun().ReplaceAllString(t.Name, "_"), used)
 		used[name] = true
 		out = append(out, cachedTool{
 			Name: name, Remote: t.Name,

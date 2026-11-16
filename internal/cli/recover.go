@@ -171,7 +171,7 @@ func noteSkipped(env Env, id string, err error) {
 
 func candidateRunIDs(env Env) ([]string, error) {
 	dir := runsDir(env.Getenv)
-	ents, err := env.Host.ReadDir(dir)
+	ents, err := host.ReadNames(env.Host, dir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -78,6 +79,40 @@ func (Native) ReadDir(path string) ([]Entry, error) {
 		ent := entryFromFileInfo(e.Name(), info)
 		ent.IsLink = e.Type()&fs.ModeSymlink != 0
 		out = append(out, ent)
+	}
+	return out, nil
+}
+
+func (Native) ReadHead(path string, n int) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	buf := make([]byte, n)
+	got, err := io.ReadFull(f, buf)
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		err = nil
+	}
+	return buf[:got], err
+}
+
+func (Native) ListNames(path string) ([]Entry, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Entry, 0, len(entries))
+	for _, e := range entries {
+		isDir := e.IsDir()
+		if e.Type()&fs.ModeSymlink != 0 {
+			info, err := os.Stat(filepath.Join(path, e.Name()))
+			if err != nil {
+				continue
+			}
+			isDir = info.IsDir()
+		}
+		out = append(out, Entry{Name: e.Name(), IsDir: isDir, IsLink: e.Type()&fs.ModeSymlink != 0})
 	}
 	return out, nil
 }

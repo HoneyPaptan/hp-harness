@@ -50,7 +50,7 @@ func runLines(env Env) ([]string, error) {
 }
 
 func sortedRunIDs(env Env, dir string) ([]string, error) {
-	ents, err := env.Host.ReadDir(dir)
+	ents, err := host.ReadNames(env.Host, dir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil

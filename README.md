@@ -139,16 +139,16 @@ hp run --json "list the TODOs" | jq -r 'select(.type=="end") | .text'
 
 ## Size and speed
 
-The stripped binary is 9,015,559 bytes (9.0 MB), measured with `make check` against the 10,485,760 byte budget in `.size-budget`. The wasm build is checked the same way: its gzip size must stay under the 3,800,000 bytes in `.wasm-size-budget`.
+The stripped binary is 9,040,032 bytes (9.0 MB), measured with `make check` against the 10,485,760 byte budget in `.size-budget`. The wasm build is checked the same way: its gzip size must stay under the 3,800,000 bytes in `.wasm-size-budget`.
 
-`make bench` runs hp against a local fake server that replies at once, so it checks hp's own overhead. It fails when any of these bounds is exceeded:
+`make bench` runs hp against a local fake server that replies at once, so it checks hp's own overhead. It gates on the median CPU time (user plus system) of the hp process, which a busy machine barely changes, and on a loose wall time ceiling that only catches gross regressions. It also prints the median and p90 wall time. It fails when any of these bounds is exceeded:
 
-| Check | Bound |
-| --- | --- |
-| `hp --version` | 10 ms |
-| `hp runs` with 500 journals | 100 ms |
-| `hp run` start to first byte | 15 ms |
-| Peak RSS | 40 MB |
+| Check | CPU time bound | Wall time ceiling |
+| --- | --- | --- |
+| `hp --version` | 8 ms | 50 ms |
+| `hp runs` with 500 journals | 14 ms | 100 ms |
+| `hp run` start to first byte | 14 ms | 100 ms |
+| Peak RSS | 20 MB | |
 
 ## Folders
 

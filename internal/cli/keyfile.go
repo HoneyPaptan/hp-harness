@@ -7,14 +7,25 @@ import (
 	"maps"
 	"os"
 	"path"
-	"regexp"
 	"slices"
 	"strings"
 )
 
 const keyFileName = "env"
 
-var keyNamePattern = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
+func validKeyName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		if c == '_' || c >= 'A' && c <= 'Z' || i > 0 && c >= '0' && c <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
+}
 
 type keyFile struct {
 	values map[string]string
@@ -61,7 +72,7 @@ func parseKeyFile(data []byte) keyFile {
 
 func parseKeyLine(line string) (string, string, bool) {
 	name, value, ok := strings.Cut(line, "=")
-	if !ok || !keyNamePattern.MatchString(name) {
+	if !ok || !validKeyName(name) {
 		return "", "", false
 	}
 	return name, value, true

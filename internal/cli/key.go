@@ -11,7 +11,7 @@ import (
 const keyUsage = "usage: hp key set NAME | hp key list | hp key rm NAME"
 
 func checkKeyName(name string) error {
-	if !keyNamePattern.MatchString(name) {
+	if !validKeyName(name) {
 		return usagef("invalid key name %q: use A-Z, 0-9 and _", name)
 	}
 	return nil

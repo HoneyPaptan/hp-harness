@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"slices"
+	"sync"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
@@ -17,7 +18,7 @@ const (
 
 var (
 	ephemeral  = &wireCache{Type: "ephemeral"}
-	idForbids  = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+	idForbids  = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`[^a-zA-Z0-9_-]`) })
 	objectHead = []byte("{")
 )
 
@@ -96,7 +97,7 @@ func appendText(blocks []wireBlock, text string) []wireBlock {
 }
 
 func wireID(id string) string {
-	return idForbids.ReplaceAllString(id, "_")
+	return idForbids().ReplaceAllString(id, "_")
 }
 
 func toolInput(args json.RawMessage) json.RawMessage {
