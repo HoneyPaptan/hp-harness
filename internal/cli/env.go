@@ -32,6 +32,7 @@ type Env struct {
 	Term        Terminal
 	RunCtl      func(argv []string) error
 	Browser     bool
+	Crew        func(dir string) CrewService
 	realGetenv  func(string) string
 }
 

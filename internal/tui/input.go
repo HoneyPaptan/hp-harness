@@ -27,6 +27,10 @@ func (s *Session) handleKey(ctx context.Context, k Key) {
 		s.pickerKey(k)
 		return
 	}
+	if s.crew != nil {
+		s.crewKey(k)
+		return
+	}
 	if s.masking {
 		s.secretKey(k)
 		return
