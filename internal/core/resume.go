@@ -62,7 +62,7 @@ func newResumeRunner(d Deps, w *journal.Writer, path string, st journal.State) (
 	r := &runner{
 		deps: d, w: w, cfg: cfg,
 		msgs:  append([]provider.Message(nil), st.Messages...),
-		steps: st.Steps, limit: st.Start.StepLimit,
+		steps: st.Steps, limit: st.Start.StepLimit, toolNotes: st.ToolNotes,
 		limited: make(map[string]time.Time),
 	}
 	if err := r.bindSpec(d, spec); err != nil {
