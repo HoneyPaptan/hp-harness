@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -429,5 +430,146 @@ func TestSettleStartingLaunchesWhenNoRun(t *testing.T) {
 	}
 	if len(hp.calls) != 1 || hp.calls[0][0] != "run" {
 		t.Fatalf("calls %v", hp.calls)
+	}
+}
+
+func tearTail(t *testing.T, getenv func(string) string, id string) {
+	t.Helper()
+	p := filepath.Join(runsDir(getenv), id+".jsonl")
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(`{"seq":9,"ts":"x","type":"tool_result","data":{"result":{"Text":"partial`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func markLive(t *testing.T, getenv func(string) string, id string) {
+	t.Helper()
+	p := filepath.Join(runsDir(getenv), id+".pid")
+	if err := os.WriteFile(p, []byte("4242"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func runningCrew(id string) *State {
+	return &State{ID: "c1", Plan: "/p", Repo: "/repo", Base: "b", Concurrency: 1,
+		Tasks: []Task{{Title: "T", Slug: "t", Prompt: "p", RunID: id, Status: StatusRunning}}}
+}
+
+func TestAdvanceTornTailLiveRunWaits(t *testing.T) {
+	env, getenv, hp, _ := advEnv(t, t.TempDir())
+	env.Alive = func(pid int) bool { return pid == 4242 }
+	st := runningCrew("old")
+	writeUnfinished(t, getenv, "old")
+	tearTail(t, getenv, "old")
+	markLive(t, getenv, "old")
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusRunning || len(hp.calls) != 0 {
+		t.Fatalf("task %+v calls %v", st.Tasks[0], hp.calls)
+	}
+}
+
+func TestAdvanceTornTailDeadRunResumes(t *testing.T) {
+	env, getenv, hp, _ := advEnv(t, t.TempDir())
+	st := runningCrew("old")
+	writeUnfinished(t, getenv, "old")
+	tearTail(t, getenv, "old")
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusRunning || len(hp.calls) != 1 || hp.calls[0][0] != "resume" {
+		t.Fatalf("task %+v calls %v", st.Tasks[0], hp.calls)
+	}
+}
+
+func TestAdvanceUnreadableJournalLiveRunWaits(t *testing.T) {
+	env, getenv, hp, _ := advEnv(t, t.TempDir())
+	env.Alive = func(pid int) bool { return pid == 4242 }
+	st := runningCrew("old")
+	p := filepath.Join(runsDir(getenv), "old.jsonl")
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("{\"seq\":0,\"ts\":\"x\",\"typ"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	markLive(t, getenv, "old")
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusRunning || len(hp.calls) != 0 {
+		t.Fatalf("task %+v calls %v", st.Tasks[0], hp.calls)
+	}
+}
+
+func TestAdvanceUnreadableJournalDeadRunIsBounded(t *testing.T) {
+	env, getenv, hp, _ := advEnv(t, t.TempDir())
+	st := runningCrew("old")
+	p := filepath.Join(runsDir(getenv), "old.jsonl")
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("{\"seq\":0,\"ts\":\"x\",\"typ"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < journal.CrashLimit+2; i++ {
+		if err := advance(context.Background(), env, st); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if st.Tasks[0].Status != StatusFailed || !strings.Contains(st.Tasks[0].EndReason, "keeps crashing") {
+		t.Fatalf("task %+v", st.Tasks[0])
+	}
+	if len(hp.calls) != journal.CrashLimit {
+		t.Fatalf("hp calls %d want %d", len(hp.calls), journal.CrashLimit)
+	}
+}
+
+func TestAdvanceRecoverLockHeldSkipsResume(t *testing.T) {
+	env, getenv, hp, _ := advEnv(t, t.TempDir())
+	st := runningCrew("old")
+	writeUnfinished(t, getenv, "old")
+	unlock, err := host.Native{}.Lock(recoverLockPath(getenv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusRunning || len(hp.calls) != 0 {
+		t.Fatalf("task %+v calls %v", st.Tasks[0], hp.calls)
+	}
+	if _, err := os.Stat(resumeStatePath(getenv, "old")); err == nil {
+		t.Fatal("resume state written while lock was held")
+	}
+	unlock()
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if len(hp.calls) != 1 || hp.calls[0][0] != "resume" {
+		t.Fatalf("calls after unlock %v", hp.calls)
+	}
+}
+
+func TestAdvanceRechecksAliveUnderLock(t *testing.T) {
+	env, getenv, hp, _ := advEnv(t, t.TempDir())
+	checks := 0
+	env.Alive = func(int) bool {
+		checks++
+		return checks > 1
+	}
+	st := runningCrew("old")
+	writeUnfinished(t, getenv, "old")
+	markLive(t, getenv, "old")
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if checks != 2 || len(hp.calls) != 0 || st.Tasks[0].Status != StatusRunning {
+		t.Fatalf("checks %d calls %v task %+v", checks, hp.calls, st.Tasks[0])
 	}
 }

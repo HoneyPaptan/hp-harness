@@ -3,6 +3,7 @@ package crew
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -66,21 +67,47 @@ func advance(ctx context.Context, env Env, st *State) error {
 }
 
 func settleRunning(ctx context.Context, env Env, st *State, t *Task) error {
-	recs, run, err := replayRunRecords(env, t.RunID)
-	if err != nil {
-		return failTask(env, st, t, err)
-	}
-	if run.Finished {
-		t.Status = StatusFinished
-		t.EndReason = run.EndReason
-		return st.save(env.Getenv)
-	}
-	if run.Stopped {
-		t.Status = StatusStopped
-		return st.save(env.Getenv)
+	if _, run, err := replayRunRecords(env, t.RunID); err == nil {
+		if ended, err := settleEnded(env, st, t, run); ended {
+			return err
+		}
 	}
 	if runAlive(env, t.RunID) {
 		return nil
+	}
+	return resumeDead(ctx, env, st, t)
+}
+
+func settleEnded(env Env, st *State, t *Task, run journal.State) (bool, error) {
+	switch {
+	case run.Finished:
+		t.Status = StatusFinished
+		t.EndReason = run.EndReason
+	case run.Stopped:
+		t.Status = StatusStopped
+	default:
+		return false, nil
+	}
+	return true, st.save(env.Getenv)
+}
+
+func resumeDead(ctx context.Context, env Env, st *State, t *Task) error {
+	unlock, err := host.Native{}.Lock(recoverLockPath(env.Getenv))
+	if errors.Is(err, host.ErrLocked) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if runAlive(env, t.RunID) {
+		return nil
+	}
+	recs, run, err := replayRunRecords(env, t.RunID)
+	if err == nil {
+		if ended, err := settleEnded(env, st, t, run); ended {
+			return err
+		}
 	}
 	resume, next := journal.NextResume(run, recs, loadResumeState(env, t.RunID))
 	if !resume {
@@ -93,6 +120,10 @@ func settleRunning(ctx context.Context, env Env, st *State, t *Task) error {
 		return failTask(env, st, t, err)
 	}
 	return nil
+}
+
+func recoverLockPath(getenv func(string) string) string {
+	return filepath.Join(runsDir(getenv), "recover.lock")
 }
 
 func settleStarting(ctx context.Context, env Env, st *State, t *Task) error {
