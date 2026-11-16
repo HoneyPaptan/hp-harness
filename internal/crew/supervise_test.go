@@ -1,0 +1,306 @@
+package crew
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/HoneyPaptan/hp-harness/internal/host"
+	"github.com/HoneyPaptan/hp-harness/internal/journal"
+	"github.com/HoneyPaptan/hp-harness/internal/provider"
+)
+
+type fakeHP struct {
+	calls [][]string
+	n     int
+}
+
+func (f *fakeHP) run(_ context.Context, args ...string) (string, error) {
+	f.calls = append(f.calls, append([]string(nil), args...))
+	if len(args) > 0 && args[0] == "run" {
+		f.n++
+		return fmt.Sprintf("run-%d\nattach with: hp attach run-%d\n", f.n, f.n), nil
+	}
+	return "", nil
+}
+
+type fakeGit struct {
+	calls [][]string
+}
+
+func (f *fakeGit) run(dir string, args ...string) (string, error) {
+	f.calls = append(f.calls, append([]string{dir}, args...))
+	return "", nil
+}
+
+func advEnv(t *testing.T, state string) (Env, func(string) string, *fakeHP, *fakeGit) {
+	t.Helper()
+	getenv := getenvMap(map[string]string{"XDG_STATE_HOME": state, "HOME": "/h"})
+	hp := &fakeHP{}
+	git := &fakeGit{}
+	env := Env{
+		Getenv: getenv, Cwd: "/proj",
+		Alive: func(int) bool { return false },
+		RunHP: hp.run, Git: git.run,
+	}
+	return env, getenv, hp, git
+}
+
+func seedEnd(t *testing.T, getenv func(string) string, id, reason string) {
+	t.Helper()
+	dir := runsDir(getenv)
+	w, err := journal.Create(host.Native{}, filepath.Join(dir, id+".jsonl"), journal.RunStart{RunID: id, Dir: "/w"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.User("p"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.End(reason); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAdvanceStartsThenFinishes(t *testing.T) {
+	state := t.TempDir()
+	env, getenv, hp, _ := advEnv(t, state)
+	st := newState(getenv, "c1", "/p/plan.md", "/repo", "base", runFlags{n: 2}, []planTask{
+		{title: "One", prompt: "one", slug: "one"},
+		{title: "Two", prompt: "two", slug: "two"},
+	})
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.runningCount() != 2 {
+		t.Fatalf("running %d", st.runningCount())
+	}
+	for i := range st.Tasks {
+		if st.Tasks[i].Status != StatusRunning || st.Tasks[i].RunID == "" {
+			t.Fatalf("task %d %+v", i, st.Tasks[i])
+		}
+	}
+	if len(hp.calls) != 2 {
+		t.Fatalf("hp calls %d", len(hp.calls))
+	}
+	seedEnd(t, getenv, st.Tasks[0].RunID, "final")
+	seedEnd(t, getenv, st.Tasks[1].RunID, "final")
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if !st.done() || st.doneCount() != 2 {
+		t.Fatalf("done %v %d", st.done(), st.doneCount())
+	}
+	for i := range st.Tasks {
+		if st.Tasks[i].Status != StatusFinished {
+			t.Fatalf("task %d status %s", i, st.Tasks[i].Status)
+		}
+	}
+}
+
+func TestAdvanceConcurrencyLimit(t *testing.T) {
+	state := t.TempDir()
+	env, getenv, _, _ := advEnv(t, state)
+	st := newState(getenv, "c1", "/p", "/repo", "base", runFlags{n: 1}, []planTask{
+		{title: "One", prompt: "one", slug: "one"},
+		{title: "Two", prompt: "two", slug: "two"},
+	})
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.runningCount() != 1 || st.Tasks[1].Status != StatusQueued {
+		t.Fatalf("running %d queued %s", st.runningCount(), st.Tasks[1].Status)
+	}
+	seedEnd(t, getenv, st.Tasks[0].RunID, "final")
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.runningCount() != 1 || st.Tasks[0].Status != StatusFinished || st.Tasks[1].Status != StatusRunning {
+		t.Fatalf("after finish %+v", st.Tasks)
+	}
+}
+
+func TestAdvanceResumesDeadRun(t *testing.T) {
+	state := t.TempDir()
+	env, getenv, hp, _ := advEnv(t, state)
+	st := &State{ID: "c1", Plan: "/p", Repo: "/repo", Base: "base", Concurrency: 1,
+		Tasks: []Task{{Title: "Dead", Slug: "dead", Prompt: "p", RunID: "old", Status: StatusRunning}}}
+	writeUnfinished(t, getenv, "old")
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusRunning {
+		t.Fatalf("status %s", st.Tasks[0].Status)
+	}
+	if len(hp.calls) != 1 || hp.calls[0][0] != "resume" || hp.calls[0][2] != "old" {
+		t.Fatalf("calls %v", hp.calls)
+	}
+}
+
+func writeUnfinished(t *testing.T, getenv func(string) string, id string) {
+	t.Helper()
+	w, err := journal.Create(host.Native{}, filepath.Join(runsDir(getenv), id+".jsonl"), journal.RunStart{RunID: id, Dir: "/w"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.User("p"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAdvanceDeadResumeFailureFails(t *testing.T) {
+	state := t.TempDir()
+	getenv := getenvMap(map[string]string{"XDG_STATE_HOME": state, "HOME": "/h"})
+	env := Env{
+		Getenv: getenv, Cwd: "/proj",
+		Alive: func(int) bool { return false },
+		RunHP: func(context.Context, ...string) (string, error) {
+			return "", fmt.Errorf("resume failed")
+		},
+		Git: func(string, ...string) (string, error) { return "", nil },
+	}
+	st := &State{ID: "c1", Plan: "/p", Repo: "/repo", Base: "b", Concurrency: 1,
+		Tasks: []Task{{Title: "Dead", Slug: "d", Prompt: "p", RunID: "old", Status: StatusRunning}}}
+	writeUnfinished(t, getenv, "old")
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusFailed || !strings.Contains(st.Tasks[0].EndReason, "resume failed") {
+		t.Fatalf("task %+v", st.Tasks[0])
+	}
+}
+
+func TestStartFailureFails(t *testing.T) {
+	state := t.TempDir()
+	getenv := getenvMap(map[string]string{"XDG_STATE_HOME": state, "HOME": "/h"})
+	env := Env{
+		Getenv: getenv, Cwd: "/proj",
+		Alive: func(int) bool { return false },
+		RunHP: func(context.Context, ...string) (string, error) {
+			return "", fmt.Errorf("no key")
+		},
+		Git: func(string, ...string) (string, error) { return "", nil },
+	}
+	st := newState(getenv, "c1", "/p", "/repo", "b", runFlags{n: 1}, []planTask{
+		{title: "One", prompt: "one", slug: "one"},
+	})
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusFailed || !strings.Contains(st.Tasks[0].EndReason, "no key") {
+		t.Fatalf("task %+v", st.Tasks[0])
+	}
+}
+
+func TestFinalAnswer(t *testing.T) {
+	st := journal.State{Messages: []provider.Message{
+		{Role: provider.RoleUser, Text: "p"},
+		{Role: provider.RoleAssistant, Text: "tool time"},
+		{Role: provider.RoleUser, ToolResults: []provider.ToolResult{{CallID: "1", Text: "x"}}},
+		{Role: provider.RoleAssistant, Text: "  the answer  "},
+	}}
+	if got := finalAnswer(st); got != "the answer" {
+		t.Fatalf("got %q", got)
+	}
+	empty := journal.State{Messages: []provider.Message{{Role: provider.RoleUser, Text: "p"}}}
+	if got := finalAnswer(empty); got != "" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func seedAnswer(t *testing.T, getenv func(string) string, id, reason, answer string) {
+	t.Helper()
+	w, err := journal.Create(host.Native{}, filepath.Join(runsDir(getenv), id+".jsonl"), journal.RunStart{RunID: id, Dir: "/w"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.User("p"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Assistant(provider.Message{Role: provider.RoleAssistant, Text: answer}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.End(reason); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStatusAndReport(t *testing.T) {
+	state := t.TempDir()
+	getenv := getenvMap(map[string]string{"XDG_STATE_HOME": state, "HOME": "/h"})
+	env := Env{
+		Getenv: getenv, Cwd: "/proj",
+		Alive: func(int) bool { return false },
+		Git: func(dir string, args ...string) (string, error) {
+			if len(args) >= 1 && args[0] == "status" {
+				return "?? b.txt\n", nil
+			}
+			if len(args) >= 2 && args[0] == "diff" && args[1] == "--stat" {
+				return " b.txt | 1 +\n", nil
+			}
+			return "", nil
+		},
+	}
+	st := newState(getenv, "c1", "/p/plan.md", "/repo", "base", runFlags{n: 2}, []planTask{
+		{title: "Done", prompt: "done", slug: "done"},
+		{title: "Later", prompt: "later", slug: "later"},
+	})
+	st.Tasks[0].Status = StatusFinished
+	st.Tasks[0].RunID = "r1"
+	st.Tasks[0].EndReason = "final"
+	st.Tasks[1].Status = StatusQueued
+	seedAnswer(t, getenv, "r1", "final", "all good")
+	if err := st.save(getenv); err != nil {
+		t.Fatal(err)
+	}
+
+	var status, report bytes.Buffer
+	env.Stdout = &status
+	env.Args = []string{"crew", "status", "c1"}
+	if code := Main(context.Background(), env, env.Args); code != 0 {
+		t.Fatalf("status code %d", code)
+	}
+	line := status.String()
+	if !strings.Contains(line, "Done  finished  r1  crew/c1/done  1 file") {
+		t.Fatalf("status %q", line)
+	}
+	if !strings.Contains(line, "Later  queued  -  crew/c1/later  -") {
+		t.Fatalf("status %q", line)
+	}
+
+	env.Stdout = &report
+	env.Args = []string{"crew", "report", "c1"}
+	if code := Main(context.Background(), env, env.Args); code != 0 {
+		t.Fatalf("report code %d", code)
+	}
+	rep := report.String()
+	if !strings.Contains(rep, "## Done") || !strings.Contains(rep, "all good") || !strings.Contains(rep, "b.txt") {
+		t.Fatalf("report %q", rep)
+	}
+	if !strings.Contains(rep, "## Later") || !strings.Contains(rep, "queued") {
+		t.Fatalf("report %q", rep)
+	}
+}
+
+func TestCrewsList(t *testing.T) {
+	state := t.TempDir()
+	getenv := getenvMap(map[string]string{"XDG_STATE_HOME": state, "HOME": "/h"})
+	env := Env{Getenv: getenv, Stdout: &bytes.Buffer{}}
+	st := newState(getenv, "c1", "/p/plan.md", "/repo", "b", runFlags{n: 2}, []planTask{
+		{title: "One", prompt: "one", slug: "one"},
+		{title: "Two", prompt: "two", slug: "two"},
+	})
+	st.Tasks[0].Status = StatusFinished
+	if err := st.save(getenv); err != nil {
+		t.Fatal(err)
+	}
+	if code := cmdCrews(env, nil); code != 0 {
+		t.Fatalf("code %d", code)
+	}
+	out := env.Stdout.(*bytes.Buffer).String()
+	if !strings.Contains(out, "c1  plan.md  1/2 done") {
+		t.Fatalf("crews %q", out)
+	}
+}
