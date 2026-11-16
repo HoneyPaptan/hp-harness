@@ -17,6 +17,7 @@ import (
 const (
 	benchModel  = "ollama/bench"
 	benchPrompt = "say hi"
+	buildTags   = "nethttpomithttp2"
 	seedID      = "20260101-000000-%04x"
 )
 
@@ -28,7 +29,8 @@ type harness struct {
 }
 
 func buildHP(out string) error {
-	cmd := exec.Command("go", "build", "-trimpath", "-ldflags=-s -w", "-o", out, "./cmd/hp")
+	cmd := exec.Command("go", "build", "-tags", buildTags, "-trimpath", "-ldflags=-s -w", "-o", out, "./cmd/hp")
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	return cmd.Run()
 }

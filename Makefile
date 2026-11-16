@@ -3,7 +3,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 TAGS := nethttpomithttp2
 
 build:
-	go build -tags $(TAGS) -trimpath -ldflags '$(LDFLAGS)' -o hp ./cmd/hp
+	CGO_ENABLED=0 go build -tags $(TAGS) -trimpath -ldflags '$(LDFLAGS)' -o hp ./cmd/hp
 
 wasm:
 	mkdir -p dist/web

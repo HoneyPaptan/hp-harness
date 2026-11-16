@@ -27,7 +27,7 @@ core_boundary() {
 size_budget() {
 	local out size budget
 	out=$(mktemp)
-	go build -tags "$BUILD_TAGS" -trimpath -ldflags='-s -w' -o "$out" ./cmd/hp
+	CGO_ENABLED=0 go build -tags "$BUILD_TAGS" -trimpath -ldflags='-s -w' -o "$out" ./cmd/hp
 	size=$(wc -c <"$out")
 	rm -f "$out"
 	budget=$(cat .size-budget)
