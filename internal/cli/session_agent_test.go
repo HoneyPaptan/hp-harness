@@ -93,6 +93,21 @@ func TestSessionAgentModelsGroqWithKey(t *testing.T) {
 	}
 }
 
+func TestSessionAgentModelsOpenCodeGo(t *testing.T) {
+	stub := &listingStub{ids: []string{"hy4-flash-free", "kimi-k3.1-pro"}}
+	a := sessionAgentWithLister(t, Endpoint{}, stub, map[string]string{"OPENCODE_API_KEY": "ok"})
+	got, err := a.Models(context.Background(), "opencode-go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(got, ",") != "hy4-flash-free,kimi-k3.1-pro" {
+		t.Fatalf("got %v", got)
+	}
+	if stub.ep.BaseURL != "https://opencode.ai/zen/go/v1" || stub.ep.APIKey != "ok" {
+		t.Fatalf("endpoint = %+v", stub.ep)
+	}
+}
+
 func TestSessionAgentModelsGroqNoKey(t *testing.T) {
 	stub := &listingStub{ids: []string{"m1"}}
 	a := sessionAgentWithLister(t, Endpoint{Preset: "xai", Model: "g"}, stub, nil)

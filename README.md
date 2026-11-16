@@ -4,7 +4,7 @@
 
 hp harness is a coding agent for the terminal; the command is `hp`. Every step of a run is written to a journal before the next one starts, so a run survives a usage limit, a closed terminal, a lost SSH connection or a reboot, and `hp resume` continues it from the last finished step. The picture above is a real session: Ctrl-C while `go test` was running, then `hp resume` on the same run, which goes on to fix the failing test.
 
-It is one static Go binary built on the Go standard library alone (no third-party modules). It talks to 13 provider presets (Anthropic's Messages API, plus OpenAI-compatible endpoints such as Groq, OpenRouter, xAI and a local Ollama), runs the usual file, shell and web tools, and connects to MCP servers and skills with `hp add`.
+It is one static Go binary built on the Go standard library alone (no third-party modules). It talks to 14 provider presets (Anthropic's Messages API, plus OpenAI-compatible endpoints such as Groq, OpenRouter, xAI, OpenCode Go (`opencode-go`) and a local Ollama), runs the usual file, shell and web tools, and connects to MCP servers and skills with `hp add`.
 
 hp keeps the whole conversation on disk, so a dead process is a pause, not the end of the run. It is early (v0.0.x): flags and the journal format can still change.
 
@@ -37,7 +37,7 @@ hp crew status <crew-id>
 hp crew report <crew-id>
 ```
 
-The installer supports linux and macOS on amd64 and arm64, checks the sha256 against `checksums.txt` and puts `hp` in `~/.local/bin`. `hp key set` stores the key in `~/.config/hp/env` with mode 0600. Bare `hp` opens an interactive session (without `HP_MODEL` or `-m` it opens a model picker first). `hp providers` lists the presets and which keys are set.
+The installer supports linux and macOS on amd64 and arm64, checks the sha256 against `checksums.txt` and puts `hp` in `~/.local/bin`. `hp key set` stores the key in `~/.config/hp/env` with mode 0600. Bare `hp` opens an interactive session (without `HP_MODEL` or `-m` it opens a model picker first; the picker lists the models the provider reports and marks the ones ending in `-free`). `hp providers` lists the presets and which keys are set.
 
 To build and check from source (Go 1.27.3 or newer):
 

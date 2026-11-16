@@ -6,10 +6,36 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/HoneyPaptan/hp-harness/internal/provider"
 )
+
+func TestListModelsOpenCodeGoShape(t *testing.T) {
+	body := `{"object":"list","data":[
+		{"id":"kimi-k3.1-pro","object":"model","name":"Kimi K3.1 Pro","capabilities":{"tools":{"supported":true}},"cost":{"text":{"input":{"price":1}}}},
+		{"id":"hy4-flash-free","object":"model","owned_by":"opencode","limit":{"context":256000}},
+		{"id":"longcat-2.5-free","object":"model"}]}`
+	var gotPath, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotAuth = r.URL.Path, r.Header.Get("Authorization")
+		io.WriteString(w, body)
+	}))
+	defer srv.Close()
+	c := &Client{BaseURL: srv.URL + "/zen/go/v1", APIKey: "k", HTTP: srv.Client()}
+	got, err := c.ListModels(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"hy4-flash-free", "kimi-k3.1-pro", "longcat-2.5-free"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	if gotPath != "/zen/go/v1/models" || gotAuth != "Bearer k" {
+		t.Fatalf("path %q auth %q", gotPath, gotAuth)
+	}
+}
 
 func TestListModels(t *testing.T) {
 	tests := []struct {
