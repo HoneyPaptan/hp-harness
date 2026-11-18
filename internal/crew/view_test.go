@@ -129,7 +129,7 @@ func TestViewDoneAndChangedFiles(t *testing.T) {
 	if err != nil || !found || !snap.Done || snap.Label != "plan.md" {
 		t.Fatalf("%+v %v %v", snap, found, err)
 	}
-	if snap.Rows[0].Changed != "2 files" || snap.Rows[1].Status != "failed: boom" {
+	if snap.Rows[0].Changed != "2 files" || snap.Rows[1].Status != "failed" || snap.Rows[1].Detail != "boom" {
 		t.Fatalf("rows %+v", snap.Rows)
 	}
 }
@@ -294,5 +294,24 @@ func TestReadLogFromReturnsOnlyNewBytes(t *testing.T) {
 				t.Fatalf("got %q end %d, want %q end %d", text, end, tc.wantText, tc.wantEnd)
 			}
 		})
+	}
+}
+
+func TestCrashReasonQuotesTheLastErrorOfTheRun(t *testing.T) {
+	home := t.TempDir()
+	getenv := getenvMap(map[string]string{"HOME": home})
+	env := Env{Getenv: getenv}
+	if err := os.MkdirAll(runsDir(getenv), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got := crashReason(env, "r1").Error(); got != "keeps crashing after 3 resumes" {
+		t.Fatalf("no log: %q", got)
+	}
+	log := "working\nerror: http 400: first\nresume with: hp resume r1\nerror: http 400: model says no\nresume with: hp resume r1\n"
+	if err := os.WriteFile(runLogPath(getenv, "r1"), []byte(log), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := crashReason(env, "r1").Error(); got != "http 400: model says no (gave up after 3 resumes)" {
+		t.Fatalf("with log: %q", got)
 	}
 }

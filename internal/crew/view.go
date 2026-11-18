@@ -54,8 +54,9 @@ func (s Service) View(id string) (crewview.Snapshot, bool, error) {
 	}
 	for i := range st.Tasks {
 		t := &st.Tasks[i]
+		status, detail := viewStatus(t)
 		snap.Rows[i] = crewview.Row{
-			Slug: t.Slug, Title: t.Title, Status: statusWord(t), RunID: runID(t),
+			Slug: t.Slug, Title: t.Title, Status: status, Detail: detail, RunID: runID(t),
 			Changed: changedFiles(s.Env, st, t), Keys: taskKeys(t),
 		}
 		if word := pendingWord(reqs, t.Slug); word != "" {
@@ -63,6 +64,13 @@ func (s Service) View(id string) (crewview.Snapshot, bool, error) {
 		}
 	}
 	return snap, true, nil
+}
+
+func viewStatus(t *Task) (string, string) {
+	if t.Status == StatusFailed && t.EndReason != "" {
+		return string(StatusFailed), t.EndReason
+	}
+	return statusWord(t), ""
 }
 
 func taskKeys(t *Task) string {
@@ -121,6 +129,24 @@ func (s Service) Follow(id string, index, offset int) (crewview.Chunk, error) {
 		chunk.Trailer = s.trailer(st, t, string(whole))
 	}
 	return chunk, nil
+}
+
+const errorTailBytes = 4096
+
+func lastRunError(env Env, id string) string {
+	path := runLogPath(env.Getenv, id)
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	tail, _ := readLogFrom(path, max(int(info.Size())-errorTailBytes, 0))
+	lines := strings.Split(tail, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if text, ok := strings.CutPrefix(strings.TrimSpace(lines[i]), "error: "); ok {
+			return text
+		}
+	}
+	return ""
 }
 
 func readLogFrom(path string, offset int) (string, int) {

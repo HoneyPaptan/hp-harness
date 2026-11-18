@@ -137,7 +137,7 @@ func resumeDead(ctx context.Context, env Env, st *State, t *Task) error {
 	}
 	resume, next := journal.NextResume(run, recs, loadResumeState(env, t.RunID))
 	if !resume {
-		return failTask(env, st, t, fmt.Errorf("keeps crashing after %d resumes", journal.CrashLimit))
+		return failTask(env, st, t, crashReason(env, t.RunID))
 	}
 	if err := saveResumeState(env, t.RunID, next); err != nil {
 		return err
@@ -146,6 +146,13 @@ func resumeDead(ctx context.Context, env Env, st *State, t *Task) error {
 		return failTask(env, st, t, err)
 	}
 	return nil
+}
+
+func crashReason(env Env, id string) error {
+	if last := lastRunError(env, id); last != "" {
+		return fmt.Errorf("%s (gave up after %d resumes)", last, journal.CrashLimit)
+	}
+	return fmt.Errorf("keeps crashing after %d resumes", journal.CrashLimit)
 }
 
 func recoverLockPath(getenv func(string) string) string {
