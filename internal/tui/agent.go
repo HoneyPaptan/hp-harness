@@ -63,6 +63,7 @@ type Agent interface {
 	PermissionInfo() string
 	Effort() string
 	SetEffort(string) error
+	Detail() ([]string, error)
 	Compact(ctx context.Context) (bool, error)
 }
 

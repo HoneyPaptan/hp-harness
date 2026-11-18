@@ -64,6 +64,7 @@ type Session struct {
 	escArmed  bool
 	hint      string
 	copied    bool
+	detail    *pager
 	drawn     bool
 	dirty     bool
 	quit      bool
@@ -395,6 +396,10 @@ func (s *Session) redraw() {
 	s.drawn = true
 	s.renderer.SetWidth(s.cfg.Width())
 	s.renderer.Select(s.selection())
+	if s.detail != nil {
+		s.drawPager(s.detail)
+		return
+	}
 	if s.runPick != nil {
 		rows, sel := s.runPick.window()
 		_ = s.renderer.DrawMenu(runPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", runPickMore(s.runPick), runFooter)

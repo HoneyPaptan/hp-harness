@@ -25,6 +25,10 @@ func (s *Session) handleKey(ctx context.Context, k Key) {
 	if k.Type != KeyEsc {
 		s.escArmed = false
 	}
+	if s.detail != nil {
+		s.detailKey(k)
+		return
+	}
 	if s.runPick != nil {
 		s.runPickKey(ctx, k)
 		return
@@ -200,6 +204,9 @@ func (s *Session) turnKey(ctx context.Context, k Key) {
 		s.turnCtrlC()
 	case KeyEnter:
 		s.busyEnter(ctx)
+	case KeyCtrlO:
+		s.note(detailBusy)
+		s.refreshBusyLine()
 	case KeyCtrlD, KeyCtrlL:
 		if s.stopping && strings.TrimSpace(s.editor.Text()) != "" {
 			s.submit(ctx)
@@ -294,6 +301,9 @@ func (s *Session) promptKey(ctx context.Context, k Key) {
 		return
 	case KeyCtrlT:
 		s.cycleEffort()
+		return
+	case KeyCtrlO:
+		s.openDetail()
 		return
 	case KeyEsc:
 		s.promptEsc()

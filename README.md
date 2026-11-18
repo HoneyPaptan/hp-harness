@@ -128,6 +128,7 @@ The keys follow the usual terminal habits, and `/help` lists them:
 | `Ctrl-P` | opens or closes the model picker and keeps the draft |
 | `Shift-Tab` | cycles the permission mode |
 | `Ctrl-T` | cycles the reasoning effort: default, low, medium, high |
+| `Ctrl-O` | opens full detail between turns: every prompt, each tool call with its arguments and the complete tool output; `Ctrl-O` or `Esc` closes it |
 | `↑ ↓` | move between the lines of a draft, then through earlier prompts |
 | `Tab` | completes a `/command` or an `@file` |
 | `Alt-B`, `Alt-F`, `Ctrl-←`, `Ctrl-→` | move one word |

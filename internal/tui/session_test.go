@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -52,6 +53,8 @@ type fakeAgent struct {
 	permMode   string
 	effort     string
 	effortErr  error
+	detail     []string
+	detailErr  error
 	permInfo   string
 	compactFn  func(context.Context) (bool, error)
 	script     []func(context.Context, func(Event)) (Outcome, error)
@@ -172,6 +175,8 @@ func (a *fakeAgent) PermissionMode() string {
 }
 
 func (a *fakeAgent) Effort() string { return a.effort }
+
+func (a *fakeAgent) Detail() ([]string, error) { return a.detail, a.detailErr }
 
 func (a *fakeAgent) SetEffort(effort string) error {
 	if a.effortErr != nil {
@@ -1098,4 +1103,47 @@ func TestEffortErrorIsShown(t *testing.T) {
 	a.effortErr = errors.New("unknown effort \"loud\"")
 	h := startSession(t, a, false, false)
 	h.play([]step{{keys: "/effort loud\r"}, {wait: "unknown effort \"loud\""}, {keys: "\x04"}})
+}
+
+func detailLinesFor(n int) []string {
+	lines := make([]string, n)
+	for i := range lines {
+		lines[i] = "line " + strconv.Itoa(i+1)
+	}
+	return lines
+}
+
+func TestCtrlOOpensFullDetailAtTheEnd(t *testing.T) {
+	a := newFakeAgent()
+	a.detail = detailLinesFor(40)
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "\x0f"}, {wait: "full detail · lines 25-40 of 40"}, {wait: "line 40"},
+		{keys: "g"}, {wait: "full detail · lines 1-16 of 40"},
+		{keys: "\x0f"}, {keys: "back"}, {wait: "› back"},
+	})
+}
+
+func TestFullDetailWrapsLongLines(t *testing.T) {
+	a := newFakeAgent()
+	a.detail = []string{strings.Repeat("x", 100)}
+	h := startSession(t, a, false, false)
+	h.play([]step{{keys: "\x0f"}, {wait: "full detail · lines 1-2 of 2"}, {wait: "  " + strings.Repeat("x", 78) + "\r\n  " + strings.Repeat("x", 22)}})
+}
+
+func TestFullDetailWithNothingToShow(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "\x0f"}, {wait: detailEmpty}})
+}
+
+func TestFullDetailWaitsForTheTurn(t *testing.T) {
+	release := make(chan struct{})
+	turn := func(_ context.Context, emit func(Event)) (Outcome, error) {
+		emit(Event{Kind: EventText, Text: "working on it"})
+		<-release
+		return Outcome{Model: "xai/grok", Steps: 1}, nil
+	}
+	h := startSession(t, newFakeAgent(turn), false, false)
+	h.play([]step{{keys: "go\r"}, {wait: "working on it"}, {keys: "\x0f"}, {wait: detailBusy}})
+	close(release)
 }

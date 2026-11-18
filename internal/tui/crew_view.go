@@ -28,7 +28,7 @@ type crewView struct {
 	menu *menu
 	live *crewLive
 	ask  *viewAsk
-	diff *diffView
+	diff *pager
 }
 
 type viewAsk struct {
@@ -411,7 +411,7 @@ func (s *Session) pollLive() {
 
 func (s *Session) drawView() {
 	if s.view.diff != nil {
-		s.drawDiff()
+		s.drawPager(s.view.diff)
 		return
 	}
 	if s.view.live != nil {

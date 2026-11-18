@@ -67,6 +67,7 @@ var keyHelp = [][2]string{
 	{"Ctrl-P", "open or close the model picker, the draft stays"},
 	{"Shift-Tab", "cycle the permission mode"},
 	{"Ctrl-T", "cycle the reasoning effort: default, low, medium, high"},
+	{"Ctrl-O", "full detail: every prompt, tool call and tool output"},
 	{"↑ ↓", "move between lines, then through earlier prompts"},
 	{"Tab", "complete a /command or an @file"},
 	{"Alt-B Alt-F", "back or forward one word, also Ctrl-← and Ctrl-→"},
