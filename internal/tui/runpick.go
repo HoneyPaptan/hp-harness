@@ -34,11 +34,11 @@ func runPickMore(m *menu) string {
 }
 
 func (s *Session) runPickKey(ctx context.Context, k Key) {
+	if s.runPick.step(k) {
+		s.dirty = true
+		return
+	}
 	switch k.Type {
-	case KeyUp:
-		s.runPick.move(-1)
-	case KeyDown:
-		s.runPick.move(1)
 	case KeyEnter:
 		s.chooseRun(ctx)
 	case KeyEsc, KeyCtrlC, KeyCtrlD:

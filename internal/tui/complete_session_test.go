@@ -21,7 +21,7 @@ func TestSessionSlashCompletionEnter(t *testing.T) {
 	h := startSession(t, a, false, false)
 	h.play([]step{
 		{keys: "/"},
-		{wait: "› help"},
+		{wait: "› /help"},
 		{keys: "\x1b[B\r"},
 		{wait: "› /model "},
 		{keys: "\x15/quit \r"},
@@ -79,7 +79,7 @@ func TestSessionHelpOutputUnchanged(t *testing.T) {
 	h.play([]step{{keys: "/help \r"}, {wait: "/quit"}, {keys: "/quit \r"}})
 	h.waitExit()
 	out := h.out.String()
-	for _, line := range helpLines[:9] {
+	for _, line := range helpLines[1:9] {
 		if !strings.Contains(out, line) {
 			t.Fatalf("missing %q in %q", line, out)
 		}
@@ -91,7 +91,7 @@ func TestSessionSlashExactMatchSubmits(t *testing.T) {
 	h := startSession(t, a, false, false)
 	h.play([]step{
 		{keys: "/help\r"},
-		{wait: "this list"},
+		{wait: helpKeys},
 		{keys: "\x04"},
 	})
 	h.waitExit()

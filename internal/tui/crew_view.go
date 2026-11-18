@@ -90,13 +90,11 @@ func (s *Session) viewKey(k Key) {
 		s.askKey(k)
 		return
 	}
+	if s.view.menu.step(k) {
+		s.dirty = true
+		return
+	}
 	switch k.Type {
-	case KeyUp:
-		s.view.menu.move(-1)
-		s.dirty = true
-	case KeyDown:
-		s.view.menu.move(1)
-		s.dirty = true
 	case KeyEnter:
 		s.followTask()
 	case KeyRune:

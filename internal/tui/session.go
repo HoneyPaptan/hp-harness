@@ -29,6 +29,7 @@ type Config struct {
 	Now        func() time.Time
 	CrewPoll   time.Duration
 	CrewFollow time.Duration
+	Suspend    func()
 }
 
 type turnResult struct {
@@ -60,6 +61,8 @@ type Session struct {
 	stopping  bool
 	masking   bool
 	armed     bool
+	escArmed  bool
+	hint      string
 	drawn     bool
 	dirty     bool
 	quit      bool
@@ -83,7 +86,7 @@ func NewSession(cfg Config) *Session {
 	return &Session{
 		cfg:      withClock(cfg),
 		renderer: renderer,
-		out:      output{w: cfg.Out, color: cfg.Color},
+		out:      output{w: cfg.Out, color: cfg.Color, width: cfg.Width},
 		input:    make(chan []byte),
 		events:   make(chan Event),
 		done:     make(chan turnResult),
@@ -272,6 +275,7 @@ func (s *Session) emit(ev Event) {
 
 func (s *Session) finishTurn(ctx context.Context, res turnResult) {
 	s.settle(res)
+	s.escArmed = false
 	s.out.setSuffix("")
 	s.lastKey = s.cfg.Now()
 	interrupted := s.stopping
@@ -418,6 +422,9 @@ func (s *Session) redraw() {
 	}
 	if s.complete != nil && s.complete.visible() {
 		rows, sel := s.complete.menu.window()
+		if s.complete.kind == completeSlash {
+			rows = slashRows(rows)
+		}
 		_ = s.renderer.DrawMenu(promptGlyph, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", completionMore(s.complete.menu), s.footer())
 		return
 	}

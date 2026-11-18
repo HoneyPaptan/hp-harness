@@ -77,15 +77,11 @@ func (s *Session) completionKey(k Key) (handled bool) {
 	if s.complete == nil || !s.complete.visible() {
 		return false
 	}
+	if s.complete.menu.step(k) {
+		s.dirty = true
+		return true
+	}
 	switch k.Type {
-	case KeyUp:
-		s.complete.menu.move(-1)
-		s.dirty = true
-		return true
-	case KeyDown:
-		s.complete.menu.move(1)
-		s.dirty = true
-		return true
 	case KeyTab:
 		s.applyCompletion()
 		return true

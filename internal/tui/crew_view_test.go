@@ -152,7 +152,7 @@ func TestCrewViewDoesNotOpenWhileTurnRuns(t *testing.T) {
 	a := viewFake()
 	a.script = scriptOf(blockTurn)
 	h := startCrewSession(t, a)
-	h.play([]step{{keys: "hello\r"}, {turn: true}, {wait: "partial"}, {keys: "\x1b"}, {wait: "interrupted"}, {keys: "/crew\r"}, {wait: crewBusyNote}})
+	h.play([]step{{keys: "hello\r"}, {turn: true}, {wait: "partial"}, {keys: "\x1b"}, {wait: escStopHint}, {keys: "\x1b"}, {wait: "interrupted"}, {keys: "/crew\r"}, {wait: crewBusyNote}})
 	if strings.Contains(h.out.String(), crewViewHint) {
 		t.Fatalf("view opened during a turn")
 	}

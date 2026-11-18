@@ -12,6 +12,8 @@ const (
 	maxErrorRunes   = 2000
 	unknownHint     = "unknown command %s, /help lists them, // sends a literal /"
 	quitHint        = "press Ctrl-C again or Ctrl-D to quit"
+	escClearHint    = "Esc again to clear"
+	escStopHint     = "Esc again to interrupt"
 	literalPrefix   = "//"
 	jevUsage        = "usage: /jev on|off"
 	keyUsage        = "usage: /key NAME"
@@ -19,7 +21,7 @@ const (
 	keyAddHint      = "add it with /key TYPESAFE_API_KEY"
 	queuedNote      = "queued %d: %s"
 	tookBackNote    = "took back: %s"
-	busySlashHint   = "slash commands wait for the turn: Esc stops it, then Enter runs this"
+	busySlashHint   = "slash commands wait for the turn: Esc twice stops it, then Enter runs this"
 	queuedNoteRunes = 60
 	permUsage       = "usage: /permissions [ask|auto|full-access|reset]"
 	fullAccessNote  = "full access: no permission checks"
@@ -32,7 +34,7 @@ type slashCommand struct {
 }
 
 var slashCommands = []slashCommand{
-	{"/help", "", "this list"},
+	{"/help", "", "commands and keys"},
 	{"/model", "", "pick a provider and model"},
 	{"/model", " p/name", "switch the model for following turns"},
 	{"/jev", "", "show the jev state"},
@@ -40,8 +42,8 @@ var slashCommands = []slashCommand{
 	{"/key", " NAME", "store an API key"},
 	{"/new", "", "start a fresh run"},
 	{"/runs", "", "list recent runs"},
-	{"/permissions", "", "show or set permission mode"},
-	{"/permissions", " ask|auto|full-access|reset", "switch mode or reset session grants"},
+	{"/permissions", "", "show the permission mode"},
+	{"/permissions", " MODE", "ask, auto or full-access; reset drops session grants"},
 	{"/compact", "", "compact the conversation now"},
 	{"/crew", "", "open the newest crew"},
 	{"/crew", " ID", "open an older crew"},
@@ -51,30 +53,60 @@ var slashCommands = []slashCommand{
 	{"/quit", "", "leave, also Ctrl-D"},
 }
 
-var helpLines = append(commandHelpLines(),
-	"//text         send /text to the model",
-	"Ctrl-C or Esc stops a turn",
+var keyHelp = [][2]string{
+	{"Enter", "send, or queue the message while a turn runs"},
+	{"Ctrl-J", "new line, also Alt-Enter or \\ then Enter"},
+	{"Shift-Enter", "new line in terminals that report it"},
+	{"Esc Esc", "stop the turn, or clear the draft"},
+	{"Ctrl-C", "clear the draft, or stop the turn; twice quits"},
+	{"Ctrl-D", "quit when the draft is empty"},
+	{"Ctrl-Z", "suspend hp, fg brings it back"},
+	{"Ctrl-P", "open or close the model picker, the draft stays"},
+	{"Shift-Tab", "cycle the permission mode"},
+	{"↑ ↓", "move between lines, then through earlier prompts"},
+	{"Tab", "complete a /command or an @file"},
+	{"Alt-B Alt-F", "back or forward one word, also Ctrl-← and Ctrl-→"},
+	{"Ctrl-A Ctrl-E", "start or end of the line"},
+	{"Ctrl-W Ctrl-U Ctrl-K", "delete a word, to the line start, to the line end"},
+	{"Ctrl-Y", "paste back what was last deleted"},
+	{"//text", "send /text to the model"},
+}
+
+const (
+	helpPad      = 24
+	helpCommands = "commands"
+	helpKeys     = "keys"
 )
+
+var helpLines = slices.Concat([]string{helpCommands}, commandHelpLines(), []string{"", helpKeys}, keyHelpLines())
 
 func commandHelpLines() []string {
 	lines := make([]string, 0, len(slashCommands))
 	for _, c := range slashCommands {
-		lines = append(lines, slashHelpLine(c))
+		lines = append(lines, helpLine(c.name+c.args, c.help))
 	}
 	return lines
 }
 
-func slashHelpLine(c slashCommand) string {
-	line := c.name
-	if c.args != "" {
-		line += c.args
+func keyHelpLines() []string {
+	lines := make([]string, 0, len(keyHelp))
+	for _, k := range keyHelp {
+		lines = append(lines, helpLine(k[0], k[1]))
 	}
-	if len(line) < 15 {
-		line += strings.Repeat(" ", 15-len(line))
-	} else {
-		line += " "
+	return lines
+}
+
+func helpLine(left, right string) string {
+	return "  " + left + strings.Repeat(" ", max(helpPad-rowWidth(left), 1)) + right
+}
+
+func slashSummary(name string) string {
+	for _, c := range slashCommands {
+		if c.name == name {
+			return c.help
+		}
 	}
-	return line + c.help
+	return ""
 }
 
 func splitSlash(text string) (string, string, bool) {
