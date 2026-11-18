@@ -317,3 +317,29 @@ func TestResumeRefusesSecondSupervisor(t *testing.T) {
 		t.Fatalf("pid file left behind: %v", err)
 	}
 }
+
+func TestResumeIgnoresReusedSupervisorPid(t *testing.T) {
+	env, getenv, _ := serviceEnv(t)
+	env.Alive = func(pid int) bool { return true }
+	env.ProcStart = func(pid int) string { return "200" }
+	env.Pid = 7
+	var stderr bytes.Buffer
+	env.Stderr = &stderr
+	st := newState(getenv, "c1", "/p/plan.md", "/repo", "base", runFlags{n: 1}, []planTask{{title: "t", prompt: "p", slug: "t"}})
+	st.Tasks[0].Status = StatusFinished
+	if err := st.save(getenv); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pidPath(getenv, "c1"), []byte("99 100"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if code := cmdResume(context.Background(), env, []string{"c1"}); code != 0 {
+		t.Fatalf("a reused pid refused the resume: code %d stderr %q", code, stderr.String())
+	}
+	if err := os.WriteFile(pidPath(getenv, "c1"), []byte("99 200"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if code := cmdResume(context.Background(), env, []string{"c1"}); code != 1 || !strings.Contains(stderr.String(), "already running") {
+		t.Fatalf("live supervisor not respected: code %d stderr %q", code, stderr.String())
+	}
+}

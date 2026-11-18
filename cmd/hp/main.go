@@ -51,7 +51,7 @@ func crewEnv(e cli.Env) crew.Env {
 	return crew.Env{
 		Args: e.Args, Getenv: e.Getenv, Cwd: e.Cwd,
 		Stdout: e.Stdout, Stderr: e.Stderr, Exe: e.Exe,
-		Alive: processAlive, Spawn: spawnDetached, Pid: os.Getpid(),
+		Alive: processAlive, Spawn: spawnDetached, Pid: os.Getpid(), ProcStart: processStart,
 		Signal: processSignal, Handover: terminal.Handover,
 	}
 }

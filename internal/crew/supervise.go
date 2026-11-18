@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -218,25 +217,13 @@ func runHP(ctx context.Context, env Env, args ...string) (string, error) {
 	return execHP(ctx, env, args...)
 }
 
-func runAlive(env Env, id string) bool {
-	pid, ok := readRunPid(env.Getenv, id)
-	if !ok {
-		return false
-	}
-	return env.Alive != nil && env.Alive(pid)
+func runPidPath(getenv func(string) string, id string) string {
+	return filepath.Join(runsDir(getenv), id+".pid")
 }
 
-func readRunPid(getenv func(string) string, id string) (int, bool) {
-	data, err := os.ReadFile(filepath.Join(runsDir(getenv), id+".pid"))
-	if err != nil {
-		return 0, false
-	}
-	pidText, _, _ := strings.Cut(strings.TrimSpace(string(data)), " ")
-	pid, err := strconv.Atoi(pidText)
-	if err != nil {
-		return 0, false
-	}
-	return pid, true
+func runAlive(env Env, id string) bool {
+	_, ok := livePid(env, runPidPath(env.Getenv, id))
+	return ok
 }
 
 func replayRunRecords(env Env, id string) ([]journal.Record, journal.State, error) {
