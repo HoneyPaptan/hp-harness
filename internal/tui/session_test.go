@@ -1147,3 +1147,8 @@ func TestFullDetailWaitsForTheTurn(t *testing.T) {
 	h.play([]step{{keys: "go\r"}, {wait: "working on it"}, {keys: "\x0f"}, {wait: detailBusy}})
 	close(release)
 }
+
+func TestPickerSaysWhenNothingMatches(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "/model\r"}, {wait: providerPrompt}, {keys: "zzz"}, {wait: `nothing matches "zzz"`}})
+}
