@@ -64,6 +64,15 @@ func (m *menu) move(delta int) {
 	m.keepVisible()
 }
 
+func (m *menu) jump(index int) {
+	n := len(m.matches())
+	if n == 0 {
+		return
+	}
+	m.selected = min(max(index, 0), n-1)
+	m.keepVisible()
+}
+
 func (m *menu) keepVisible() {
 	list := m.matches()
 	n := len(list)

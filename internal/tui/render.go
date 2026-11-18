@@ -104,7 +104,9 @@ func (r *Renderer) DrawMenu(prompt string, buf []rune, cursor int, rows []string
 		frame = append(frame, r.dimRow(note))
 	}
 	if more != "" {
-		frame = append(frame, r.dimRow(more))
+		for _, line := range strings.Split(more, "\n") {
+			frame = append(frame, r.dimRow(line))
+		}
 	}
 	frame = append(frame, "")
 	if footer != "" {

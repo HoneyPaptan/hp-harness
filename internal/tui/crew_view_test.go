@@ -40,8 +40,8 @@ func TestCrewViewSelectOpenBack(t *testing.T) {
 	h.play([]step{
 		{keys: "/crew\r"},
 		{wait: "crew c1 · add a cache"},
-		{wait: "task a                   running"},
-		{wait: "task b                   finished       run-b"},
+		{wait: " 1 task a running"},
+		{wait: " 2 task b finished"},
 		{wait: crewViewHint},
 		{keys: "\r"},
 		{wait: "── task a · running · run run-a"},
@@ -58,7 +58,7 @@ func TestCrewViewSelectOpenBack(t *testing.T) {
 		{wait: "── task b · finished · run run-b"},
 		{wait: "bravo output"},
 		{wait: "the final answer"},
-		{wait: crewBackNote},
+		{wait: "end of "},
 		{keys: "\x1b"},
 	})
 	h.waitForCount(crewViewHint, before+2)
@@ -126,14 +126,14 @@ func TestCrewViewCtrlCClosesBothLevels(t *testing.T) {
 func TestCrewViewRefreshesRows(t *testing.T) {
 	a := viewFake()
 	h := startCrewSession(t, a)
-	h.play([]step{{keys: "/crew\r"}, {wait: "task a                   running"}})
+	h.play([]step{{keys: "/crew\r"}, {wait: " 1 task a running"}})
 	a.cmu.Lock()
 	next := twoTaskSnapshot()
 	next.Rows[0].Status = "finished"
 	next.Done = true
 	a.snaps["c1"] = next
 	a.cmu.Unlock()
-	h.waitFor("task a                   finished")
+	h.waitFor(" 1 task a finished")
 	h.play([]step{{keys: "\x1b"}, {keys: "\x04"}})
 	h.waitExit()
 }
@@ -411,7 +411,7 @@ func waitActs(t *testing.T, a *crewFake, n int) []string {
 func TestCrewViewHintListsReviewKeys(t *testing.T) {
 	a := reviewFake()
 	h := startCrewSession(t, a)
-	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint + " · d diff · a land · x discard · p pause · Esc closes"}})
+	h.play([]step{{keys: "/crew\r"}, {wait: crewViewHint + " · d diff · a land · x discard · p pause"}, {wait: "Esc closes"}})
 }
 
 func TestCrewViewDiffScrolls(t *testing.T) {
@@ -541,4 +541,41 @@ func TestCrewViewHintFollowsKeysThatChangeUnderTheSameRowText(t *testing.T) {
 	a.snaps["c1"] = snap
 	a.cmu.Unlock()
 	h.waitFor(crewViewHint + " · d diff · x discard · p pause · Esc closes")
+}
+
+func TestWrapHintKeepsEveryPartOnANarrowTerminal(t *testing.T) {
+	parts := []string{"↑ ↓ or 1-9 select", "Enter follow", "d diff", "a land", "x discard", "p pause", "Esc closes"}
+	cases := []struct {
+		width int
+		want  string
+	}{
+		{200, "↑ ↓ or 1-9 select · Enter follow · d diff · a land · x discard · p pause · Esc closes"},
+		{40, "↑ ↓ or 1-9 select · Enter follow\nd diff · a land · x discard · p pause\nEsc closes"},
+		{20, "↑ ↓ or 1-9 select\nEnter follow\nd diff · a land\nx discard · p pause\nEsc closes"},
+	}
+	for _, tc := range cases {
+		if got := wrapHint(parts, tc.width); got != tc.want {
+			t.Errorf("width %d: got %q want %q", tc.width, got, tc.want)
+		}
+	}
+}
+
+func TestCrewRowsNumberTheTasksAndFitWideTitles(t *testing.T) {
+	snap := crewview.Snapshot{Rows: []crewview.Row{
+		{Title: "日本語のタスク", Status: "running", Changed: "1 file"},
+		{Title: "short", Status: "failed", Detail: "http 400: no", RunID: "r2", Changed: "0 files"},
+	}}
+	rows := crewRows(snap, 80)
+	want := []string{" 1 日本語のタスク running       1 file", " 2 short          failed        0 files"}
+	for i := range want {
+		if rows[i] != want[i] {
+			t.Errorf("row %d got %q want %q", i, rows[i], want[i])
+		}
+	}
+	if got := rowDetail(snap.Rows[1]); got != "failed: http 400: no · run r2" {
+		t.Errorf("detail %q", got)
+	}
+	if got := rowDetail(snap.Rows[0]); got != "" {
+		t.Errorf("detail of a row with nothing to add: %q", got)
+	}
 }
