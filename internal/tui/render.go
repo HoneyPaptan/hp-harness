@@ -67,8 +67,7 @@ func (r *Renderer) draw(prompt string, buf []rune, cursor int, footer string, ma
 	if mask {
 		buf = maskedRunes(buf)
 	}
-	head := []rune(prompt)
-	view := layOut(slices.Concat(head, buf), len(head)+cursor, r.width)
+	view := promptView(prompt, buf, cursor, r.width)
 	frame := view.rows
 	if footer != "" {
 		frame = append(slices.Clone(view.rows), "", r.footerRow(footer))
@@ -96,8 +95,7 @@ func maskedRunes(buf []rune) []rune {
 }
 
 func (r *Renderer) DrawMenu(prompt string, buf []rune, cursor int, rows []string, selected int, note, more string, footer string) error {
-	head := []rune(prompt)
-	view := layOut(slices.Concat(head, buf), len(head)+cursor, r.width)
+	view := promptView(prompt, buf, cursor, r.width)
 	frame := slices.Clone(view.rows)
 	for i, row := range rows {
 		frame = append(frame, r.listRow(i == selected, row))
@@ -199,6 +197,26 @@ func rowWidth(text string) int {
 		col += RuneWidth(c)
 	}
 	return col
+}
+
+func promptView(prompt string, buf []rune, cursor, width int) layout {
+	head := []rune(prompt)
+	indent := []rune(strings.Repeat(" ", rowWidth(prompt)))
+	text := slices.Clone(head)
+	at := len(head) + len(buf)
+	for i, c := range buf {
+		if i == cursor {
+			at = len(text)
+		}
+		text = append(text, c)
+		if c == '\n' {
+			text = append(text, indent...)
+		}
+	}
+	if cursor >= len(buf) {
+		at = len(text)
+	}
+	return layOut(text, at, width)
 }
 
 type layout struct {
