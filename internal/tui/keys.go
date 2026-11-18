@@ -33,6 +33,20 @@ const (
 	KeyPgDn
 	KeyPasteStart
 	KeyPasteEnd
+	KeyCtrlB
+	KeyCtrlF
+	KeyCtrlJ
+	KeyCtrlN
+	KeyCtrlP
+	KeyCtrlY
+	KeyCtrlZ
+	KeyWordLeft
+	KeyWordRight
+	KeyWordBackspace
+	KeyWordDelete
+	KeyNewline
+	KeyDraftStart
+	KeyDraftEnd
 )
 
 type Key struct {
@@ -46,19 +60,52 @@ var pasteEnd = []byte("\x1b[201~")
 
 var controlKeys = map[byte]KeyType{
 	0x01: KeyCtrlA,
+	0x02: KeyCtrlB,
 	0x03: KeyCtrlC,
 	0x04: KeyCtrlD,
 	0x05: KeyCtrlE,
+	0x06: KeyCtrlF,
 	0x08: KeyBackspace,
 	0x09: KeyTab,
-	0x0a: KeyEnter,
+	0x0a: KeyCtrlJ,
 	0x0b: KeyCtrlK,
 	0x0c: KeyCtrlL,
 	0x0d: KeyEnter,
+	0x0e: KeyCtrlN,
+	0x10: KeyCtrlP,
 	0x15: KeyCtrlU,
 	0x17: KeyCtrlW,
+	0x19: KeyCtrlY,
+	0x1a: KeyCtrlZ,
 	0x7f: KeyBackspace,
 }
+
+var altKeys = map[byte]KeyType{
+	'b':  KeyWordLeft,
+	'f':  KeyWordRight,
+	'd':  KeyWordDelete,
+	0x7f: KeyWordBackspace,
+	0x08: KeyWordBackspace,
+	'\r': KeyNewline,
+	'\n': KeyNewline,
+}
+
+var modifiedKeys = map[KeyType]KeyType{
+	KeyLeft:   KeyWordLeft,
+	KeyRight:  KeyWordRight,
+	KeyHome:   KeyDraftStart,
+	KeyEnd:    KeyDraftEnd,
+	KeyDelete: KeyWordDelete,
+}
+
+const (
+	codeEnter     = "13"
+	codeEsc       = "27"
+	codeBackspace = "127"
+	otherKeysCode = "27"
+	modAlt        = 2
+	modCtrl       = 4
+)
 
 var finalKeys = map[byte]KeyType{
 	'A': KeyUp,
@@ -186,6 +233,9 @@ func nextEscape(b []byte) (Key, bool, int) {
 	case 'O':
 		return nextSS3(b)
 	}
+	if key, ok := altKeys[b[1]]; ok {
+		return Key{Type: key}, true, 2
+	}
 	return Key{Type: KeyEsc}, true, 1
 }
 
@@ -215,11 +265,60 @@ func csiKey(params []byte, final byte) (KeyType, bool) {
 	if final == 'Z' && len(params) == 0 {
 		return KeyShiftTab, true
 	}
-	if final != '~' {
-		key, ok := finalKeys[final]
-		return key, ok
+	parts := bytes.Split(params, []byte(";"))
+	switch final {
+	case 'u':
+		return codeKey(string(parts[0]), modifiers(parts, 1))
+	case '~':
+		if string(parts[0]) == otherKeysCode && len(parts) == 3 {
+			return codeKey(string(parts[2]), modifiers(parts, 1))
+		}
+		key, ok := tildeKeys[string(parts[0])]
+		return withModifiers(key, modifiers(parts, 1)), ok
 	}
-	first, _, _ := bytes.Cut(params, []byte(";"))
-	key, ok := tildeKeys[string(first)]
-	return key, ok
+	key, ok := finalKeys[final]
+	return withModifiers(key, modifiers(parts, 1)), ok
+}
+
+func modifiers(parts [][]byte, index int) int {
+	if len(parts) <= index {
+		return 0
+	}
+	field, _, _ := bytes.Cut(parts[index], []byte(":"))
+	n := 0
+	for _, c := range field {
+		if c < '0' || c > '9' {
+			return 0
+		}
+		n = n*10 + int(c-'0')
+	}
+	return max(n-1, 0)
+}
+
+func withModifiers(key KeyType, mods int) KeyType {
+	if mods&(modAlt|modCtrl) == 0 {
+		return key
+	}
+	if moved, ok := modifiedKeys[key]; ok {
+		return moved
+	}
+	return key
+}
+
+func codeKey(code string, mods int) (KeyType, bool) {
+	switch code {
+	case codeEnter:
+		if mods != 0 {
+			return KeyNewline, true
+		}
+		return KeyEnter, true
+	case codeBackspace:
+		if mods&(modAlt|modCtrl) != 0 {
+			return KeyWordBackspace, true
+		}
+		return KeyBackspace, true
+	case codeEsc:
+		return KeyEsc, true
+	}
+	return 0, false
 }

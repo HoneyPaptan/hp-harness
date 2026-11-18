@@ -62,6 +62,24 @@ func TestEditorKeys(t *testing.T) {
 		{"paste", "\x1b[200~a\tb\x1b[201~", "a\tb", 3},
 		{"paste mid buffer", "ad" + left + "\x1b[200~b\nc\x1b[201~", "ab\ncd", 4},
 		{"esc ignored", "a\x1b", "a", 1},
+		{"ctrl b and ctrl f", "abc\x02\x02\x06", "abc", 2},
+		{"ctrl j adds a line", "a\nb", "a\nb", 3},
+		{"alt enter adds a line", "a\x1b\rb", "a\nb", 3},
+		{"backslash enter adds a line", "a\\\rb", "a\nb", 3},
+		{"alt b skips punctuation", "one two.go\x1bb\x1bb", "one two.go", 4},
+		{"alt f moves a word", "one two" + home + "\x1bf", "one two", 3},
+		{"alt backspace stops at punctuation", "one two.go\x1b\x7f", "one two.", 8},
+		{"alt d deletes the next word", "one two" + home + "\x1bd", " two", 0},
+		{"ctrl y pastes the last kill", "one two\x17\x01\x19", "twoone ", 3},
+		{"ctrl k then ctrl y", "abcd" + left + left + "\x0b\x01\x19", "cdab", 2},
+		{"ctrl u at line start joins the line above", "a\nb" + left + "\x15", "ab", 1},
+		{"ctrl home and ctrl end", "a\nb\x1b[1;5H\x1b[1;5Fc", "a\nbc", 4},
+		{"up moves to the line above", "ab\ncd\x1b[A", "ab\ncd", 2},
+		{"up keeps the column", "abc\nde" + left + "\x1b[A", "abc\nde", 1},
+		{"up clamps to a short line", "a\nbcd\x1b[A", "a\nbcd", 1},
+		{"down moves to the line below", "ab\ncd\x1b[1;5H\x1b[B", "ab\ncd", 3},
+		{"up on the first line goes to the start", "abc\x1b[A", "abc", 0},
+		{"down on the last line goes to the end", "abc" + home + "\x1b[B", "abc", 3},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -84,7 +102,8 @@ func TestEditorActions(t *testing.T) {
 		wantText string
 	}{
 		{"enter submits", "hi\r", []Action{ActionSubmit}, "hi"},
-		{"line feed submits", "hi\n", []Action{ActionSubmit}, "hi"},
+		{"line feed adds a line", "hi\n", nil, "hi\n"},
+		{"enter after a backslash adds a line", "hi\\\r", nil, "hi\n"},
 		{"paste with newline does not submit", "\x1b[200~a\nb\n\x1b[201~", nil, "a\nb\n"},
 		{"paste carriage return does not submit", "\x1b[200~a\rb\x1b[201~", nil, "a\rb"},
 		{"enter after paste submits", "\x1b[200~a\nb\x1b[201~\r", []Action{ActionSubmit}, "a\nb"},
@@ -115,7 +134,9 @@ func TestEditorHistory(t *testing.T) {
 		input    string
 		wantText string
 	}{
-		{"up with no history keeps draft", nil, "draft" + up, "draft"},
+		{"up with no history keeps draft", nil, "draft" + up + up + down, "draft"},
+		{"up on a draft goes to its start first", []string{"one"}, "draft" + up + down, "draft"},
+		{"ctrl n moves newer", []string{"one", "two"}, up + up + "\x0e", "two"},
 		{"up recalls newest", []string{"one", "two"}, up, "two"},
 		{"up twice recalls older", []string{"one", "two"}, up + up, "one"},
 		{"up stops at oldest", []string{"one", "two"}, up + up + up, "one"},
@@ -123,7 +144,7 @@ func TestEditorHistory(t *testing.T) {
 		{"down restores draft", []string{"one", "two"}, "draft" + up + up + down + down, "draft"},
 		{"down restores empty draft", []string{"one"}, up + down, ""},
 		{"down at draft stays", []string{"one"}, "draft" + down, "draft"},
-		{"edit of recalled line is dropped", []string{"one"}, "draft" + up + "x" + down, "draft"},
+		{"edit of recalled line is dropped", []string{"one"}, "draft" + up + up + "x" + down, "draft"},
 		{"history unchanged by edit", []string{"one"}, up + "x" + down + up, "one"},
 		{"blank not recorded", []string{"one", ""}, up, "one"},
 		{"repeat not recorded", []string{"one", "two", "two"}, up + up, "one"},

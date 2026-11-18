@@ -21,6 +21,8 @@ type Editor struct {
 	history  []string
 	position int
 	draft    []rune
+	killed   []rune
+	browsing bool
 }
 
 func (e *Editor) Text() string {
@@ -65,8 +67,13 @@ func (e *Editor) Take() string {
 }
 
 func (e *Editor) Handle(k Key) Action {
+	browsing := e.browsing
+	e.browsing = false
 	switch k.Type {
 	case KeyEnter:
+		if e.continueLine() {
+			return ActionNone
+		}
 		return ActionSubmit
 	case KeyCtrlC:
 		return ActionInterrupt
@@ -77,6 +84,12 @@ func (e *Editor) Handle(k Key) Action {
 			return ActionEOF
 		}
 		e.remove(e.cursor, e.cursor+1)
+	case KeyUp:
+		e.vertical(-1, browsing)
+	case KeyDown:
+		e.vertical(1, browsing)
+	case KeyCtrlN:
+		e.recall(e.position + 1)
 	default:
 		e.edit(k)
 	}
@@ -87,29 +100,113 @@ func (e *Editor) edit(k Key) {
 	switch k.Type {
 	case KeyRune:
 		e.insert(k.Rune)
+	case KeyNewline, KeyCtrlJ:
+		e.insert('\n')
 	case KeyBackspace:
 		e.remove(e.cursor-1, e.cursor)
 	case KeyDelete:
 		e.remove(e.cursor, e.cursor+1)
-	case KeyLeft:
+	case KeyLeft, KeyCtrlB:
 		e.cursor = max(e.cursor-1, 0)
-	case KeyRight:
+	case KeyRight, KeyCtrlF:
 		e.cursor = min(e.cursor+1, len(e.buf))
+	case KeyWordLeft:
+		e.cursor = e.wordLeft()
+	case KeyWordRight:
+		e.cursor = e.wordRight()
 	case KeyHome, KeyCtrlA:
 		e.cursor = e.lineStart()
 	case KeyEnd, KeyCtrlE:
 		e.cursor = e.lineEnd()
+	case KeyDraftStart:
+		e.cursor = 0
+	case KeyDraftEnd:
+		e.cursor = len(e.buf)
 	case KeyCtrlU:
-		e.remove(e.lineStart(), e.cursor)
+		e.killLineStart()
 	case KeyCtrlK:
-		e.remove(e.cursor, e.lineEnd())
+		e.kill(e.cursor, e.lineEnd())
 	case KeyCtrlW:
-		e.remove(e.wordStart(), e.cursor)
-	case KeyUp:
-		e.recall(e.position - 1)
-	case KeyDown:
-		e.recall(e.position + 1)
+		e.kill(e.wordStart(), e.cursor)
+	case KeyWordBackspace:
+		e.remove(e.wordLeft(), e.cursor)
+	case KeyWordDelete:
+		e.remove(e.cursor, e.wordRight())
+	case KeyCtrlY:
+		e.yank()
 	}
+}
+
+func (e *Editor) continueLine() bool {
+	if e.cursor == 0 || e.buf[e.cursor-1] != '\\' {
+		return false
+	}
+	e.buf[e.cursor-1] = '\n'
+	return true
+}
+
+func (e *Editor) vertical(delta int, browsing bool) {
+	if browsing || len(e.buf) == 0 {
+		e.recall(e.position + delta)
+		return
+	}
+	if e.moveLine(delta) {
+		return
+	}
+	edge := 0
+	if delta > 0 {
+		edge = len(e.buf)
+	}
+	if e.cursor != edge {
+		e.cursor = edge
+		return
+	}
+	e.recall(e.position + delta)
+}
+
+func (e *Editor) moveLine(delta int) bool {
+	start, end := e.lineStart(), e.lineEnd()
+	col := e.cursor - start
+	if delta < 0 {
+		if start == 0 {
+			return false
+		}
+		e.cursor = start - 1
+		prev := e.lineStart()
+		e.cursor = prev + min(col, start-1-prev)
+		return true
+	}
+	if end == len(e.buf) {
+		return false
+	}
+	e.cursor = end + 1
+	next := e.lineEnd()
+	e.cursor = end + 1 + min(col, next-end-1)
+	return true
+}
+
+func (e *Editor) kill(from, to int) {
+	from = max(from, 0)
+	to = min(to, len(e.buf))
+	if from >= to {
+		return
+	}
+	e.killed = slices.Clone(e.buf[from:to])
+	e.remove(from, to)
+}
+
+func (e *Editor) killLineStart() {
+	start := e.lineStart()
+	if start == e.cursor {
+		e.remove(e.cursor-1, e.cursor)
+		return
+	}
+	e.kill(start, e.cursor)
+}
+
+func (e *Editor) yank() {
+	e.buf = slices.Insert(e.buf, e.cursor, e.killed...)
+	e.cursor += len(e.killed)
 }
 
 func (e *Editor) insert(r rune) {
@@ -154,6 +251,32 @@ func (e *Editor) wordStart() int {
 	return i
 }
 
+func isWordRune(r rune) bool {
+	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+func (e *Editor) wordLeft() int {
+	i := e.cursor
+	for i > 0 && !isWordRune(e.buf[i-1]) {
+		i--
+	}
+	for i > 0 && isWordRune(e.buf[i-1]) {
+		i--
+	}
+	return i
+}
+
+func (e *Editor) wordRight() int {
+	i := e.cursor
+	for i < len(e.buf) && !isWordRune(e.buf[i]) {
+		i++
+	}
+	for i < len(e.buf) && isWordRune(e.buf[i]) {
+		i++
+	}
+	return i
+}
+
 func (e *Editor) recall(position int) {
 	if position < 0 || position > len(e.history) {
 		return
@@ -168,4 +291,5 @@ func (e *Editor) recall(position int) {
 		e.buf = []rune(e.history[position])
 	}
 	e.cursor = len(e.buf)
+	e.browsing = true
 }
