@@ -169,3 +169,13 @@ func (s *State) doneCount() int {
 	}
 	return n
 }
+
+func (s *State) failedCount() int {
+	n := 0
+	for i := range s.Tasks {
+		if s.Tasks[i].Status == StatusFailed || s.Tasks[i].Check == checkFailed {
+			n++
+		}
+	}
+	return n
+}

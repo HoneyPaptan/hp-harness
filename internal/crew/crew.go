@@ -118,7 +118,7 @@ func cmdRun(ctx context.Context, env Env, args []string) int {
 		}
 		return exitErr(env, err)
 	}
-	return 0
+	return crewExit(env, st)
 }
 
 func cmdResume(ctx context.Context, env Env, args []string) int {
@@ -137,7 +137,16 @@ func cmdResume(ctx context.Context, env Env, args []string) int {
 		}
 		return exitErr(env, err)
 	}
-	return 0
+	return crewExit(env, st)
+}
+
+func crewExit(env Env, st *State) int {
+	failed := st.failedCount()
+	if failed == 0 {
+		return 0
+	}
+	fmt.Fprintf(env.Stderr, "%d of %d tasks failed, see: hp crew report %s\n", failed, len(st.Tasks), st.ID)
+	return 1
 }
 
 func cmdStatus(env Env, args []string) int {
