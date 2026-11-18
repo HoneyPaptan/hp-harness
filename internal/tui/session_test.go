@@ -1035,3 +1035,8 @@ func TestCopyingASelectionWritesTheClipboard(t *testing.T) {
 	h := startSession(t, newFakeAgent(), false, false)
 	h.play([]step{{keys: "one two"}, {wait: "› one two"}, {keys: "\x1b[1;6D\x1bw"}, {wait: clipboardWrite("two")}, {wait: copiedHint}})
 }
+
+func TestCtrlLClearsTheScreen(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "draft"}, {wait: "› draft"}, {keys: "\x0c"}, {wait: clearScreen + "\r\x1b[J› draft"}})
+}

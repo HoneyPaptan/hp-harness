@@ -73,6 +73,7 @@ var keyHelp = [][2]string{
 	{"Shift-← Shift-→", "select text, also with ↑ ↓ Home End and word moves"},
 	{"Alt-W", "copy the selection; Ctrl-W cuts it, typing replaces it"},
 	{"Ctrl-_ Alt-_", "undo or redo a change to the draft"},
+	{"Ctrl-L", "clear the screen"},
 	{"//text", "send /text to the model"},
 }
 

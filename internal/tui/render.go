@@ -19,6 +19,7 @@ const (
 	maskRune     = '•'
 	reverseOn    = "\x1b[7m"
 	reverseOff   = "\x1b[27m"
+	clearScreen  = "\x1b[2J\x1b[H"
 )
 
 func EnableBracketedPaste(w io.Writer) error {
@@ -47,6 +48,12 @@ func (s span) has(i int) bool { return i >= s.from && i < s.to }
 
 func (r *Renderer) Select(from, to int) {
 	r.marked = span{from, to}
+}
+
+func (r *Renderer) Wipe() error {
+	r.cursorRow, r.promptRow, r.lastRow = 0, 0, 0
+	_, err := io.WriteString(r.w, clearScreen)
+	return err
 }
 
 func NewRenderer(w io.Writer, width int) *Renderer {

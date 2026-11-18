@@ -304,6 +304,9 @@ func (s *Session) promptKey(ctx context.Context, k Key) {
 		s.promptInterrupt()
 	case ActionEOF:
 		s.quit = true
+	case ActionRedraw:
+		_ = s.renderer.Wipe()
+		s.dirty = true
 	case ActionCopy:
 		s.copyKilled()
 	default:
