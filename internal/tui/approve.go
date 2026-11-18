@@ -2,12 +2,18 @@ package tui
 
 const (
 	approvePrompt = "allow? "
-	approveYes    = "Yes"
-	approveAlways = "Yes, and don't ask again for this"
-	approveNo     = "No"
+	approveHint   = "1 2 3 or ↑ ↓ Enter · Ctrl-C says no · Esc says no and stops the turn"
 )
 
-var approveItems = []string{approveYes, approveAlways, approveNo}
+var (
+	approveItems   = []string{"1 Yes", "2 Yes, and don't ask again for this", "3 No"}
+	approveAnswers = []ApproveAnswer{ApproveYes, ApproveAlways, ApproveNo}
+	approveRunes   = map[rune]ApproveAnswer{
+		'1': ApproveYes, 'y': ApproveYes, 'Y': ApproveYes,
+		'2': ApproveAlways, 'a': ApproveAlways, 'A': ApproveAlways,
+		'3': ApproveNo, 'n': ApproveNo, 'N': ApproveNo,
+	}
+)
 
 type approval struct {
 	reply    chan<- ApproveAnswer
@@ -36,48 +42,32 @@ func (s *Session) drawApproval() {
 	}
 	rows, sel := s.approval.menu.window()
 	s.drawn = true
-	_ = s.renderer.DrawMenu(approvePrompt, nil, 0, rows, sel, "", "", footerLine(s.cfg.Agent))
+	_ = s.renderer.DrawMenu(approvePrompt, nil, 0, rows, sel, "", approveHint, footerLine(s.cfg.Agent))
 }
 
 func (s *Session) approvalKey(k Key) {
+	if s.approval.menu.step(k) {
+		s.drawApproval()
+		return
+	}
 	switch k.Type {
-	case KeyUp:
+	case KeyLeft:
 		s.approval.menu.move(-1)
 		s.drawApproval()
-	case KeyDown:
+	case KeyRight, KeyTab:
 		s.approval.menu.move(1)
 		s.drawApproval()
 	case KeyEnter:
-		item, ok := s.approval.menu.chosen()
-		if !ok {
-			return
-		}
-		s.sendApproval(approveFromItem(item))
-	case KeyEsc:
-		s.sendApproval(ApproveNo)
+		s.sendApproval(approveAnswers[s.approval.menu.selected])
 	case KeyCtrlC:
+		s.sendApproval(ApproveNo)
+	case KeyEsc:
 		s.sendApproval(ApproveNo)
 		s.interrupt()
 	case KeyRune:
-		switch k.Rune {
-		case 'y', 'Y':
-			s.sendApproval(ApproveYes)
-		case 'a', 'A':
-			s.sendApproval(ApproveAlways)
-		case 'n', 'N':
-			s.sendApproval(ApproveNo)
+		if ans, ok := approveRunes[k.Rune]; ok {
+			s.sendApproval(ans)
 		}
-	}
-}
-
-func approveFromItem(item string) ApproveAnswer {
-	switch item {
-	case approveYes:
-		return ApproveYes
-	case approveAlways:
-		return ApproveAlways
-	default:
-		return ApproveNo
 	}
 }
 

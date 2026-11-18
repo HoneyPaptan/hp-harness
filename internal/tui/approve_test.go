@@ -52,24 +52,42 @@ func TestApproveAlwaysKey(t *testing.T) {
 	}
 }
 
-func TestApproveEscNo(t *testing.T) {
-	got := make(chan ApproveAnswer, 1)
-	h := startSession(t, newFakeAgent(approveTurn("write: x", got)), false, false)
-	h.play([]step{{keys: "x\r"}, {wait: "write: x"}, {keys: "\x1b"}})
-	if ans := <-got; ans != ApproveNo {
-		t.Fatalf("answer %v", ans)
-	}
-}
-
-func TestApproveCtrlCNoInterrupt(t *testing.T) {
+func TestApproveCtrlCSaysNoAndKeepsTheTurn(t *testing.T) {
 	got := make(chan ApproveAnswer, 1)
 	h := startSession(t, newFakeAgent(approveTurn("write: x", got)), false, false)
 	h.play([]step{{keys: "x\r"}, {wait: "write: x"}, {keys: "\x03"}})
 	if ans := <-got; ans != ApproveNo {
 		t.Fatalf("answer %v", ans)
 	}
+	h.play([]step{{wait: "declined"}})
+	if strings.Contains(h.out.String(), "interrupted") {
+		t.Fatalf("Ctrl-C stopped the turn: %q", h.out.String())
+	}
+}
+
+func TestApproveEscSaysNoAndStopsTheTurn(t *testing.T) {
+	got := make(chan ApproveAnswer, 1)
+	h := startSession(t, newFakeAgent(approveTurn("write: x", got)), false, false)
+	h.play([]step{{keys: "x\r"}, {wait: "write: x"}, {keys: "\x1b"}})
+	if ans := <-got; ans != ApproveNo {
+		t.Fatalf("answer %v", ans)
+	}
 	if !strings.Contains(h.out.String(), "interrupted") || !strings.Contains(h.out.String(), "declined") {
 		t.Fatalf("out %q", h.out.String())
+	}
+}
+
+func TestApproveNumberKeys(t *testing.T) {
+	cases := map[string]ApproveAnswer{"1": ApproveYes, "2": ApproveAlways, "3": ApproveNo}
+	for key, want := range cases {
+		t.Run(key, func(t *testing.T) {
+			got := make(chan ApproveAnswer, 1)
+			h := startSession(t, newFakeAgent(approveTurn("write: x", got)), false, false)
+			h.play([]step{{keys: "x\r"}, {wait: approveHint}, {keys: key}})
+			if ans := <-got; ans != want {
+				t.Fatalf("answer %v, want %v", ans, want)
+			}
+		})
 	}
 }
 
