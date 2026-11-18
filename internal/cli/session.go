@@ -202,11 +202,18 @@ func runSession(ctx context.Context, env Env, cfg tui.Config) int {
 	_ = tui.EnableBracketedPaste(t)
 	cfg.In, cfg.Out, cfg.Width, cfg.Color = t, t, t.Width, colorOn(env.Getenv)
 	cfg.Header = sessionHeader(env.Version)
+	if s, ok := t.(suspender); ok {
+		cfg.Suspend = s.Suspend
+	}
 	tui.NewSession(cfg).Run(ctx)
 	if ctx.Err() != nil {
 		return 130
 	}
 	return 0
+}
+
+type suspender interface {
+	Suspend()
 }
 
 func sessionHeader(version string) string {

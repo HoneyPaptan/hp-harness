@@ -7,7 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 )
+
+const stopSettle = 100 * time.Millisecond
 
 func spawnDetached(args []string, logPath string) (int, error) {
 	exe, err := os.Executable()
@@ -49,6 +52,11 @@ func killAlive(pid int) bool {
 		return true
 	}
 	return errors.Is(err, syscall.EPERM)
+}
+
+func stopSelf() {
+	_ = syscall.Kill(0, syscall.SIGTSTP)
+	time.Sleep(stopSettle)
 }
 
 func processSignal(pid int) error {

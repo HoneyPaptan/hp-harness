@@ -12,6 +12,8 @@ func processAlive(pid int) bool {
 	return false
 }
 
+func stopSelf() {}
+
 func processSignal(pid int) error {
 	return errors.New("detach is not supported on this platform")
 }
