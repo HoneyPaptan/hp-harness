@@ -1025,3 +1025,13 @@ func TestCtrlPOpensThePickerAndKeepsTheDraft(t *testing.T) {
 	h := startSession(t, newFakeAgent(), false, false)
 	h.play([]step{{keys: "draft\x10"}, {wait: providerPrompt}, {keys: "\x10"}, {wait: pickerNote}, {wait: "› draft"}})
 }
+
+func TestClearedDraftComesBackWithUndo(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "keep this"}, {wait: "› keep this"}, {keys: "\x03"}, {keys: "x"}, {wait: "› x"}, {keys: "\x1f\x1f"}, {wait: "› keep this"}})
+}
+
+func TestCopyingASelectionWritesTheClipboard(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "one two"}, {wait: "› one two"}, {keys: "\x1b[1;6D\x1bw"}, {wait: clipboardWrite("two")}, {wait: copiedHint}})
+}

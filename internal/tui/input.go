@@ -2,7 +2,9 @@ package tui
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -65,7 +67,10 @@ func (s *Session) showArmedHint() {
 		hint = quitHint
 	case s.escArmed:
 		hint = escClearHint
+	case s.copied:
+		hint = copiedHint
 	}
+	s.copied = false
 	if hint != s.hint {
 		s.hint = hint
 		s.dirty = true
@@ -225,7 +230,7 @@ func (s *Session) turnEsc() {
 
 func (s *Session) turnCtrlC() {
 	if s.editor.Text() != "" && !s.stopping {
-		s.editor.Clear()
+		s.editor.Discard()
 		s.refreshBusyLine()
 		return
 	}
@@ -299,6 +304,8 @@ func (s *Session) promptKey(ctx context.Context, k Key) {
 		s.promptInterrupt()
 	case ActionEOF:
 		s.quit = true
+	case ActionCopy:
+		s.copyKilled()
 	default:
 		s.dirty = true
 	}
@@ -308,7 +315,7 @@ func (s *Session) promptKey(ctx context.Context, k Key) {
 func (s *Session) promptInterrupt() {
 	s.dirty = true
 	if s.editor.Text() != "" {
-		s.editor.Clear()
+		s.editor.Discard()
 		s.clearPromptCompletion()
 		s.armed = false
 		return
@@ -329,7 +336,7 @@ func (s *Session) promptEsc() {
 		return
 	}
 	s.escArmed = false
-	s.editor.Clear()
+	s.editor.Discard()
 	s.clearPromptCompletion()
 	s.dirty = true
 }
@@ -429,4 +436,18 @@ func (s *Session) refreshBusyLine() {
 	}
 	s.out.setSuffix(suffix)
 	s.out.restoreActivity()
+}
+
+func (s *Session) copyKilled() {
+	text := s.editor.Killed()
+	if text == "" || s.masking {
+		return
+	}
+	_, _ = io.WriteString(s.cfg.Out, clipboardWrite(text))
+	s.copied = true
+	s.dirty = true
+}
+
+func clipboardWrite(text string) string {
+	return "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\x07"
 }

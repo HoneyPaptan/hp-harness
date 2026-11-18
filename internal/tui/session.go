@@ -63,6 +63,7 @@ type Session struct {
 	armed     bool
 	escArmed  bool
 	hint      string
+	copied    bool
 	drawn     bool
 	dirty     bool
 	quit      bool
@@ -393,6 +394,7 @@ func (s *Session) redraw() {
 	s.dirty = false
 	s.drawn = true
 	s.renderer.SetWidth(s.cfg.Width())
+	s.renderer.Select(s.selection())
 	if s.runPick != nil {
 		rows, sel := s.runPick.window()
 		_ = s.renderer.DrawMenu(runPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", runPickMore(s.runPick), runFooter)
@@ -477,4 +479,9 @@ func (s *Session) clearDrawn() {
 	}
 	s.drawn = false
 	_ = s.renderer.Clear()
+}
+
+func (s *Session) selection() (int, int) {
+	from, to, _ := s.editor.Selection()
+	return from, to
 }

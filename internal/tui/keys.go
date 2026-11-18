@@ -47,11 +47,17 @@ const (
 	KeyNewline
 	KeyDraftStart
 	KeyDraftEnd
+	KeyCtrlO
+	KeyCtrlT
+	KeyUndo
+	KeyRedo
+	KeyCopy
 )
 
 type Key struct {
-	Type KeyType
-	Rune rune
+	Type  KeyType
+	Rune  rune
+	Shift bool
 }
 
 const esc = 0x1b
@@ -72,11 +78,14 @@ var controlKeys = map[byte]KeyType{
 	0x0c: KeyCtrlL,
 	0x0d: KeyEnter,
 	0x0e: KeyCtrlN,
+	0x0f: KeyCtrlO,
 	0x10: KeyCtrlP,
+	0x14: KeyCtrlT,
 	0x15: KeyCtrlU,
 	0x17: KeyCtrlW,
 	0x19: KeyCtrlY,
 	0x1a: KeyCtrlZ,
+	0x1f: KeyUndo,
 	0x7f: KeyBackspace,
 }
 
@@ -84,6 +93,8 @@ var altKeys = map[byte]KeyType{
 	'b':  KeyWordLeft,
 	'f':  KeyWordRight,
 	'd':  KeyWordDelete,
+	'w':  KeyCopy,
+	'_':  KeyRedo,
 	0x7f: KeyWordBackspace,
 	0x08: KeyWordBackspace,
 	'\r': KeyNewline,
@@ -103,6 +114,7 @@ const (
 	codeEsc       = "27"
 	codeBackspace = "127"
 	otherKeysCode = "27"
+	modShift      = 1
 	modAlt        = 2
 	modCtrl       = 4
 )
@@ -253,7 +265,7 @@ func nextCSI(b []byte) (Key, bool, int) {
 		case b[i] >= 0x20 && b[i] <= 0x3f:
 		case b[i] >= 0x40 && b[i] <= 0x7e:
 			key, ok := csiKey(b[2:i], b[i])
-			return Key{Type: key}, ok, i + 1
+			return key, ok, i + 1
 		default:
 			return Key{}, false, i
 		}
@@ -261,23 +273,38 @@ func nextCSI(b []byte) (Key, bool, int) {
 	return Key{}, false, 0
 }
 
-func csiKey(params []byte, final byte) (KeyType, bool) {
+func csiKey(params []byte, final byte) (Key, bool) {
 	if final == 'Z' && len(params) == 0 {
-		return KeyShiftTab, true
+		return Key{Type: KeyShiftTab}, true
 	}
 	parts := bytes.Split(params, []byte(";"))
 	switch final {
 	case 'u':
-		return codeKey(string(parts[0]), modifiers(parts, 1))
+		key, ok := codeKey(string(parts[0]), modifiers(parts, 1))
+		return Key{Type: key}, ok
 	case '~':
 		if string(parts[0]) == otherKeysCode && len(parts) == 3 {
-			return codeKey(string(parts[2]), modifiers(parts, 1))
+			key, ok := codeKey(string(parts[2]), modifiers(parts, 1))
+			return Key{Type: key}, ok
 		}
 		key, ok := tildeKeys[string(parts[0])]
-		return withModifiers(key, modifiers(parts, 1)), ok
+		return movedKey(key, modifiers(parts, 1)), ok
 	}
 	key, ok := finalKeys[final]
-	return withModifiers(key, modifiers(parts, 1)), ok
+	return movedKey(key, modifiers(parts, 1)), ok
+}
+
+func movedKey(key KeyType, mods int) Key {
+	moved := withModifiers(key, mods)
+	return Key{Type: moved, Shift: mods&modShift != 0 && moves(moved)}
+}
+
+func moves(key KeyType) bool {
+	switch key {
+	case KeyLeft, KeyRight, KeyUp, KeyDown, KeyHome, KeyEnd, KeyWordLeft, KeyWordRight, KeyDraftStart, KeyDraftEnd:
+		return true
+	}
+	return false
 }
 
 func modifiers(parts [][]byte, index int) int {

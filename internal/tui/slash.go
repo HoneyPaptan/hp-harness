@@ -13,6 +13,7 @@ const (
 	unknownHint     = "unknown command %s, /help lists them, // sends a literal /"
 	quitHint        = "press Ctrl-C again or Ctrl-D to quit"
 	escClearHint    = "Esc again to clear"
+	copiedHint      = "copied to the clipboard"
 	escStopHint     = "Esc again to interrupt"
 	literalPrefix   = "//"
 	jevUsage        = "usage: /jev on|off"
@@ -69,6 +70,9 @@ var keyHelp = [][2]string{
 	{"Ctrl-A Ctrl-E", "start or end of the line"},
 	{"Ctrl-W Ctrl-U Ctrl-K", "delete a word, to the line start, to the line end"},
 	{"Ctrl-Y", "paste back what was last deleted"},
+	{"Shift-← Shift-→", "select text, also with ↑ ↓ Home End and word moves"},
+	{"Alt-W", "copy the selection; Ctrl-W cuts it, typing replaces it"},
+	{"Ctrl-_ Alt-_", "undo or redo a change to the draft"},
 	{"//text", "send /text to the model"},
 }
 
