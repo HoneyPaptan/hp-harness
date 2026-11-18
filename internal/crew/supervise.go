@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -135,7 +136,11 @@ func resumeDead(ctx context.Context, env Env, st *State, t *Task) error {
 			return err
 		}
 	}
-	resume, next := journal.NextResume(run, recs, loadResumeState(env, t.RunID))
+	prev := loadResumeState(env, t.RunID)
+	if last := lastRunError(env, t.RunID); refusedAgain(last, recs, prev) {
+		return failTask(env, st, t, errors.New(last))
+	}
+	resume, next := journal.NextResume(run, recs, prev)
 	if !resume {
 		return failTask(env, st, t, crashReason(env, t.RunID))
 	}
@@ -153,6 +158,22 @@ func crashReason(env Env, id string) error {
 		return fmt.Errorf("%s (gave up after %d resumes)", last, journal.CrashLimit)
 	}
 	return fmt.Errorf("keeps crashing after %d resumes", journal.CrashLimit)
+}
+
+func refusedAgain(last string, recs []journal.Record, prev journal.ResumeState) bool {
+	return prev.Attempts > 0 && prev.Records == journal.WorkedRecords(recs) && refused(last)
+}
+
+func refused(last string) bool {
+	rest, ok := strings.CutPrefix(last, "http ")
+	if !ok || len(rest) < 3 {
+		return false
+	}
+	status, err := strconv.Atoi(rest[:3])
+	if err != nil {
+		return false
+	}
+	return status >= 400 && status < 500 && status != 408 && status != 429
 }
 
 func recoverLockPath(getenv func(string) string) string {

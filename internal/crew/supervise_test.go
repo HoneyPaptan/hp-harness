@@ -573,3 +573,49 @@ func TestAdvanceRechecksAliveUnderLock(t *testing.T) {
 		t.Fatalf("checks %d calls %v task %+v", checks, hp.calls, st.Tasks[0])
 	}
 }
+
+func TestAdvanceFailsARefusedRunAfterOneResume(t *testing.T) {
+	state := t.TempDir()
+	env, getenv, hp, _ := advEnv(t, state)
+	st := &State{ID: "c1", Plan: "/p", Repo: "/repo", Base: "b", Concurrency: 1,
+		Tasks: []Task{{Title: "C", Slug: "c", Prompt: "p", RunID: "old", Status: StatusRunning}}}
+	writeUnfinished(t, getenv, "old")
+	refusal := (&provider.HTTPError{Status: 400, Body: "model says no"}).Error()
+	if err := os.WriteFile(runLogPath(getenv, "old"), []byte("error: "+refusal+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusRunning || len(hp.calls) != 1 {
+		t.Fatalf("first pass: status %s, hp calls %d", st.Tasks[0].Status, len(hp.calls))
+	}
+	if err := advance(context.Background(), env, st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Tasks[0].Status != StatusFailed || st.Tasks[0].EndReason != refusal {
+		t.Fatalf("task %+v", st.Tasks[0])
+	}
+	if len(hp.calls) != 1 {
+		t.Fatalf("hp calls %d want 1", len(hp.calls))
+	}
+}
+
+func TestRefused(t *testing.T) {
+	cases := map[string]bool{
+		(&provider.HTTPError{Status: 400, Body: "bad"}).Error():      true,
+		(&provider.HTTPError{Status: 401, Body: "no key"}).Error():   true,
+		(&provider.HTTPError{Status: 404, Body: "no model"}).Error(): true,
+		(&provider.HTTPError{Status: 408, Body: "slow"}).Error():     false,
+		(&provider.HTTPError{Status: 500, Body: "oops"}).Error():     false,
+		(&provider.RateLimitError{Body: "slow down"}).Error():        false,
+		"dial tcp: connection refused":                               false,
+		"":                                                           false,
+		"http":                                                       false,
+	}
+	for text, want := range cases {
+		if got := refused(text); got != want {
+			t.Errorf("refused(%q) = %v, want %v", text, got, want)
+		}
+	}
+}
