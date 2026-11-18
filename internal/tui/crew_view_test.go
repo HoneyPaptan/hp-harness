@@ -579,3 +579,25 @@ func TestCrewRowsNumberTheTasksAndFitWideTitles(t *testing.T) {
 		t.Errorf("detail of a row with nothing to add: %q", got)
 	}
 }
+
+func TestCrewViewJumpKeysAndPositionInALongList(t *testing.T) {
+	a := newCrewFake()
+	rows := make([]crewview.Row, 12)
+	for i := range rows {
+		rows[i] = crewview.Row{Slug: fmt.Sprintf("t%d", i+1), Title: fmt.Sprintf("task %d", i+1), Status: "finished", RunID: fmt.Sprintf("run-%d", i+1), Changed: "1 file"}
+	}
+	a.snaps["c1"] = crewview.Snapshot{ID: "c1", Label: "big", Done: true, Rows: rows}
+	a.newest = "c1"
+	h := startCrewSession(t, a)
+	h.play([]step{
+		{keys: "/crew\r"}, {wait: "1 of 12"},
+		{keys: "G"}, {wait: "12 of 12"}, {wait: "run run-12"},
+		{keys: "g"}, {wait: "run run-1\r"},
+		{keys: "5"}, {wait: "5 of 12"}, {wait: "run run-5"},
+		{keys: "\x1b[6~"}, {wait: "12 of 12"},
+		{keys: "\x1b[5~"}, {wait: "4 of 12"},
+	})
+	if strings.Contains(h.out.String(), "p pause") {
+		t.Fatalf("a finished crew still offers pause: %q", h.out.String())
+	}
+}

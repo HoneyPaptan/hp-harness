@@ -255,7 +255,11 @@ func (s *Session) crewAction(do func() error) {
 }
 
 func (s *Session) viewHint() string {
-	parts := []string{crewViewHint}
+	var parts []string
+	if total := len(s.view.snap.Rows); total > menuRows {
+		parts = append(parts, fmt.Sprintf("%d of %d", s.view.menu.selected+1, total))
+	}
+	parts = append(parts, crewViewHint)
 	if row, ok := s.selectedRow(); ok {
 		for _, r := range row.Keys {
 			parts = append(parts, string(r)+" "+viewKeyVerbs[r])
@@ -422,9 +426,6 @@ func (s *Session) drawView() {
 	more := s.viewHint()
 	if s.view.ask != nil {
 		more = s.view.ask.text
-	}
-	if n := s.view.menu.moreHidden(); n > 0 {
-		more = "+" + strconv.Itoa(n) + " more · " + more
 	}
 	prompt := fmt.Sprintf("crew %s · %s", s.view.snap.ID, s.view.snap.Label)
 	if s.view.snap.Paused {
