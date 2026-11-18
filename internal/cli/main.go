@@ -83,7 +83,46 @@ func unknownCommand(ctx context.Context, env Env, args []string) int {
 		return cmdSession(ctx, env, args)
 	}
 	printUsage(env.Stderr)
+	fmt.Fprintln(env.Stderr, unknownCommandLine(args[0]))
 	return 2
+}
+
+func unknownCommandLine(name string) string {
+	line := fmt.Sprintf("unknown command %q.", name)
+	if near := nearestCommand(name); near != "" {
+		line = fmt.Sprintf("unknown command %q, did you mean %q?", name, near)
+	}
+	return line + " hp help says what each command does, hp run PROMPT sends a prompt."
+}
+
+func nearestCommand(name string) string {
+	best, bestDistance := "", 3
+	for _, c := range commandHelps {
+		if d := editDistance(name, c.name); d < bestDistance {
+			best, bestDistance = c.name, d
+		}
+	}
+	return best
+}
+
+func editDistance(a, b string) int {
+	row := make([]int, len(b)+1)
+	for j := range row {
+		row[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		prev := row[0]
+		row[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			next := min(row[j]+1, row[j-1]+1, prev+cost)
+			prev, row[j] = row[j], next
+		}
+	}
+	return row[len(b)]
 }
 
 func parsesFlags(command string) bool {
