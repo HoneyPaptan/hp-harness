@@ -454,7 +454,11 @@ func footerLine(a Agent) string {
 	if a.Model() == "" {
 		return mode + " · no model · /model"
 	}
-	line := mode + " · " + a.Model() + " · jev"
+	line := mode + " · " + a.Model()
+	if effort := a.Effort(); effort != "" {
+		line += " · effort " + effort
+	}
+	line += " · jev"
 	if !a.Jev() {
 		line += " off"
 	}

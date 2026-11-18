@@ -50,6 +50,8 @@ type fakeAgent struct {
 	filesErr   error
 	filesCalls int
 	permMode   string
+	effort     string
+	effortErr  error
 	permInfo   string
 	compactFn  func(context.Context) (bool, error)
 	script     []func(context.Context, func(Event)) (Outcome, error)
@@ -167,6 +169,16 @@ func (a *fakeAgent) PermissionMode() string {
 		return "auto"
 	}
 	return a.permMode
+}
+
+func (a *fakeAgent) Effort() string { return a.effort }
+
+func (a *fakeAgent) SetEffort(effort string) error {
+	if a.effortErr != nil {
+		return a.effortErr
+	}
+	a.effort = effort
+	return nil
 }
 
 func (a *fakeAgent) SetPermissionMode(raw string) error {
@@ -1039,4 +1051,51 @@ func TestCopyingASelectionWritesTheClipboard(t *testing.T) {
 func TestCtrlLClearsTheScreen(t *testing.T) {
 	h := startSession(t, newFakeAgent(), false, false)
 	h.play([]step{{keys: "draft"}, {wait: "› draft"}, {keys: "\x0c"}, {wait: clearScreen + "\r\x1b[J› draft"}})
+}
+
+func TestCtrlTCyclesTheEffort(t *testing.T) {
+	a := newFakeAgent()
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "\x14"}, {wait: "effort low"}, {wait: "· effort low ·"},
+		{keys: "\x14"}, {wait: "effort medium"},
+		{keys: "\x14"}, {wait: "effort high"},
+		{keys: "\x14"}, {wait: "effort default"},
+		{keys: "\x04"},
+	})
+	if a.Effort() != "" {
+		t.Fatalf("effort %q after a full cycle", a.Effort())
+	}
+}
+
+func TestEffortCommand(t *testing.T) {
+	a := newFakeAgent()
+	a.effort = "xhigh"
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "/effort\r"}, {wait: "effort xhigh"},
+		{keys: "/effort medium\r"}, {wait: "effort medium"},
+		{keys: "/effort default\r"}, {wait: "effort default"},
+		{keys: "\x04"},
+	})
+	if a.Effort() != "" {
+		t.Fatalf("effort %q", a.Effort())
+	}
+}
+
+func TestCtrlTLeavesAnUnlistedEffortForDefault(t *testing.T) {
+	a := newFakeAgent()
+	a.effort = "max"
+	h := startSession(t, a, false, false)
+	h.play([]step{{keys: "\x14"}, {wait: "effort default"}, {keys: "\x04"}})
+	if a.Effort() != "" {
+		t.Fatalf("effort %q", a.Effort())
+	}
+}
+
+func TestEffortErrorIsShown(t *testing.T) {
+	a := newFakeAgent()
+	a.effortErr = errors.New("unknown effort \"loud\"")
+	h := startSession(t, a, false, false)
+	h.play([]step{{keys: "/effort loud\r"}, {wait: "unknown effort \"loud\""}, {keys: "\x04"}})
 }

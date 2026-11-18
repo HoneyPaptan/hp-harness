@@ -43,6 +43,8 @@ var slashCommands = []slashCommand{
 	{"/key", " NAME", "store an API key"},
 	{"/new", "", "start a fresh run"},
 	{"/runs", "", "list recent runs"},
+	{"/effort", "", "show the reasoning effort"},
+	{"/effort", " LEVEL", "low, medium, high or another level; default clears it"},
 	{"/permissions", "", "show the permission mode"},
 	{"/permissions", " MODE", "ask, auto or full-access; reset drops session grants"},
 	{"/compact", "", "compact the conversation now"},
@@ -64,6 +66,7 @@ var keyHelp = [][2]string{
 	{"Ctrl-Z", "suspend hp, fg brings it back"},
 	{"Ctrl-P", "open or close the model picker, the draft stays"},
 	{"Shift-Tab", "cycle the permission mode"},
+	{"Ctrl-T", "cycle the reasoning effort: default, low, medium, high"},
 	{"↑ ↓", "move between lines, then through earlier prompts"},
 	{"Tab", "complete a /command or an @file"},
 	{"Alt-B Alt-F", "back or forward one word, also Ctrl-← and Ctrl-→"},
@@ -153,6 +156,8 @@ func (s *Session) runSlash(ctx context.Context, name, arg string) {
 		s.newRun()
 	case "/runs":
 		s.showRuns()
+	case "/effort":
+		s.switchEffort(arg)
 	case "/permissions":
 		s.switchPermissions(arg)
 	case "/compact":
@@ -306,6 +311,46 @@ func (s *Session) switchPermissions(arg string) {
 }
 
 var permissionCycle = []string{"auto", "ask", "full-access"}
+
+var effortCycle = []string{"", "low", "medium", "high"}
+
+const effortDefault = "default"
+
+func effortName(effort string) string {
+	if effort == "" {
+		return effortDefault
+	}
+	return effort
+}
+
+func (s *Session) switchEffort(arg string) {
+	if arg == "" {
+		s.note("effort " + effortName(s.cfg.Agent.Effort()))
+		return
+	}
+	if arg == effortDefault {
+		arg = ""
+	}
+	s.setEffort(arg)
+}
+
+func (s *Session) cycleEffort() {
+	next := effortCycle[0]
+	if i := slices.Index(effortCycle, s.cfg.Agent.Effort()); i >= 0 {
+		next = effortCycle[(i+1)%len(effortCycle)]
+	}
+	s.clearDrawn()
+	s.setEffort(next)
+	s.dirty = true
+}
+
+func (s *Session) setEffort(effort string) {
+	if err := s.cfg.Agent.SetEffort(effort); err != nil {
+		s.fail(err)
+		return
+	}
+	s.note("effort " + effortName(s.cfg.Agent.Effort()))
+}
 
 func (s *Session) cyclePermissions() {
 	if s.complete != nil && s.complete.visible() {

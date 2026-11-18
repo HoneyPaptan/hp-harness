@@ -107,6 +107,7 @@ Inside a session:
 | `/key` | stores an API key: `/key NAME`, then paste the value |
 | `/new` | starts a fresh run |
 | `/runs` | lists recent runs |
+| `/effort` | shows or sets the reasoning effort for following turns; `default` clears it |
 | `/permissions` | shows or sets the permission mode, or resets session grants |
 | `/compact` | compacts the conversation now |
 | `/crew` | opens a crew, lists them, prints one, or runs a plan file or a drafted goal as a crew |
@@ -126,6 +127,7 @@ The keys follow the usual terminal habits, and `/help` lists them:
 | `Ctrl-Z` | suspends hp; `fg` brings it back |
 | `Ctrl-P` | opens or closes the model picker and keeps the draft |
 | `Shift-Tab` | cycles the permission mode |
+| `Ctrl-T` | cycles the reasoning effort: default, low, medium, high |
 | `↑ ↓` | move between the lines of a draft, then through earlier prompts |
 | `Tab` | completes a `/command` or an `@file` |
 | `Alt-B`, `Alt-F`, `Ctrl-←`, `Ctrl-→` | move one word |

@@ -292,6 +292,9 @@ func (s *Session) promptKey(ctx context.Context, k Key) {
 	case KeyCtrlP:
 		s.openPickerKeepingDraft()
 		return
+	case KeyCtrlT:
+		s.cycleEffort()
+		return
 	case KeyEsc:
 		s.promptEsc()
 		return

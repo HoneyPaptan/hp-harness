@@ -484,9 +484,13 @@ var efforts = map[string]bool{"": true, "none": true, "minimal": true, "low": tr
 
 func checkEffort(effort string) error {
 	if !efforts[effort] {
-		return usagef("unknown effort %q", effort)
+		return usagef("unknown effort %q, use none, minimal, low, medium, high, xhigh or max", effort)
 	}
 	return nil
+}
+
+func (a *sessionAgent) Effort() string {
+	return a.opts.effort
 }
 
 func (a *sessionAgent) SetEffort(effort string) error {
