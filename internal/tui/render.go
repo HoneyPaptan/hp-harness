@@ -17,6 +17,9 @@ const (
 	pickerMark   = "› "
 	pickerPad    = "  "
 	maskRune     = '•'
+	reverseOn    = "\x1b[7m"
+	reverseOff   = "\x1b[27m"
+	clearScreen  = "\x1b[2J\x1b[H"
 )
 
 func EnableBracketedPaste(w io.Writer) error {
@@ -36,6 +39,21 @@ type Renderer struct {
 	cursorRow int
 	promptRow int
 	lastRow   int
+	marked    span
+}
+
+type span struct{ from, to int }
+
+func (s span) has(i int) bool { return i >= s.from && i < s.to }
+
+func (r *Renderer) Select(from, to int) {
+	r.marked = span{from, to}
+}
+
+func (r *Renderer) Wipe() error {
+	r.cursorRow, r.promptRow, r.lastRow = 0, 0, 0
+	_, err := io.WriteString(r.w, clearScreen)
+	return err
 }
 
 func NewRenderer(w io.Writer, width int) *Renderer {
@@ -67,8 +85,7 @@ func (r *Renderer) draw(prompt string, buf []rune, cursor int, footer string, ma
 	if mask {
 		buf = maskedRunes(buf)
 	}
-	head := []rune(prompt)
-	view := layOut(slices.Concat(head, buf), len(head)+cursor, r.width)
+	view := promptView(prompt, buf, cursor, r.width, r.marked)
 	frame := view.rows
 	if footer != "" {
 		frame = append(slices.Clone(view.rows), "", r.footerRow(footer))
@@ -96,8 +113,7 @@ func maskedRunes(buf []rune) []rune {
 }
 
 func (r *Renderer) DrawMenu(prompt string, buf []rune, cursor int, rows []string, selected int, note, more string, footer string) error {
-	head := []rune(prompt)
-	view := layOut(slices.Concat(head, buf), len(head)+cursor, r.width)
+	view := promptView(prompt, buf, cursor, r.width, r.marked)
 	frame := slices.Clone(view.rows)
 	for i, row := range rows {
 		frame = append(frame, r.listRow(i == selected, row))
@@ -106,7 +122,9 @@ func (r *Renderer) DrawMenu(prompt string, buf []rune, cursor int, rows []string
 		frame = append(frame, r.dimRow(note))
 	}
 	if more != "" {
-		frame = append(frame, r.dimRow(more))
+		for _, line := range strings.Split(more, "\n") {
+			frame = append(frame, r.dimRow(line))
+		}
 	}
 	frame = append(frame, "")
 	if footer != "" {
@@ -201,16 +219,59 @@ func rowWidth(text string) int {
 	return col
 }
 
+func promptView(prompt string, buf []rune, cursor, width int, marked span) layout {
+	head := []rune(prompt)
+	indent := []rune(strings.Repeat(" ", rowWidth(prompt)))
+	text := slices.Clone(head)
+	var lit []bool
+	if marked.to > marked.from {
+		lit = make([]bool, len(head), len(head)+len(buf))
+	}
+	at := len(head) + len(buf)
+	for i, c := range buf {
+		if i == cursor {
+			at = len(text)
+		}
+		text = append(text, c)
+		if lit != nil {
+			lit = append(lit, marked.has(i))
+		}
+		if c == '\n' {
+			text = append(text, indent...)
+			if lit != nil {
+				lit = append(lit, make([]bool, len(indent))...)
+			}
+		}
+	}
+	if cursor >= len(buf) {
+		at = len(text)
+	}
+	return layOut(text, at, width, lit)
+}
+
 type layout struct {
 	rows     []string
 	row, col int
 }
 
-func layOut(text []rune, cursor, width int) layout {
+func layOut(text []rune, cursor, width int, lit []bool) layout {
 	var view layout
 	var row strings.Builder
 	col := 0
+	on := false
+	light := func(want bool) {
+		if want == on {
+			return
+		}
+		on = want
+		if on {
+			row.WriteString(reverseOn)
+			return
+		}
+		row.WriteString(reverseOff)
+	}
 	endRow := func() {
+		light(false)
 		view.rows = append(view.rows, row.String())
 		row.Reset()
 		col = 0
@@ -227,6 +288,7 @@ func layOut(text []rune, cursor, width int) layout {
 			endRow()
 			continue
 		}
+		light(lit != nil && lit[i])
 		row.WriteString(cell)
 		col += cells
 	}

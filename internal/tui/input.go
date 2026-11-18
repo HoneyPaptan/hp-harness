@@ -2,7 +2,9 @@ package tui
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -16,6 +18,17 @@ func (s *Session) handleKeys(ctx context.Context, keys []Key) {
 }
 
 func (s *Session) handleKey(ctx context.Context, k Key) {
+	if k.Type == KeyCtrlZ {
+		s.suspend()
+		return
+	}
+	if k.Type != KeyEsc {
+		s.escArmed = false
+	}
+	if s.detail != nil {
+		s.detailKey(k)
+		return
+	}
 	if s.runPick != nil {
 		s.runPickKey(ctx, k)
 		return
@@ -48,6 +61,39 @@ func (s *Session) handleKey(ctx context.Context, k Key) {
 		s.armed = false
 	}
 	s.promptKey(ctx, k)
+	s.showArmedHint()
+}
+
+func (s *Session) showArmedHint() {
+	hint := ""
+	switch {
+	case s.armed:
+		hint = quitHint
+	case s.escArmed:
+		hint = escClearHint
+	case s.copied:
+		hint = copiedHint
+	}
+	s.copied = false
+	if hint != s.hint {
+		s.hint = hint
+		s.dirty = true
+	}
+}
+
+func (s *Session) suspend() {
+	if s.cfg.Suspend == nil {
+		return
+	}
+	if !s.busy() {
+		s.clearDrawn()
+	}
+	s.out.endLine()
+	s.cfg.Suspend()
+	s.dirty = true
+	if s.busy() {
+		s.out.restoreActivity()
+	}
 }
 
 func (s *Session) pickerKey(k Key) {
@@ -59,20 +105,18 @@ func (s *Session) pickerKey(k Key) {
 }
 
 func (s *Session) providerKey(k Key) {
+	if s.picker.menu.step(k) {
+		s.dirty = true
+		return
+	}
 	switch k.Type {
-	case KeyUp:
-		s.picker.move(-1)
-		s.dirty = true
-	case KeyDown:
-		s.picker.move(1)
-		s.dirty = true
 	case KeyEnter:
 		if s.picker.pick() {
 			s.editor.Clear()
 			s.beginModelFetch()
 			s.dirty = true
 		}
-	case KeyEsc, KeyCtrlC:
+	case KeyEsc, KeyCtrlC, KeyCtrlP:
 		s.cancelPicker()
 	default:
 		s.editor.Handle(k)
@@ -82,16 +126,14 @@ func (s *Session) providerKey(k Key) {
 }
 
 func (s *Session) modelKey(k Key) {
+	if s.picker.menu.step(k) {
+		s.dirty = true
+		return
+	}
 	switch k.Type {
-	case KeyUp:
-		s.picker.move(-1)
-		s.dirty = true
-	case KeyDown:
-		s.picker.move(1)
-		s.dirty = true
 	case KeyEnter:
 		s.submitModel()
-	case KeyEsc, KeyCtrlC:
+	case KeyEsc, KeyCtrlC, KeyCtrlP:
 		s.cancelPicker()
 	default:
 		s.editor.Handle(k)
@@ -156,10 +198,15 @@ func (s *Session) pickModelFirst(text string) {
 
 func (s *Session) turnKey(ctx context.Context, k Key) {
 	switch k.Type {
-	case KeyCtrlC, KeyEsc:
-		s.interrupt()
+	case KeyEsc:
+		s.turnEsc()
+	case KeyCtrlC:
+		s.turnCtrlC()
 	case KeyEnter:
 		s.busyEnter(ctx)
+	case KeyCtrlO:
+		s.note(detailBusy)
+		s.refreshBusyLine()
 	case KeyCtrlD, KeyCtrlL:
 		if s.stopping && strings.TrimSpace(s.editor.Text()) != "" {
 			s.submit(ctx)
@@ -177,13 +224,33 @@ func (s *Session) turnKey(ctx context.Context, k Key) {
 	}
 }
 
+func (s *Session) turnEsc() {
+	if s.stopping || s.escArmed {
+		s.escArmed = false
+		s.interrupt()
+		s.refreshBusyLine()
+		return
+	}
+	s.escArmed = true
+	s.refreshBusyLine()
+}
+
+func (s *Session) turnCtrlC() {
+	if s.editor.Text() != "" && !s.stopping {
+		s.editor.Discard()
+		s.refreshBusyLine()
+		return
+	}
+	s.interrupt()
+}
+
 func (s *Session) secretKey(k Key) {
 	switch k.Type {
 	case KeyEnter:
 		s.saveKey()
 	case KeyEsc, KeyCtrlC:
 		s.cancelKey()
-	case KeyUp, KeyDown:
+	case KeyUp, KeyDown, KeyCtrlJ, KeyNewline:
 	default:
 		s.editor.Handle(k)
 		s.dirty = true
@@ -228,6 +295,20 @@ func (s *Session) promptKey(ctx context.Context, k Key) {
 	if s.completionKey(k) {
 		return
 	}
+	switch k.Type {
+	case KeyCtrlP:
+		s.openPickerKeepingDraft()
+		return
+	case KeyCtrlT:
+		s.cycleEffort()
+		return
+	case KeyCtrlO:
+		s.openDetail()
+		return
+	case KeyEsc:
+		s.promptEsc()
+		return
+	}
 	action := s.editor.Handle(k)
 	switch action {
 	case ActionSubmit:
@@ -236,6 +317,11 @@ func (s *Session) promptKey(ctx context.Context, k Key) {
 		s.promptInterrupt()
 	case ActionEOF:
 		s.quit = true
+	case ActionRedraw:
+		_ = s.renderer.Wipe()
+		s.dirty = true
+	case ActionCopy:
+		s.copyKilled()
 	default:
 		s.dirty = true
 	}
@@ -245,7 +331,7 @@ func (s *Session) promptKey(ctx context.Context, k Key) {
 func (s *Session) promptInterrupt() {
 	s.dirty = true
 	if s.editor.Text() != "" {
-		s.editor.Clear()
+		s.editor.Discard()
 		s.clearPromptCompletion()
 		s.armed = false
 		return
@@ -255,8 +341,33 @@ func (s *Session) promptInterrupt() {
 		return
 	}
 	s.armed = true
-	s.clearDrawn()
-	s.note(quitHint)
+}
+
+func (s *Session) promptEsc() {
+	if s.editor.Text() == "" {
+		return
+	}
+	if !s.escArmed {
+		s.escArmed = true
+		return
+	}
+	s.escArmed = false
+	s.editor.Discard()
+	s.clearPromptCompletion()
+	s.dirty = true
+}
+
+func (s *Session) openPickerKeepingDraft() {
+	text := s.editor.Text()
+	s.clearPromptCompletion()
+	s.endPrompt()
+	if !s.startPicker() {
+		s.dirty = true
+		return
+	}
+	s.pending = text
+	s.editor.Clear()
+	s.dirty = true
 }
 
 func (s *Session) submit(ctx context.Context) {
@@ -329,13 +440,30 @@ func (s *Session) refreshBusyLine() {
 			parts = append(parts, "↑ takes the last one back")
 		}
 	}
+	if s.escArmed {
+		parts = append(parts, escStopHint)
+	}
 	if typed := firstLine(s.editor.Text()); typed != "" {
 		parts = append(parts, promptGlyph+tailRunes(typed, s.cfg.Width()/2))
 	}
 	suffix := ""
 	if len(parts) > 0 {
-		suffix = " · " + strings.Join(parts, " · ")
+		suffix = suffixJoin + strings.Join(parts, suffixJoin)
 	}
 	s.out.setSuffix(suffix)
 	s.out.restoreActivity()
+}
+
+func (s *Session) copyKilled() {
+	text := s.editor.Killed()
+	if text == "" || s.masking {
+		return
+	}
+	_, _ = io.WriteString(s.cfg.Out, clipboardWrite(text))
+	s.copied = true
+	s.dirty = true
+}
+
+func clipboardWrite(text string) string {
+	return "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\x07"
 }

@@ -14,6 +14,7 @@ type Row struct {
 	Slug    string
 	Title   string
 	Status  string
+	Detail  string
 	RunID   string
 	Changed string
 	Keys    string

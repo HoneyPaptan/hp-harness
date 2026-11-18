@@ -76,7 +76,7 @@ func (s Service) spawn(id string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(pidPath(s.Env.Getenv, id), []byte(strconv.Itoa(pid)), 0o600)
+	return os.WriteFile(pidPath(s.Env.Getenv, id), pidRecord(s.Env, pid), 0o600)
 }
 
 func (s Service) List() ([]string, error) {

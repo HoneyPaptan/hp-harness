@@ -74,6 +74,25 @@ func (*stdTerminal) ReadSecret() (string, error) {
 	return term.ReadSecret(int(os.Stdin.Fd()))
 }
 
+func (t *stdTerminal) Suspend() {
+	if !t.Interactive() {
+		return
+	}
+	resume := t.in.Pause()
+	defer resume()
+	_ = tui.DisableBracketedPaste(t)
+	if err := t.restoreCurrent(); err != nil {
+		return
+	}
+	stopSelf()
+	restore, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		return
+	}
+	t.setRestore(restore)
+	_ = tui.EnableBracketedPaste(t)
+}
+
 func (t *stdTerminal) Handover(argv []string) error {
 	if len(argv) == 0 {
 		return errors.New("empty command")

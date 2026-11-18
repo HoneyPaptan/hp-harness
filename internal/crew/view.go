@@ -54,8 +54,9 @@ func (s Service) View(id string) (crewview.Snapshot, bool, error) {
 	}
 	for i := range st.Tasks {
 		t := &st.Tasks[i]
+		status, detail := viewStatus(t)
 		snap.Rows[i] = crewview.Row{
-			Slug: t.Slug, Title: t.Title, Status: statusWord(t), RunID: runID(t),
+			Slug: t.Slug, Title: t.Title, Status: status, Detail: detail, RunID: runID(t),
 			Changed: changedFiles(s.Env, st, t), Keys: taskKeys(t),
 		}
 		if word := pendingWord(reqs, t.Slug); word != "" {
@@ -63,6 +64,13 @@ func (s Service) View(id string) (crewview.Snapshot, bool, error) {
 		}
 	}
 	return snap, true, nil
+}
+
+func viewStatus(t *Task) (string, string) {
+	if t.Status == StatusFailed && t.EndReason != "" {
+		return string(StatusFailed), t.EndReason
+	}
+	return statusWord(t), ""
 }
 
 func taskKeys(t *Task) string {
@@ -113,15 +121,51 @@ func (s Service) Follow(id string, index, offset int) (crewview.Chunk, error) {
 		return crewview.Chunk{Ended: true, Trailer: s.trailer(st, t, "")}, nil
 	}
 	ended := s.taskEnded(t) && !st.verifyPending(t)
-	data, _ := os.ReadFile(runLogPath(s.Env.Getenv, t.RunID))
-	if offset > len(data) {
-		offset = 0
-	}
-	chunk := crewview.Chunk{Text: string(data[offset:]), Offset: len(data), Ended: ended}
+	path := runLogPath(s.Env.Getenv, t.RunID)
+	text, end := readLogFrom(path, offset)
+	chunk := crewview.Chunk{Text: text, Offset: end, Ended: ended}
 	if ended {
-		chunk.Trailer = s.trailer(st, t, string(data))
+		whole, _ := os.ReadFile(path)
+		chunk.Trailer = s.trailer(st, t, string(whole))
 	}
 	return chunk, nil
+}
+
+const errorTailBytes = 4096
+
+func lastRunError(env Env, id string) string {
+	path := runLogPath(env.Getenv, id)
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	tail, _ := readLogFrom(path, max(int(info.Size())-errorTailBytes, 0))
+	lines := strings.Split(tail, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if text, ok := strings.CutPrefix(strings.TrimSpace(lines[i]), "error: "); ok {
+			return text
+		}
+	}
+	return ""
+}
+
+func readLogFrom(path string, offset int) (string, int) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", 0
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return "", 0
+	}
+	size := int(info.Size())
+	if offset > size {
+		offset = 0
+	}
+	buf := make([]byte, size-offset)
+	n, _ := f.ReadAt(buf, int64(offset))
+	return string(buf[:n]), offset + n
 }
 
 func (s Service) taskEnded(t *Task) bool {

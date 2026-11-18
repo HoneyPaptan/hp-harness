@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -50,6 +51,10 @@ type fakeAgent struct {
 	filesErr   error
 	filesCalls int
 	permMode   string
+	effort     string
+	effortErr  error
+	detail     []string
+	detailErr  error
 	permInfo   string
 	compactFn  func(context.Context) (bool, error)
 	script     []func(context.Context, func(Event)) (Outcome, error)
@@ -167,6 +172,18 @@ func (a *fakeAgent) PermissionMode() string {
 		return "auto"
 	}
 	return a.permMode
+}
+
+func (a *fakeAgent) Effort() string { return a.effort }
+
+func (a *fakeAgent) Detail() ([]string, error) { return a.detail, a.detailErr }
+
+func (a *fakeAgent) SetEffort(effort string) error {
+	if a.effortErr != nil {
+		return a.effortErr
+	}
+	a.effort = effort
+	return nil
 }
 
 func (a *fakeAgent) SetPermissionMode(raw string) error {
@@ -348,9 +365,9 @@ func TestSessionScripts(t *testing.T) {
 			reject:  []string{"steps"},
 		},
 		{
-			name:    "lone esc interrupts",
+			name:    "esc twice interrupts",
 			script:  scriptOf(cancelTurn),
-			steps:   []step{{keys: "go\r"}, {wait: "partial"}, {keys: "\x1b"}, {wait: "interrupted"}, {wait: "\r\n\r\n"}, {keys: "\x04"}},
+			steps:   []step{{keys: "go\r"}, {wait: "partial"}, {keys: "\x1b"}, {wait: escStopHint}, {keys: "\x1b"}, {wait: "interrupted"}, {wait: "\r\n\r\n"}, {keys: "\x04"}},
 			prompts: []string{"go"},
 			want:    []string{"interrupted"},
 		},
@@ -918,7 +935,7 @@ func TestSessionSlashWorksWithoutModel(t *testing.T) {
 	h := startSessionWith(t, a, Config{})
 	h.play([]step{
 		{keys: "/help \r"},
-		{wait: "/model         pick a provider and model"},
+		{wait: helpLine("/model", "pick a provider and model")},
 		{keys: "/quit \r"},
 	})
 	h.waitExit()
@@ -996,4 +1013,142 @@ func TestSessionCompactNoteDuringTurn(t *testing.T) {
 	h := startSession(t, a, true, false)
 	h.play([]step{{keys: "go\r"}, {wait: "compacted"}, {wait: "ok"}, {keys: "\x04"}})
 	h.waitExit()
+}
+
+func TestTurnKeysFollowTheDraft(t *testing.T) {
+	t.Run("one Esc does not stop the turn", func(t *testing.T) {
+		h := startSession(t, newFakeAgent(cancelTurn), false, false)
+		h.play([]step{{keys: "go\r"}, {wait: "partial"}, {keys: "\x1b"}, {wait: escStopHint}, {keys: "a"}, {wait: promptGlyph + "a"}})
+		if strings.Contains(h.out.String(), "interrupted") {
+			t.Fatalf("one Esc stopped the turn: %q", h.out.String())
+		}
+	})
+	t.Run("Ctrl-C clears a typed draft before it stops the turn", func(t *testing.T) {
+		h := startSession(t, newFakeAgent(cancelTurn), false, false)
+		h.play([]step{{keys: "go\r"}, {wait: "partial"}, {keys: "draft"}, {wait: promptGlyph + "draft"}, {keys: "\x03"}, {keys: "z"}, {wait: promptGlyph + "z"}})
+		if strings.Contains(h.out.String(), "interrupted") {
+			t.Fatalf("Ctrl-C with a draft stopped the turn: %q", h.out.String())
+		}
+		h.play([]step{{keys: "\x7f\x03"}, {wait: "interrupted"}})
+	})
+}
+
+func TestPromptEscTwiceClearsTheDraft(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "draft"}, {wait: "› draft"}, {keys: "\x1b"}, {wait: escClearHint}, {keys: "\x1b"}, {keys: "new"}, {wait: "› new"}})
+}
+
+func TestCtrlPOpensThePickerAndKeepsTheDraft(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "draft\x10"}, {wait: providerPrompt}, {keys: "\x10"}, {wait: pickerNote}, {wait: "› draft"}})
+}
+
+func TestClearedDraftComesBackWithUndo(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "keep this"}, {wait: "› keep this"}, {keys: "\x03"}, {keys: "x"}, {wait: "› x"}, {keys: "\x1f\x1f"}, {wait: "› keep this"}})
+}
+
+func TestCopyingASelectionWritesTheClipboard(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "one two"}, {wait: "› one two"}, {keys: "\x1b[1;6D\x1bw"}, {wait: clipboardWrite("two")}, {wait: copiedHint}})
+}
+
+func TestCtrlLClearsTheScreen(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "draft"}, {wait: "› draft"}, {keys: "\x0c"}, {wait: clearScreen + "\r\x1b[J› draft"}})
+}
+
+func TestCtrlTCyclesTheEffort(t *testing.T) {
+	a := newFakeAgent()
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "\x14"}, {wait: "effort low"}, {wait: "· effort low ·"},
+		{keys: "\x14"}, {wait: "effort medium"},
+		{keys: "\x14"}, {wait: "effort high"},
+		{keys: "\x14"}, {wait: "effort default"},
+		{keys: "\x04"},
+	})
+	if a.Effort() != "" {
+		t.Fatalf("effort %q after a full cycle", a.Effort())
+	}
+}
+
+func TestEffortCommand(t *testing.T) {
+	a := newFakeAgent()
+	a.effort = "xhigh"
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "/effort\r"}, {wait: "effort xhigh"},
+		{keys: "/effort medium\r"}, {wait: "effort medium"},
+		{keys: "/effort default\r"}, {wait: "effort default"},
+		{keys: "\x04"},
+	})
+	if a.Effort() != "" {
+		t.Fatalf("effort %q", a.Effort())
+	}
+}
+
+func TestCtrlTLeavesAnUnlistedEffortForDefault(t *testing.T) {
+	a := newFakeAgent()
+	a.effort = "max"
+	h := startSession(t, a, false, false)
+	h.play([]step{{keys: "\x14"}, {wait: "effort default"}, {keys: "\x04"}})
+	if a.Effort() != "" {
+		t.Fatalf("effort %q", a.Effort())
+	}
+}
+
+func TestEffortErrorIsShown(t *testing.T) {
+	a := newFakeAgent()
+	a.effortErr = errors.New("unknown effort \"loud\"")
+	h := startSession(t, a, false, false)
+	h.play([]step{{keys: "/effort loud\r"}, {wait: "unknown effort \"loud\""}, {keys: "\x04"}})
+}
+
+func detailLinesFor(n int) []string {
+	lines := make([]string, n)
+	for i := range lines {
+		lines[i] = "line " + strconv.Itoa(i+1)
+	}
+	return lines
+}
+
+func TestCtrlOOpensFullDetailAtTheEnd(t *testing.T) {
+	a := newFakeAgent()
+	a.detail = detailLinesFor(40)
+	h := startSession(t, a, false, false)
+	h.play([]step{
+		{keys: "\x0f"}, {wait: "full detail · lines 25-40 of 40"}, {wait: "line 40"},
+		{keys: "g"}, {wait: "full detail · lines 1-16 of 40"},
+		{keys: "\x0f"}, {keys: "back"}, {wait: "› back"},
+	})
+}
+
+func TestFullDetailWrapsLongLines(t *testing.T) {
+	a := newFakeAgent()
+	a.detail = []string{strings.Repeat("x", 100)}
+	h := startSession(t, a, false, false)
+	h.play([]step{{keys: "\x0f"}, {wait: "full detail · lines 1-2 of 2"}, {wait: "  " + strings.Repeat("x", 78) + "\r\n  " + strings.Repeat("x", 22)}})
+}
+
+func TestFullDetailWithNothingToShow(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "\x0f"}, {wait: detailEmpty}})
+}
+
+func TestFullDetailWaitsForTheTurn(t *testing.T) {
+	release := make(chan struct{})
+	turn := func(_ context.Context, emit func(Event)) (Outcome, error) {
+		emit(Event{Kind: EventText, Text: "working on it"})
+		<-release
+		return Outcome{Model: "xai/grok", Steps: 1}, nil
+	}
+	h := startSession(t, newFakeAgent(turn), false, false)
+	h.play([]step{{keys: "go\r"}, {wait: "working on it"}, {keys: "\x0f"}, {wait: detailBusy}})
+	close(release)
+}
+
+func TestPickerSaysWhenNothingMatches(t *testing.T) {
+	h := startSession(t, newFakeAgent(), false, false)
+	h.play([]step{{keys: "/model\r"}, {wait: providerPrompt}, {keys: "zzz"}, {wait: `nothing matches "zzz"`}})
 }

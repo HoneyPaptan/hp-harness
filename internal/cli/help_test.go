@@ -125,3 +125,16 @@ func TestSessionWithoutTerminalSaysSo(t *testing.T) {
 		t.Fatalf("stderr %q", stderr.String())
 	}
 }
+
+func TestUnknownCommandLine(t *testing.T) {
+	cases := map[string]string{
+		"rnu":        `unknown command "rnu", did you mean "run"?`,
+		"crewz":      `unknown command "crewz", did you mean "crew"?`,
+		"frobnicate": `unknown command "frobnicate". hp help`,
+	}
+	for name, want := range cases {
+		if got := unknownCommandLine(name); !strings.HasPrefix(got, want) {
+			t.Errorf("%s: %q", name, got)
+		}
+	}
+}

@@ -2,34 +2,40 @@ package tui
 
 import "testing"
 
-func TestSlashHelpLinesUnchanged(t *testing.T) {
-	want := []string{
-		"/help          this list",
-		"/model         pick a provider and model",
-		"/model p/name  switch the model for following turns",
-		"/jev           show the jev state",
-		"/jev on|off    switch jev for following turns",
-		"/key NAME      store an API key",
-		"/new           start a fresh run",
-		"/runs          list recent runs",
-		"/permissions   show or set permission mode",
-		"/permissions ask|auto|full-access|reset switch mode or reset session grants",
-		"/compact       compact the conversation now",
-		"/crew          open the newest crew",
-		"/crew ID       open an older crew",
-		"/crew plan.md|goal run a plan file or a drafted goal as a crew",
-		"/crew list     list crews",
-		"/crew status|report ID print one crew",
-		"/quit          leave, also Ctrl-D",
-		"//text         send /text to the model",
-		"Ctrl-C or Esc stops a turn",
+func TestHelpListsCommandsThenKeysInOneColumn(t *testing.T) {
+	want := map[string]bool{
+		"commands": false, "keys": false,
+		"  /help                   commands and keys":                                    false,
+		"  /permissions MODE       ask, auto or full-access; reset drops session grants": false,
+		"  /crew status|report ID  print one crew":                                       false,
+		"  Esc Esc                 stop the turn, or clear the draft":                    false,
+		"  Ctrl-W Ctrl-U Ctrl-K    delete a word, to the line start, to the line end":    false,
+		"  ↑ ↓                     move between lines, then through earlier prompts":     false,
 	}
-	if len(helpLines) != len(want) {
-		t.Fatalf("len %d want %d", len(helpLines), len(want))
+	for _, line := range helpLines {
+		if _, ok := want[line]; ok {
+			want[line] = true
+		}
+		if rowWidth(line) > 80 {
+			t.Errorf("help line wider than 80 cells: %q", line)
+		}
+		if line != "" && line != helpCommands && line != helpKeys && line[helpPad+1] != ' ' {
+			t.Errorf("help line breaks the column: %q", line)
+		}
 	}
+	for line, seen := range want {
+		if !seen {
+			t.Errorf("help is missing %q", line)
+		}
+	}
+}
+
+func TestSlashRowsShowTheCommandAndWhatItDoes(t *testing.T) {
+	got := slashRows([]string{"help", "permissions"})
+	want := []string{"/help         commands and keys", "/permissions  show the permission mode"}
 	for i := range want {
-		if helpLines[i] != want[i] {
-			t.Fatalf("line %d got %q want %q", i, helpLines[i], want[i])
+		if got[i] != want[i] {
+			t.Errorf("row %d got %q want %q", i, got[i], want[i])
 		}
 	}
 }

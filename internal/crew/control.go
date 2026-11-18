@@ -140,8 +140,8 @@ func stopTask(env Env, t *Task) bool {
 		if t.RunID == "" {
 			t.RunID, _ = findRunByDir(env, t.Worktree)
 		}
-		if t.RunID != "" && runAlive(env, t.RunID) && env.Signal != nil {
-			if pid, ok := readRunPid(env.Getenv, t.RunID); ok {
+		if t.RunID != "" && env.Signal != nil {
+			if pid, ok := livePid(env, runPidPath(env.Getenv, t.RunID)); ok {
 				_ = env.Signal(pid)
 			}
 		}

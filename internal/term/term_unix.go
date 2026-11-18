@@ -88,6 +88,7 @@ func readSecretLine(fd int) (string, error) {
 
 func rawState(state syscall.Termios) syscall.Termios {
 	state.Lflag &^= syscall.ICANON | syscall.ECHO | syscall.ISIG | syscall.IEXTEN
+	state.Iflag &^= syscall.ICRNL | syscall.INLCR | syscall.IGNCR
 	state.Cc[syscall.VMIN] = 1
 	state.Cc[syscall.VTIME] = 0
 	return state

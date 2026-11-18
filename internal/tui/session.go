@@ -29,6 +29,7 @@ type Config struct {
 	Now        func() time.Time
 	CrewPoll   time.Duration
 	CrewFollow time.Duration
+	Suspend    func()
 }
 
 type turnResult struct {
@@ -60,6 +61,10 @@ type Session struct {
 	stopping  bool
 	masking   bool
 	armed     bool
+	escArmed  bool
+	hint      string
+	copied    bool
+	detail    *pager
 	drawn     bool
 	dirty     bool
 	quit      bool
@@ -83,7 +88,7 @@ func NewSession(cfg Config) *Session {
 	return &Session{
 		cfg:      withClock(cfg),
 		renderer: renderer,
-		out:      output{w: cfg.Out, color: cfg.Color},
+		out:      output{w: cfg.Out, color: cfg.Color, width: cfg.Width},
 		input:    make(chan []byte),
 		events:   make(chan Event),
 		done:     make(chan turnResult),
@@ -272,6 +277,7 @@ func (s *Session) emit(ev Event) {
 
 func (s *Session) finishTurn(ctx context.Context, res turnResult) {
 	s.settle(res)
+	s.escArmed = false
 	s.out.setSuffix("")
 	s.lastKey = s.cfg.Now()
 	interrupted := s.stopping
@@ -389,6 +395,11 @@ func (s *Session) redraw() {
 	s.dirty = false
 	s.drawn = true
 	s.renderer.SetWidth(s.cfg.Width())
+	s.renderer.Select(s.selection())
+	if s.detail != nil {
+		s.drawPager(s.detail)
+		return
+	}
 	if s.runPick != nil {
 		rows, sel := s.runPick.window()
 		_ = s.renderer.DrawMenu(runPrompt, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", runPickMore(s.runPick), runFooter)
@@ -418,6 +429,9 @@ func (s *Session) redraw() {
 	}
 	if s.complete != nil && s.complete.visible() {
 		rows, sel := s.complete.menu.window()
+		if s.complete.kind == completeSlash {
+			rows = slashRows(rows)
+		}
 		_ = s.renderer.DrawMenu(promptGlyph, s.editor.Runes(), s.editor.Cursor(), rows, sel, "", completionMore(s.complete.menu), s.footer())
 		return
 	}
@@ -445,7 +459,11 @@ func footerLine(a Agent) string {
 	if a.Model() == "" {
 		return mode + " · no model · /model"
 	}
-	line := mode + " · " + a.Model() + " · jev"
+	line := mode + " · " + a.Model()
+	if effort := a.Effort(); effort != "" {
+		line += " · effort " + effort
+	}
+	line += " · jev"
 	if !a.Jev() {
 		line += " off"
 	}
@@ -470,4 +488,9 @@ func (s *Session) clearDrawn() {
 	}
 	s.drawn = false
 	_ = s.renderer.Clear()
+}
+
+func (s *Session) selection() (int, int) {
+	from, to, _ := s.editor.Selection()
+	return from, to
 }

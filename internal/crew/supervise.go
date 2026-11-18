@@ -136,9 +136,13 @@ func resumeDead(ctx context.Context, env Env, st *State, t *Task) error {
 			return err
 		}
 	}
-	resume, next := journal.NextResume(run, recs, loadResumeState(env, t.RunID))
+	prev := loadResumeState(env, t.RunID)
+	if last := lastRunError(env, t.RunID); refusedAgain(last, recs, prev) {
+		return failTask(env, st, t, errors.New(last))
+	}
+	resume, next := journal.NextResume(run, recs, prev)
 	if !resume {
-		return failTask(env, st, t, fmt.Errorf("keeps crashing after %d resumes", journal.CrashLimit))
+		return failTask(env, st, t, crashReason(env, t.RunID))
 	}
 	if err := saveResumeState(env, t.RunID, next); err != nil {
 		return err
@@ -147,6 +151,29 @@ func resumeDead(ctx context.Context, env Env, st *State, t *Task) error {
 		return failTask(env, st, t, err)
 	}
 	return nil
+}
+
+func crashReason(env Env, id string) error {
+	if last := lastRunError(env, id); last != "" {
+		return fmt.Errorf("%s (gave up after %d resumes)", last, journal.CrashLimit)
+	}
+	return fmt.Errorf("keeps crashing after %d resumes", journal.CrashLimit)
+}
+
+func refusedAgain(last string, recs []journal.Record, prev journal.ResumeState) bool {
+	return prev.Attempts > 0 && prev.Records == journal.WorkedRecords(recs) && refused(last)
+}
+
+func refused(last string) bool {
+	rest, ok := strings.CutPrefix(last, "http ")
+	if !ok || len(rest) < 3 {
+		return false
+	}
+	status, err := strconv.Atoi(rest[:3])
+	if err != nil {
+		return false
+	}
+	return status >= 400 && status < 500 && status != 408 && status != 429
 }
 
 func recoverLockPath(getenv func(string) string) string {
@@ -218,25 +245,13 @@ func runHP(ctx context.Context, env Env, args ...string) (string, error) {
 	return execHP(ctx, env, args...)
 }
 
-func runAlive(env Env, id string) bool {
-	pid, ok := readRunPid(env.Getenv, id)
-	if !ok {
-		return false
-	}
-	return env.Alive != nil && env.Alive(pid)
+func runPidPath(getenv func(string) string, id string) string {
+	return filepath.Join(runsDir(getenv), id+".pid")
 }
 
-func readRunPid(getenv func(string) string, id string) (int, bool) {
-	data, err := os.ReadFile(filepath.Join(runsDir(getenv), id+".pid"))
-	if err != nil {
-		return 0, false
-	}
-	pidText, _, _ := strings.Cut(strings.TrimSpace(string(data)), " ")
-	pid, err := strconv.Atoi(pidText)
-	if err != nil {
-		return 0, false
-	}
-	return pid, true
+func runAlive(env Env, id string) bool {
+	_, ok := livePid(env, runPidPath(env.Getenv, id))
+	return ok
 }
 
 func replayRunRecords(env Env, id string) ([]journal.Record, journal.State, error) {

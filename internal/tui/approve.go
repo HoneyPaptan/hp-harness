@@ -1,18 +1,35 @@
 package tui
 
+import "strings"
+
 const (
 	approvePrompt = "allow? "
-	approveYes    = "Yes"
-	approveAlways = "Yes, and don't ask again for this"
-	approveNo     = "No"
+	approveHint   = "1 2 3 or ↑ ↓ Enter · Tab adds a note to Yes or No\nCtrl-C says no · Esc says no and stops the turn"
+	noteHint      = "Enter sends it · Esc goes back to the choices · Ctrl-C says no"
+	noteYesPrompt = "yes, and after this turn: "
+	noteNoPrompt  = "no, because: "
 )
 
-var approveItems = []string{approveYes, approveAlways, approveNo}
+var (
+	approveItems   = []string{"1 Yes", "2 Yes, and don't ask again for this", "3 No"}
+	approveAnswers = []ApproveAnswer{ApproveYes, ApproveAlways, ApproveNo}
+	approveRunes   = map[rune]ApproveAnswer{
+		'1': ApproveYes, 'y': ApproveYes, 'Y': ApproveYes,
+		'2': ApproveAlways, 'a': ApproveAlways, 'A': ApproveAlways,
+		'3': ApproveNo, 'n': ApproveNo, 'N': ApproveNo,
+	}
+)
 
 type approval struct {
-	reply    chan<- ApproveAnswer
+	reply    chan<- Approval
 	menu     *menu
 	answered bool
+	noting   bool
+	note     Editor
+}
+
+func (a *approval) answer() ApproveAnswer {
+	return approveAnswers[a.menu.selected]
 }
 
 func (s *Session) openApproval(ev Event) {
@@ -31,57 +48,89 @@ func (s *Session) dropApproval() {
 }
 
 func (s *Session) drawApproval() {
-	if s.approval == nil {
+	a := s.approval
+	if a == nil {
 		return
 	}
-	rows, sel := s.approval.menu.window()
+	rows, sel := a.menu.window()
 	s.drawn = true
-	_ = s.renderer.DrawMenu(approvePrompt, nil, 0, rows, sel, "", "", footerLine(s.cfg.Agent))
+	if !a.noting {
+		s.renderer.Select(0, 0)
+		_ = s.renderer.DrawMenu(approvePrompt, nil, 0, rows, sel, "", approveHint, footerLine(s.cfg.Agent))
+		return
+	}
+	from, to, _ := a.note.Selection()
+	s.renderer.Select(from, to)
+	_ = s.renderer.DrawMenu(notePrompt(a.answer()), a.note.Runes(), a.note.Cursor(), rows, sel, "", noteHint, footerLine(s.cfg.Agent))
+}
+
+func notePrompt(ans ApproveAnswer) string {
+	if ans == ApproveNo {
+		return noteNoPrompt
+	}
+	return noteYesPrompt
 }
 
 func (s *Session) approvalKey(k Key) {
+	if s.approval.noting {
+		s.noteKey(k)
+		return
+	}
+	if s.approval.menu.step(k) {
+		s.drawApproval()
+		return
+	}
 	switch k.Type {
-	case KeyUp:
+	case KeyLeft:
 		s.approval.menu.move(-1)
 		s.drawApproval()
-	case KeyDown:
+	case KeyRight:
 		s.approval.menu.move(1)
 		s.drawApproval()
+	case KeyTab:
+		s.startNote()
 	case KeyEnter:
-		item, ok := s.approval.menu.chosen()
-		if !ok {
-			return
-		}
-		s.sendApproval(approveFromItem(item))
-	case KeyEsc:
-		s.sendApproval(ApproveNo)
+		s.sendApproval(s.approval.answer(), "")
 	case KeyCtrlC:
-		s.sendApproval(ApproveNo)
+		s.sendApproval(ApproveNo, "")
+	case KeyEsc:
+		s.sendApproval(ApproveNo, "")
 		s.interrupt()
 	case KeyRune:
-		switch k.Rune {
-		case 'y', 'Y':
-			s.sendApproval(ApproveYes)
-		case 'a', 'A':
-			s.sendApproval(ApproveAlways)
-		case 'n', 'N':
-			s.sendApproval(ApproveNo)
+		if ans, ok := approveRunes[k.Rune]; ok {
+			s.sendApproval(ans, "")
 		}
 	}
 }
 
-func approveFromItem(item string) ApproveAnswer {
-	switch item {
-	case approveYes:
-		return ApproveYes
-	case approveAlways:
-		return ApproveAlways
+func (s *Session) startNote() {
+	if s.approval.answer() == ApproveAlways {
+		s.approval.menu.move(1)
+	} else {
+		s.approval.noting = true
+	}
+	s.drawApproval()
+}
+
+func (s *Session) noteKey(k Key) {
+	a := s.approval
+	switch k.Type {
+	case KeyEnter:
+		s.sendApproval(a.answer(), strings.TrimSpace(a.note.Text()))
+	case KeyCtrlC:
+		s.sendApproval(ApproveNo, "")
+	case KeyEsc:
+		a.noting = false
+		a.note.Clear()
+		s.drawApproval()
+	case KeyUp, KeyDown, KeyTab, KeyCtrlD, KeyCtrlL, KeyCtrlN:
 	default:
-		return ApproveNo
+		a.note.Handle(k)
+		s.drawApproval()
 	}
 }
 
-func (s *Session) sendApproval(ans ApproveAnswer) {
+func (s *Session) sendApproval(ans ApproveAnswer, note string) {
 	if s.approval == nil || s.approval.answered {
 		return
 	}
@@ -89,20 +138,32 @@ func (s *Session) sendApproval(ans ApproveAnswer) {
 	ch := s.approval.reply
 	s.approval = nil
 	s.clearDrawn()
-	s.out.line(sgrDim, approveResultLine(ans))
+	s.out.line(sgrDim, approveResultLine(ans, note))
 	s.out.activity()
 	if ch != nil {
-		ch <- ans
+		ch <- Approval{Answer: ans, Note: declineNote(ans, note)}
+	}
+	if ans != ApproveNo && note != "" {
+		s.enqueue(note)
 	}
 }
 
-func approveResultLine(ans ApproveAnswer) string {
+func declineNote(ans ApproveAnswer, note string) string {
+	if ans != ApproveNo {
+		return ""
+	}
+	return note
+}
+
+func approveResultLine(ans ApproveAnswer, note string) string {
 	switch ans {
 	case ApproveYes:
 		return "allowed"
 	case ApproveAlways:
 		return "allowed for this session"
-	default:
-		return "declined"
 	}
+	if note != "" {
+		return "declined: " + note
+	}
+	return "declined"
 }

@@ -41,11 +41,11 @@ func TestGateAskAlwaysGrant(t *testing.T) {
 	mode := permit.ModeAsk
 	grants := &permit.Grants{}
 	var once atomic.Bool
-	ask := func(context.Context, permit.Action) askAnswer {
+	ask := func(context.Context, permit.Action) (askAnswer, string) {
 		if once.CompareAndSwap(false, true) {
-			return askAlways
+			return askAlways, ""
 		}
-		return askYes
+		return askYes, ""
 	}
 	gate := newGate(h, func() permit.Mode { return mode }, nil, grants, "/w", "/home/u", ask, nil)
 	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"command":"git push origin main"}`)}
@@ -62,7 +62,7 @@ func TestGateAskAlwaysGrant(t *testing.T) {
 func TestGateAskNoHold(t *testing.T) {
 	h := host.NewMemory()
 	mode := permit.ModeAsk
-	ask := func(context.Context, permit.Action) askAnswer { return askNo }
+	ask := func(context.Context, permit.Action) (askAnswer, string) { return askNo, "" }
 	gate := newGate(h, func() permit.Mode { return mode }, nil, &permit.Grants{}, "/w", "/home/u", ask, nil)
 	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"command":"git push origin main"}`)}
 	v := gate(context.Background(), call, nil)
@@ -127,6 +127,17 @@ func TestGateWriteDotDotThroughLinkReviewed(t *testing.T) {
 	call := provider.ToolCall{ID: "1", Name: "write", Args: json.RawMessage(`{"path":"link/../x.go"}`)}
 	v := gate(context.Background(), call, nil)
 	if v.Allow {
+		t.Fatalf("verdict %+v", v)
+	}
+}
+
+func TestGateAskNoCarriesTheNote(t *testing.T) {
+	h := host.NewMemory()
+	ask := func(context.Context, permit.Action) (askAnswer, string) { return askNo, "use a branch instead" }
+	gate := newGate(h, func() permit.Mode { return permit.ModeAsk }, nil, &permit.Grants{}, "/w", "/home/u", ask, nil)
+	call := provider.ToolCall{ID: "1", Name: "bash", Args: json.RawMessage(`{"command":"git push origin main"}`)}
+	v := gate(context.Background(), call, nil)
+	if v.Allow || v.Reason != "declined by the user: use a branch instead" {
 		t.Fatalf("verdict %+v", v)
 	}
 }

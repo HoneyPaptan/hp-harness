@@ -54,6 +54,9 @@ func (p *picker) pick() bool {
 }
 
 func pickerMore(m *menu) string {
+	if m.filter != "" && len(m.matches()) == 0 {
+		return "nothing matches " + strconv.Quote(m.filter) + " · " + pickerHint
+	}
 	if n := m.moreHidden(); n > 0 {
 		return "+" + strconv.Itoa(n) + " more · " + pickerHint
 	}

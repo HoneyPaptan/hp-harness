@@ -14,6 +14,12 @@ const (
 	sgrDim       = "\x1b[2m"
 	sgrRed       = "\x1b[31m"
 	sgrReset     = "\x1b[0m"
+	reserveRow   = "\x1bD\x1b[A"
+	saveCursor   = "\x1b7"
+	loadCursor   = "\x1b8"
+	belowRow     = "\r\n"
+	eraseRest    = "\x1b[K"
+	suffixJoin   = " · "
 )
 
 type output struct {
@@ -23,6 +29,8 @@ type output struct {
 	active  string
 	base    string
 	suffix  string
+	below   bool
+	width   func() int
 }
 
 func (o *output) write(s string) {
@@ -57,6 +65,11 @@ func (o *output) showActivity(label string) {
 
 func (o *output) setSuffix(suffix string) {
 	o.suffix = suffix
+	if o.midLine {
+		o.clearBelow()
+		o.showBelow()
+		return
+	}
 	if o.active == "" {
 		return
 	}
@@ -80,11 +93,32 @@ func (o *output) clearActivity() {
 	o.active = ""
 }
 
+func (o *output) showBelow() {
+	if !o.midLine || o.suffix == "" {
+		return
+	}
+	text := strings.TrimPrefix(o.suffix, suffixJoin)
+	if o.width != nil {
+		text = fitRow(text, max(o.width()-1, 1))
+	}
+	o.write(reserveRow + saveCursor + belowRow + o.paint(sgrDim, text) + eraseRest + loadCursor)
+	o.below = true
+}
+
+func (o *output) clearBelow() {
+	if !o.below {
+		return
+	}
+	o.write(saveCursor + belowRow + eraseRest + loadCursor)
+	o.below = false
+}
+
 func (o *output) endLine() {
 	o.clearActivity()
 	if !o.midLine {
 		return
 	}
+	o.clearBelow()
 	o.write(rowSeparator)
 	o.midLine = false
 }
@@ -95,8 +129,10 @@ func (o *output) text(s string) {
 		return
 	}
 	o.clearActivity()
+	o.clearBelow()
 	o.write(strings.ReplaceAll(s, "\n", rowSeparator))
 	o.midLine = !strings.HasSuffix(s, "\n")
+	o.showBelow()
 }
 
 func (o *output) line(sgr, s string) {

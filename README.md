@@ -41,14 +41,16 @@ The installer supports linux and macOS on amd64 and arm64, checks the sha256 aga
 
 ## Crews in a session
 
+`hp crew run` and `hp crew resume` exit 0 when every task finished, and 1 when a task failed or its verify command failed, with the count and the report command on stderr, so a script can tell. A failed task shows the last error of its run as the reason.
+
 `/crew plan.md` or `/crew <goal>` lists the tasks and asks how many agents run at once. At that step, `e` opens the plan file in `$VISUAL`, else `$EDITOR`, else `vi`. hp hands the terminal to the editor and takes it back when you quit, then re-reads the plan and shows the new task count. If the plan no longer parses, hp shows the error and stays at that step, so you can press `e` again.
 
 A crew can check each task when it finishes. `hp crew run --verify "go test ./..." plan.md` runs that command in the task's worktree once its run ends, with a timeout (10 minutes, or `--verify-timeout`). The output is saved, and the task shows `verified` or `verify failed`. In a session, `Tab` at the confirm step moves to a verify field that starts with the command from the last crew in this repository; leave it empty to skip the check. `Enter` on a task shows its verify output after the run log, and `hp crew report` prints it too.
 
-The crew view (`/crew` for the newest crew, `/crew <id>` for another) lists one row per task. `↑ ↓` selects, `Enter` follows a task's log, `Esc` goes back. The hint line shows the keys that apply to the selected task:
+The crew view (`/crew` for the newest crew, `/crew <id>` for another) lists one numbered row per task: title, status and changed files. `↑ ↓` or a digit `1` to `9` selects, `g` and `G` (or `Home` and `End`) jump to the first and last task, `PgUp` and `PgDn` move a page, `Enter` follows a task's log, `Esc` goes back. Under the list, one line says why the selected task failed and names its run. The hint line shows the keys that apply to the selected task, and wraps on a narrow terminal:
 
 - `s` stops the selected task after a `y/n` question. Its run ends the way `hp stop` ends it and the task shows `stopped`.
-- `r` retries a failed or stopped task. A run that can still be resumed is resumed with its crash counter reset; otherwise a fresh run starts in the same worktree.
+- `r` retries a failed or stopped task. A run that can still be resumed is resumed with its crash counter reset; otherwise a fresh run starts in the same worktree. A run whose process dies is resumed up to three times; when the provider refuses the request itself (a wrong model name, a bad key, a request it rejects), the task fails after one more try and shows the provider's answer as the reason.
 - `p` pauses the crew: nothing new starts and running tasks finish their current work. `p` again resumes. The view, the footer and `hp crew status` show `paused`.
 
 The same actions are commands: `hp crew stop <id> <task>`, `hp crew retry <id> <task>`, `hp crew pause <id>` and `hp crew unpause <id>`. `<task>` is the task's slug, its number or its exact title. They write a small request file next to the crew's state file and the crew's supervisor applies it on its next poll (every two seconds), starting the supervisor again if it has exited. `hp crew run -n 0` is refused, and `hp crew run` in a folder with no commit says so instead of printing a git error.
@@ -99,18 +101,45 @@ Inside a session:
 
 | Slash command | What it does |
 | --- | --- |
-| `/help` | lists the slash commands |
+| `/help` | lists the slash commands and the keys |
 | `/model` | opens the provider and model picker, or switches with `/model preset/name` |
 | `/jev` | shows or switches jev for the following turns |
 | `/key` | stores an API key: `/key NAME`, then paste the value |
 | `/new` | starts a fresh run |
 | `/runs` | lists recent runs |
+| `/effort` | shows or sets the reasoning effort for following turns; `default` clears it |
 | `/permissions` | shows or sets the permission mode, or resets session grants |
 | `/compact` | compacts the conversation now |
 | `/crew` | opens a crew, lists them, prints one, or runs a plan file or a drafted goal as a crew |
 | `/quit` | leaves the session, Ctrl-D does the same; it prints the run id and `hp -c` as the way back |
 
-A line that starts with `//` is sent to the model as text starting with `/`. Ctrl-C or Esc stops a turn. While a turn runs you can keep typing: Enter queues the message, the status line shows how many are queued, and they are sent one by one in order when the turn ends. Up on an empty prompt takes the last queued message back into the editor, again for the one before it. Slash commands wait until the turn is over.
+A line that starts with `//` is sent to the model as text starting with `/`. While a turn runs you can keep typing: Enter queues the message, the status line shows how many are queued, and they are sent one by one in order when the turn ends. Up on an empty prompt takes the last queued message back into the editor, again for the one before it. Slash commands wait until the turn is over.
+
+The keys follow the usual terminal habits, and `/help` lists them:
+
+| Key | What it does |
+| --- | --- |
+| `Enter` | sends the prompt, or queues it while a turn runs |
+| `Ctrl-J`, `Alt-Enter`, or `\` then `Enter` | starts a new line; `Shift-Enter` does too in terminals that report it |
+| `Esc` twice | stops the turn, or clears the draft when nothing runs; the hint `Esc again` shows after the first press |
+| `Ctrl-C` | clears the draft; on an empty draft it stops the turn, and pressed twice at the prompt it quits |
+| `Ctrl-D` | quits when the draft is empty |
+| `Ctrl-Z` | suspends hp; `fg` brings it back |
+| `Ctrl-P` | opens or closes the model picker and keeps the draft |
+| `Shift-Tab` | cycles the permission mode |
+| `Ctrl-T` | cycles the reasoning effort: default, low, medium, high |
+| `Ctrl-O` | opens full detail between turns: every prompt, each tool call with its arguments and the complete tool output; `Ctrl-O` or `Esc` closes it |
+| `↑ ↓` | move between the lines of a draft, then through earlier prompts |
+| `Tab` | completes a `/command` or an `@file` |
+| `Alt-B`, `Alt-F`, `Ctrl-←`, `Ctrl-→` | move one word |
+| `Ctrl-A`, `Ctrl-E` | move to the start or end of the line |
+| `Ctrl-W`, `Ctrl-U`, `Ctrl-K` | delete a word, to the line start, to the line end; `Ctrl-Y` pastes it back |
+| `Shift` with `←`, `→`, `↑`, `↓`, `Home`, `End` or a word move | selects text; typing replaces the selection |
+| `Alt-W` | copies the selection to the clipboard; `Ctrl-W` cuts it |
+| `Ctrl-_`, `Alt-_` | undo or redo a change to the draft, a cleared draft included |
+| `Ctrl-L` | clears the screen |
+
+In lists (the model picker, `hp -r`, the suggestions for `/` and `@`), `↑ ↓` or `Ctrl-K` and `Ctrl-J` move, typing filters, `Enter` chooses and `Esc` closes. A permission prompt takes `1`, `2` or `3` (or `y`, `a`, `n`); `Ctrl-C` answers no, and `Esc` answers no and stops the turn. `Tab` on Yes or No opens a note: with No the model reads it as the reason right away, with Yes it is queued and sent when the turn ends.
 
 ## Scripting
 

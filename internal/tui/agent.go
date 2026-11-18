@@ -26,10 +26,15 @@ const (
 	ApproveNo
 )
 
+type Approval struct {
+	Answer ApproveAnswer
+	Note   string
+}
+
 type Event struct {
 	Kind  EventKind
 	Text  string
-	Reply chan<- ApproveAnswer
+	Reply chan<- Approval
 }
 
 type Outcome struct {
@@ -56,6 +61,9 @@ type Agent interface {
 	PermissionMode() string
 	SetPermissionMode(string) error
 	PermissionInfo() string
+	Effort() string
+	SetEffort(string) error
+	Detail() ([]string, error)
 	Compact(ctx context.Context) (bool, error)
 }
 

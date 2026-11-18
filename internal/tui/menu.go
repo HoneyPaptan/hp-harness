@@ -11,6 +11,25 @@ type menu struct {
 	offset   int
 }
 
+func menuStep(k Key) int {
+	switch k.Type {
+	case KeyUp, KeyCtrlK:
+		return -1
+	case KeyDown, KeyCtrlJ:
+		return 1
+	}
+	return 0
+}
+
+func (m *menu) step(k Key) bool {
+	delta := menuStep(k)
+	if delta == 0 {
+		return false
+	}
+	m.move(delta)
+	return true
+}
+
 func newMenu(items []string) *menu {
 	return &menu{items: items}
 }
@@ -42,6 +61,15 @@ func (m *menu) move(delta int) {
 		return
 	}
 	m.selected = (m.selected + delta + n) % n
+	m.keepVisible()
+}
+
+func (m *menu) jump(index int) {
+	n := len(m.matches())
+	if n == 0 {
+		return
+	}
+	m.selected = min(max(index, 0), n-1)
 	m.keepVisible()
 }
 

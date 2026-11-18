@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strconv"
+	"strings"
 	"unicode"
 )
 
@@ -90,4 +91,15 @@ func slashCompletionItems() []string {
 
 func newSlashCompletion() *completion {
 	return &completion{menu: newMenu(slashCompletionItems()), kind: completeSlash}
+}
+
+const slashRowPad = 14
+
+func slashRows(names []string) []string {
+	rows := make([]string, len(names))
+	for i, name := range names {
+		full := "/" + name
+		rows[i] = full + strings.Repeat(" ", max(slashRowPad-len(full), 1)) + slashSummary(full)
+	}
+	return rows
 }

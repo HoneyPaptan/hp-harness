@@ -375,6 +375,9 @@ func (s *Session) crewPrompt() string {
 }
 
 func (s *Session) footer() string {
+	if s.hint != "" {
+		return s.hint
+	}
 	line := footerLine(s.cfg.Agent)
 	switch {
 	case s.crewBrief != "":

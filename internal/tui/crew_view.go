@@ -10,14 +10,17 @@ import (
 )
 
 const (
-	crewViewHint   = "↑ ↓ select · Enter follow"
-	crewLiveHint   = "Esc goes back to the tasks"
+	crewViewHint   = "↑ ↓ or 1-9 select · Enter follow"
+	crewBackHint   = "Esc goes back"
 	crewWaitNote   = "waiting for the task to start"
-	crewBackNote   = "Esc goes back to the tasks"
-	titleCells     = 24
-	statusCells    = 14
-	runCells       = 22
 	crewHeaderRule = "── "
+	rowMarkCells   = 2
+	rowNumberCells = 3
+	statusCells    = 13
+	changedCells   = 8
+	titleMinCells  = 16
+	noRunID        = "-"
+	hintJoin       = " · "
 )
 
 type crewView struct {
@@ -25,7 +28,7 @@ type crewView struct {
 	menu *menu
 	live *crewLive
 	ask  *viewAsk
-	diff *diffView
+	diff *pager
 }
 
 type viewAsk struct {
@@ -56,25 +59,45 @@ func (s *Session) crewOpen(agent CrewAgent, id string) {
 }
 
 func (s *Session) openCrewView(snap crewview.Snapshot) {
-	s.view = &crewView{snap: snap, menu: newMenu(crewRows(snap))}
+	s.view = &crewView{snap: snap, menu: newMenu(crewRows(snap, s.cfg.Width()))}
 	s.armViewTick()
 	s.dirty = true
 }
 
-func crewRows(snap crewview.Snapshot) []string {
+func crewRows(snap crewview.Snapshot, width int) []string {
+	title := titleCells(snap, width)
 	rows := make([]string, len(snap.Rows))
 	for i, r := range snap.Rows {
-		rows[i] = padCut(r.Title, titleCells) + " " + padCut(r.Status, statusCells) + " " + padCut(r.RunID, runCells) + " " + r.Changed
+		rows[i] = fmt.Sprintf("%2d ", i+1) + padCut(r.Title, title) + " " + padCut(r.Status, statusCells) + " " + r.Changed
 	}
 	return rows
 }
 
-func padCut(text string, cells int) string {
-	runes := []rune(text)
-	if len(runes) > cells {
-		return string(runes[:cells-1]) + "…"
+func titleCells(snap crewview.Snapshot, width int) int {
+	longest := 0
+	for _, r := range snap.Rows {
+		longest = max(longest, rowWidth(r.Title))
 	}
-	return text + strings.Repeat(" ", cells-len(runes))
+	free := width - rowMarkCells - rowNumberCells - statusCells - changedCells - 2
+	return min(longest, max(free, titleMinCells))
+}
+
+func padCut(text string, cells int) string {
+	if rowWidth(text) > cells {
+		text = fitRow(text, cells)
+	}
+	return text + strings.Repeat(" ", max(cells-rowWidth(text), 0))
+}
+
+func rowDetail(r crewview.Row) string {
+	var parts []string
+	if r.Detail != "" {
+		parts = append(parts, r.Status+": "+r.Detail)
+	}
+	if r.RunID != "" && r.RunID != noRunID {
+		parts = append(parts, "run "+r.RunID)
+	}
+	return strings.Join(parts, " · ")
 }
 
 func (s *Session) viewKey(k Key) {
@@ -90,15 +113,21 @@ func (s *Session) viewKey(k Key) {
 		s.askKey(k)
 		return
 	}
+	if s.view.menu.step(k) {
+		s.dirty = true
+		return
+	}
 	switch k.Type {
-	case KeyUp:
-		s.view.menu.move(-1)
-		s.dirty = true
-	case KeyDown:
-		s.view.menu.move(1)
-		s.dirty = true
 	case KeyEnter:
 		s.followTask()
+	case KeyHome:
+		s.selectTask(0)
+	case KeyEnd:
+		s.selectTask(len(s.view.snap.Rows) - 1)
+	case KeyPgUp:
+		s.selectTask(s.view.menu.selected - menuRows)
+	case KeyPgDn:
+		s.selectTask(s.view.menu.selected + menuRows)
 	case KeyRune:
 		s.viewRune(k.Rune)
 	case KeyEsc, KeyCtrlC:
@@ -128,9 +157,27 @@ func (s *Session) selectedRow() (crewview.Row, bool) {
 	return rows[min(s.view.menu.selected, len(rows)-1)], true
 }
 
+func (s *Session) selectTask(index int) {
+	s.view.menu.jump(index)
+	s.dirty = true
+}
+
 func (s *Session) viewRune(r rune) {
 	agent := s.cfg.Agent.(CrewAgent)
 	id := s.view.snap.ID
+	switch {
+	case r >= '1' && r <= '9':
+		if index := int(r - '1'); index < len(s.view.snap.Rows) {
+			s.selectTask(index)
+		}
+		return
+	case r == 'g':
+		s.selectTask(0)
+		return
+	case r == 'G':
+		s.selectTask(len(s.view.snap.Rows) - 1)
+		return
+	}
 	if r == 'p' {
 		if s.view.snap.Paused {
 			s.crewAction(func() error { return agent.CrewUnpause(id) })
@@ -208,17 +255,40 @@ func (s *Session) crewAction(do func() error) {
 }
 
 func (s *Session) viewHint() string {
-	parts := []string{crewViewHint}
+	var parts []string
+	if total := len(s.view.snap.Rows); total > menuRows {
+		parts = append(parts, fmt.Sprintf("%d of %d", s.view.menu.selected+1, total))
+	}
+	parts = append(parts, crewViewHint)
 	if row, ok := s.selectedRow(); ok {
 		for _, r := range row.Keys {
 			parts = append(parts, string(r)+" "+viewKeyVerbs[r])
 		}
 	}
-	pause := "p pause"
-	if s.view.snap.Paused {
-		pause = "p resume"
+	switch {
+	case s.view.snap.Paused:
+		parts = append(parts, "p resume")
+	case !s.view.snap.Done:
+		parts = append(parts, "p pause")
 	}
-	return strings.Join(append(parts, pause, "Esc closes"), " · ")
+	return wrapHint(append(parts, "Esc closes"), s.cfg.Width())
+}
+
+func wrapHint(parts []string, width int) string {
+	var lines []string
+	line := ""
+	for _, part := range parts {
+		switch {
+		case line == "":
+			line = part
+		case rowWidth(line)+rowWidth(hintJoin)+rowWidth(part) > width:
+			lines = append(lines, line)
+			line = part
+		default:
+			line += hintJoin + part
+		}
+	}
+	return strings.Join(append(lines, line), "\n")
 }
 
 func (s *Session) liveKey(k Key) {
@@ -292,8 +362,8 @@ func (s *Session) refreshTasks() {
 		s.closeCrewView()
 		return
 	}
-	rows := crewRows(snap)
-	if strings.Join(rows, "\n") != strings.Join(s.view.menu.items, "\n") || snap.Paused != s.view.snap.Paused || rowKeys(snap) != rowKeys(s.view.snap) {
+	rows := crewRows(snap, s.cfg.Width())
+	if strings.Join(rows, "\n") != strings.Join(s.view.menu.items, "\n") || viewSignature(snap) != viewSignature(s.view.snap) {
 		s.dirty = true
 	}
 	s.view.snap = snap
@@ -302,12 +372,12 @@ func (s *Session) refreshTasks() {
 	s.view.menu.keepVisible()
 }
 
-func rowKeys(snap crewview.Snapshot) string {
-	keys := make([]string, len(snap.Rows))
-	for i, r := range snap.Rows {
-		keys[i] = r.Keys
+func viewSignature(snap crewview.Snapshot) string {
+	parts := []string{strconv.FormatBool(snap.Paused), strconv.FormatBool(snap.Done)}
+	for _, r := range snap.Rows {
+		parts = append(parts, r.Keys, r.Detail, r.RunID)
 	}
-	return strings.Join(keys, ",")
+	return strings.Join(parts, "\x00")
 }
 
 func (s *Session) pollLive() {
@@ -334,7 +404,6 @@ func (s *Session) pollLive() {
 		for _, line := range chunk.Trailer {
 			s.note(line)
 		}
-		s.note(crewBackNote)
 		live.done = true
 	}
 	s.dirty = true
@@ -342,13 +411,15 @@ func (s *Session) pollLive() {
 
 func (s *Session) drawView() {
 	if s.view.diff != nil {
-		s.drawDiff()
+		s.drawPager(s.view.diff)
 		return
 	}
 	if s.view.live != nil {
-		prompt := "following " + s.view.snap.Rows[s.view.live.index].Title + " · "
-		hint := "Esc goes back"
-		_ = s.renderer.Draw(prompt+hint, nil, 0, s.footer())
+		verb := "following "
+		if s.view.live.done {
+			verb = "end of "
+		}
+		_ = s.renderer.Draw(verb+s.view.snap.Rows[s.view.live.index].Title+" · "+crewBackHint, nil, 0, s.footer())
 		return
 	}
 	rows, sel := s.view.menu.window()
@@ -356,12 +427,13 @@ func (s *Session) drawView() {
 	if s.view.ask != nil {
 		more = s.view.ask.text
 	}
-	if n := s.view.menu.moreHidden(); n > 0 {
-		more = "+" + strconv.Itoa(n) + " more · " + more
-	}
 	prompt := fmt.Sprintf("crew %s · %s", s.view.snap.ID, s.view.snap.Label)
 	if s.view.snap.Paused {
 		prompt += " · paused"
 	}
-	_ = s.renderer.DrawMenu(prompt, nil, 0, rows, sel, "", more, s.footer())
+	note := ""
+	if row, ok := s.selectedRow(); ok && s.view.ask == nil {
+		note = rowDetail(row)
+	}
+	_ = s.renderer.DrawMenu(prompt, nil, 0, rows, sel, note, more, s.footer())
 }

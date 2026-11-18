@@ -164,25 +164,25 @@ func (a *sessionAgent) PermissionMode() string {
 	return modeString(a.permMode)
 }
 
-func (a *sessionAgent) permissionAsk(ctx context.Context, action permit.Action) askAnswer {
+func (a *sessionAgent) permissionAsk(ctx context.Context, action permit.Action) (askAnswer, string) {
 	emit := a.turnEmit
 	if emit == nil {
-		return askNo
+		return askNo, ""
 	}
-	ch := make(chan tui.ApproveAnswer, 1)
+	ch := make(chan tui.Approval, 1)
 	emit(tui.Event{Kind: tui.EventApprove, Text: action.String(), Reply: ch})
 	select {
-	case ans := <-ch:
-		switch ans {
+	case got := <-ch:
+		switch got.Answer {
 		case tui.ApproveYes:
-			return askYes
+			return askYes, ""
 		case tui.ApproveAlways:
-			return askAlways
+			return askAlways, ""
 		default:
-			return askNo
+			return askNo, got.Note
 		}
 	case <-ctx.Done():
-		return askNo
+		return askNo, ""
 	}
 }
 
@@ -484,9 +484,13 @@ var efforts = map[string]bool{"": true, "none": true, "minimal": true, "low": tr
 
 func checkEffort(effort string) error {
 	if !efforts[effort] {
-		return usagef("unknown effort %q", effort)
+		return usagef("unknown effort %q, use none, minimal, low, medium, high, xhigh or max", effort)
 	}
 	return nil
+}
+
+func (a *sessionAgent) Effort() string {
+	return a.opts.effort
 }
 
 func (a *sessionAgent) SetEffort(effort string) error {

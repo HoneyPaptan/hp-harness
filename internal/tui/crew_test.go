@@ -410,7 +410,7 @@ func TestCrewBusyTurn(t *testing.T) {
 	a.files["plan.md"] = []string{"a", "b"}
 	a.script = scriptOf(blockTurn)
 	h := startCrewSession(t, a)
-	h.play([]step{{keys: "hello\r"}, {turn: true}, {wait: "partial"}, {keys: "\x1b"}, {wait: "interrupted"}, {keys: "/crew plan.md\r"}, {wait: crewBusyNote}})
+	h.play([]step{{keys: "hello\r"}, {turn: true}, {wait: "partial"}, {keys: "\x1b"}, {wait: escStopHint}, {keys: "\x1b"}, {wait: "interrupted"}, {keys: "/crew plan.md\r"}, {wait: crewBusyNote}})
 	if a.startedCount() != 0 {
 		t.Fatalf("started %d", a.startedCount())
 	}
