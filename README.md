@@ -134,7 +134,7 @@ The keys follow the usual terminal habits, and `/help` lists them:
 | `Ctrl-A`, `Ctrl-E` | move to the start or end of the line |
 | `Ctrl-W`, `Ctrl-U`, `Ctrl-K` | delete a word, to the line start, to the line end; `Ctrl-Y` pastes it back |
 
-In lists (the model picker, `hp -r`, the suggestions for `/` and `@`), `↑ ↓` or `Ctrl-K` and `Ctrl-J` move, typing filters, `Enter` chooses and `Esc` closes. A permission prompt takes `1`, `2` or `3` (or `y`, `a`, `n`); `Ctrl-C` answers no, and `Esc` answers no and stops the turn.
+In lists (the model picker, `hp -r`, the suggestions for `/` and `@`), `↑ ↓` or `Ctrl-K` and `Ctrl-J` move, typing filters, `Enter` chooses and `Esc` closes. A permission prompt takes `1`, `2` or `3` (or `y`, `a`, `n`); `Ctrl-C` answers no, and `Esc` answers no and stops the turn. `Tab` on Yes or No opens a note: with No the model reads it as the reason right away, with Yes it is queued and sent when the turn ends.
 
 ## Scripting
 

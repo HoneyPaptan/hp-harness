@@ -26,10 +26,15 @@ const (
 	ApproveNo
 )
 
+type Approval struct {
+	Answer ApproveAnswer
+	Note   string
+}
+
 type Event struct {
 	Kind  EventKind
 	Text  string
-	Reply chan<- ApproveAnswer
+	Reply chan<- Approval
 }
 
 type Outcome struct {

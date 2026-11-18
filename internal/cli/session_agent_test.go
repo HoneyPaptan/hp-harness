@@ -219,7 +219,7 @@ func TestSessionAgentAskWriteApprove(t *testing.T) {
 				t.Errorf("action %q", ev.Text)
 			}
 			approved <- struct{}{}
-			ev.Reply <- tui.ApproveYes
+			ev.Reply <- tui.Approval{Answer: tui.ApproveYes}
 		}
 	})
 	if err != nil {
@@ -242,7 +242,7 @@ func TestSessionAgentAskAlwaysSkipsSecond(t *testing.T) {
 	_, err := a.Send(context.Background(), "go", func(ev tui.Event) {
 		if ev.Kind == tui.EventApprove {
 			n++
-			ev.Reply <- tui.ApproveAlways
+			ev.Reply <- tui.Approval{Answer: tui.ApproveAlways}
 		}
 	})
 	if err != nil {
@@ -261,7 +261,7 @@ func TestSessionAgentAskNoHeld(t *testing.T) {
 	a := askModeAgent(t, fp)
 	_, err := a.Send(context.Background(), "go", func(ev tui.Event) {
 		if ev.Kind == tui.EventApprove {
-			ev.Reply <- tui.ApproveNo
+			ev.Reply <- tui.Approval{Answer: tui.ApproveNo}
 		}
 	})
 	if err != nil {

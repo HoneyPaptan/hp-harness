@@ -21,7 +21,16 @@ const (
 	askNo
 )
 
-type askFunc func(ctx context.Context, action permit.Action) askAnswer
+type askFunc func(ctx context.Context, action permit.Action) (askAnswer, string)
+
+const declinedReason = "declined by the user"
+
+func declined(note string) core.Verdict {
+	if note == "" {
+		return core.Verdict{Allow: false, Reason: declinedReason}
+	}
+	return core.Verdict{Allow: false, Reason: declinedReason + ": " + note}
+}
 
 type gateReview func(ctx context.Context, action permit.Action, msgs []provider.Message) core.Verdict
 
@@ -48,16 +57,15 @@ func newGate(h host.Host, mode func() permit.Mode, rules []permit.Rule, grants *
 			if ask == nil {
 				return core.Verdict{Allow: false, Reason: "needs approval: run it in a session or use --full-access"}
 			}
-			switch ask(ctx, a) {
+			answer, note := ask(ctx, a)
+			switch answer {
 			case askYes:
 				return core.Verdict{Allow: true}
 			case askAlways:
 				grants.Add(a)
 				return core.Verdict{Allow: true}
-			case askNo:
-				return core.Verdict{Allow: false, Reason: "declined by the user"}
 			default:
-				return core.Verdict{Allow: false, Reason: "declined by the user"}
+				return declined(note)
 			}
 		case permit.Review:
 			return review(ctx, a, msgs)
