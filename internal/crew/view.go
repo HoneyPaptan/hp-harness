@@ -113,15 +113,33 @@ func (s Service) Follow(id string, index, offset int) (crewview.Chunk, error) {
 		return crewview.Chunk{Ended: true, Trailer: s.trailer(st, t, "")}, nil
 	}
 	ended := s.taskEnded(t) && !st.verifyPending(t)
-	data, _ := os.ReadFile(runLogPath(s.Env.Getenv, t.RunID))
-	if offset > len(data) {
-		offset = 0
-	}
-	chunk := crewview.Chunk{Text: string(data[offset:]), Offset: len(data), Ended: ended}
+	path := runLogPath(s.Env.Getenv, t.RunID)
+	text, end := readLogFrom(path, offset)
+	chunk := crewview.Chunk{Text: text, Offset: end, Ended: ended}
 	if ended {
-		chunk.Trailer = s.trailer(st, t, string(data))
+		whole, _ := os.ReadFile(path)
+		chunk.Trailer = s.trailer(st, t, string(whole))
 	}
 	return chunk, nil
+}
+
+func readLogFrom(path string, offset int) (string, int) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", 0
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return "", 0
+	}
+	size := int(info.Size())
+	if offset > size {
+		offset = 0
+	}
+	buf := make([]byte, size-offset)
+	n, _ := f.ReadAt(buf, int64(offset))
+	return string(buf[:n]), offset + n
 }
 
 func (s Service) taskEnded(t *Task) bool {

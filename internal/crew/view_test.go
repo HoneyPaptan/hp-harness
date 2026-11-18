@@ -268,3 +268,31 @@ func TestListShowsLabelNotGeneratedName(t *testing.T) {
 		t.Fatalf("%v %v", lines, err)
 	}
 }
+
+func TestReadLogFromReturnsOnlyNewBytes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.log")
+	if err := os.WriteFile(path, []byte("one\ntwo\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name     string
+		path     string
+		offset   int
+		wantText string
+		wantEnd  int
+	}{
+		{"from the start", path, 0, "one\ntwo\n", 8},
+		{"from the middle", path, 4, "two\n", 8},
+		{"nothing new", path, 8, "", 8},
+		{"log shrank", path, 99, "one\ntwo\n", 8},
+		{"no log yet", path + ".missing", 3, "", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			text, end := readLogFrom(tc.path, tc.offset)
+			if text != tc.wantText || end != tc.wantEnd {
+				t.Fatalf("got %q end %d, want %q end %d", text, end, tc.wantText, tc.wantEnd)
+			}
+		})
+	}
+}
